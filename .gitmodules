@@ -1,0 +1,6 @@
+[submodule "Middlewares/Third_Party/Anjay"]
+	path = Middlewares/Third_Party/Anjay
+	url = https://github.com/AVSystem/Anjay.git
+[submodule "Middlewares/Third_Party/mbedtls"]
+	path = Middlewares/Third_Party/mbedtls
+	url = https://github.com/ARMmbed/mbedtls.git
