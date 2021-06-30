@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) YYYY STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -51,7 +51,9 @@ at_status_t fCmdBuild_CGDCONT_BG96(atparser_context_t *p_atp_ctxt, atcustom_mode
 at_status_t fCmdBuild_QICFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
 at_status_t fCmdBuild_QINDCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
 at_status_t fCmdBuild_QENG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
-
+at_status_t fCmdBuild_QURCCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
+at_status_t fCmdBuild_QPSMEXTCFG(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
+at_status_t fCmdBuild_COPS_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
 
 /* BG96 specific analyze commands */
 at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
@@ -73,6 +75,10 @@ at_action_rsp_t fRspAnalyze_QINISTAT_BG96(at_context_t *p_at_ctxt, atcustom_mode
 at_action_rsp_t fRspAnalyze_QCSQ_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos);
 at_action_rsp_t fRspAnalyze_QGMR_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
+                                      const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos);
+at_action_rsp_t fRspAnalyze_QPSMTIMER_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
+                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos);
+at_action_rsp_t fRspAnalyze_COPS_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos);
 /* Exported functions ------------------------------------------------------- */
 

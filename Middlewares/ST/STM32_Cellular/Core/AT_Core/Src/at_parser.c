@@ -33,7 +33,7 @@
 
 /* Private defines -----------------------------------------------------------*/
 #define FILTER_SOCKET_TRACES   (1U)   /* filter display of big frame in trace output */
-#define FILTER_DEFAULT_LENGH   (80U)  /* default lengh to activate the filter */
+#define FILTER_DEFAULT_LENGH   (80U)  /* default length to activate the filter */
 
 /* Private macros ------------------------------------------------------------*/
 #if (USE_TRACE_ATPARSER == 1U)
@@ -276,7 +276,7 @@ at_action_send_t  ATParser_get_ATcmd(at_context_t *p_at_ctxt,
 {
   at_action_send_t action = ATACTION_SEND_NO_ACTION;
 
-  /* init command paramters */
+  /* init command parameters */
   *p_ATcmdSize = 0U;
   reset_current_command(&p_at_ctxt->parser);
 
@@ -289,7 +289,7 @@ at_action_send_t  ATParser_get_ATcmd(at_context_t *p_at_ctxt,
 
   if (action != ATACTION_SEND_ERROR)
   {
-    /* test if cmd is not invalid */
+    /* test if cmd is valid */
     if (p_at_ctxt->parser.current_atcmd.id != CMD_AT_INVALID)
     {
       /* build the command buffer */

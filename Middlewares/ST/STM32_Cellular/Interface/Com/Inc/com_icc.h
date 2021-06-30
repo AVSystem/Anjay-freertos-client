@@ -50,7 +50,7 @@ extern "C" {
   3) com_closeicc to close the icc session
 
   At the moment only one session at a time is possible.
-  This mecanism prevent concurrent access to the ICC
+  This mechanism prevent concurrent access to the ICC
   e.g:
   Application1 request a Select on Master File, then a Select on a 1st level Dedicated File
   but before to have time to interact on a Elementary File in this Dedicated File,
@@ -71,43 +71,44 @@ extern "C" {
 /** @defgroup COM_ICC_Constants Constants
   * @{
   */
-#define COM_ICC_MAX_GENERIC_ACCESS_CMD_SIZE ((uint32_t)256U)
-/** @note
+/** @note COM_ICC_CSIM_MAX_CMD_GENERIC_ACCESS_SZ :
+  * Protocol CSIM is supporting 256 characters
+  * (*1) : apdu send through AT+CSIM is encoded char ASCII
+  */
+#define COM_ICC_CSIM_MAX_CMD_GENERIC_ACCESS_SZ ((uint32_t)(256U * 1U))
+
+/** @note COM_ICC_CSIM_MIN_RSP_GENERIC_ACCESS_SZ :
   4U : to write SW1 and SW2\n
 + 1U : to always write \0 at the end of the string
   */
-#define COM_ICC_MIN_GENERIC_ACCESS_RSP_SIZE ((uint32_t)(4U + 1U))
+#define COM_ICC_CSIM_MIN_RSP_GENERIC_ACCESS_SZ ((uint32_t)(4U + 1U))
+
+#if (USE_ST33 == 1)
+/** @note COM_ICC_NDLC_MAX_CMD_GENERIC_ACCESS_SZ :
+  * Protocol NDLC is supporting 256 characters but not NDLC stack yet
+  * (*2U) : apdu send though NDLC is encoded 2 characters on one byte
+  */
+#define COM_ICC_NDLC_MAX_CMD_GENERIC_ACCESS_SZ ((uint32_t)(253U * 2U))
+
+/** @note COM_ICC_NDLC_MIN_RSP_GENERIC_ACCESS_SZ :
+  *   4U : to write SW1 and SW2\n
+  * + 1U : to always write \0 at the end of the string
+  */
+#define COM_ICC_NDLC_MIN_RSP_GENERIC_ACCESS_SZ ((uint32_t)(4U + 1U))
+#endif /* USE_ST33 == 1 */
 
 /**
   * @}
   */
 
 /* Exported types ------------------------------------------------------------*/
-/** @defgroup COM_ICC_Types Types
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* External variables --------------------------------------------------------*/
-/** @defgroup COM_ICC_Variables Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
-/** @defgroup COM_ICC_Macros Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
 /**
@@ -124,7 +125,7 @@ extern "C" {
   3) com_closeicc to close the icc session
 
   At the moment only one session at a time is possible.
-  This mecanism prevent concurrent access to the ICC
+  This mechanism prevent concurrent access to the ICC
   e.g:
   Application1 request a Select on Master File, then a Select on a 1st level Dedicated File
   but before to have time to interact on a Elementary File in this Dedicated File,
@@ -167,11 +168,12 @@ extern "C" {
   * @param  type     - connection type
   * @note   Supported value: COM_SOCK_SEQPACKET
   * @param  protocol - protocol type
-  * @note   Supported value: COM_PROTO_CSIM : communcation to SIM using AT+CSIM command
+  * @note   Supported values: COM_PROTO_CSIM : communication with ICC using AT+CSIM command
+  *                           COM_PROTO_NDLC : communication with ICC using NDLC command
   * @retval int32_t  - icc handle or error value
   * @note   Possible returned value:\n
   *         int32_t > 0            : icc session created; the returned value is the icc handle session\n
-  *         int32_t < 0            : an error occured\n
+  *         int32_t < 0            : an error occurred\n
   *         - COM_ERR_LOCKED       : a icc session is already in progress
   */
 int32_t com_icc(int32_t family, int32_t type, int32_t protocol);
@@ -180,23 +182,25 @@ int32_t com_icc(int32_t family, int32_t type, int32_t protocol);
   * @brief  ICC process a generic access
   * @note   Process a ICC request for generic access
   * @param  icc            - icc handle obtained with com_icc() call
-  * @param  buf_cmd        - pointer to application data buffer containg the command to send\n
+  * @param  p_buf_cmd      - pointer to application data buffer containing the command to send\n
   *                        data is a command APDU in format as described in ETSI TS 102 221
   * @param  len_cmd        - length of the buffer command (in bytes)
-  * @note   buf_cmd (and so len_cmd) maximum length accepted is COM_ICC_MAX_GENERIC_ACCESS_CMD_SIZE bytes\n
-  *         buf_cmd[len_cmd] must be '\0' in order to check cohesion with len_cmd.\n
-  *         if len_cmd > COM_ICC_MAX_GENERIC_ACCESS_CMD_SIZE or buf_cmd[len_cmd] != '\0'
+  * @note   Max length of p_buf_cmd (and so len_cmd) is COM_ICC_xxxx_MAX_CMD_GENERIC_ACCESS_SZ bytes
+  *         with xxxx = protocol\n
+  *         p_buf_cmd[len_cmd] must be '\0' in order to check cohesion with len_cmd.\n
+  *         if len_cmd > COM_ICC_xxxx_MAX_CMD_GENERIC_ACCESS_SZ or p_buf_cmd[len_cmd] != '\0'
   *         then COM_ERR_PARAMETER is returned\n
   *         e.g: to select Master File:\n
-  *              buf_cmd[15]="00A4000C023F00", sizeof(buf_cmd)=15, len_cmd=14, buf_cmd[0]='0x30'...buf_cmd[14]='\0'
-  * @param  buf_rsp        - pointer to application data buffer to contain the response\n
+  *              p_buf_cmd[15]="00A4000C023F00", len_cmd=14, p_buf_cmd[0]='0x30'...p_buf_cmd[14]='\0'
+  * @param  p_buf_rsp      - pointer to application data buffer to contain the response\n
   *                        data is a response APDU in format as described in ETSI TS 102 221
   * @param  len_rsp        - size max of the buffer response (in bytes)
-  * @note   buf_rsp (and so len_rsp) minimum length accepted is COM_ICC_MIN_GENERIC_ACCESS_RSP_SIZE bytes\n
-  *         if len_rsp < COM_ICC_MIN_GENERIC_ACCESS_RSP_SIZE, COM_ERR_PARAMETER is returned\n
-  *         buf_rsp[MIN(len_rsp, retval)] is always set to '\0'\n
+  * @note   Min length of p_buf_rsp (and so len_rsp)is COM_ICC_xxxx_MIN_RSP_GENERIC_ACCESS_SZ bytes
+  *         with xxxx = protocol\n
+  *         if len_rsp < COM_ICC_xxxx_MIN_RSP_GENERIC_ACCESS_SZ, COM_ERR_PARAMETER is returned\n
+  *         p_buf_rsp[MIN(len_rsp, retval)] is always set to '\0'\n
   *         e.g: if response to select Master File is SW1=90 and SW2=00:\n
-  *              sizeof(buf_rsp)>=5, buf_rsp[]="9000", int32_t=4, buf_rsp[0]='0x39'...buf_rsp[4]='\0'
+  *              p_buf_rsp[]="9000", int32_t resuit=4, p_buf_rsp[0]='0x39'...p_buf_rsp[4]='\0'
   * @retval int32_t        - length of the ICC response or error value
   * @note if int32_t < 0 : an error occurred\n
   *       - COM_ERR_DESCRIPTOR   : icc handle parameter NOK
@@ -205,14 +209,14 @@ int32_t com_icc(int32_t family, int32_t type, int32_t protocol);
   *       - COM_ERR_NOICC        : no icc available to proceed the command
   *       - COM_ERR_GENERAL      : a low level error happened (e.g: no response)\n
   *       if int32_t > 0 :\n
-  *       - if int32_t <= len_rsp, buf_rsp contains the complete ICC response\n
-  *       - if int32_t > len_rsp, only the first bytes of the ICC response are available in buf_rsp\n
-  *         means buf_rsp was too small to copy the complete ICC response\n
+  *       - if int32_t <= len_rsp, p_buf_rsp contains the complete ICC response\n
+  *       - if int32_t > len_rsp, only the first bytes of the ICC response are available in p_buf_rsp\n
+  *         means p_buf_rsp was too small to copy the complete ICC response\n
   *         (in this case int32_t contains the true length of the ICC response)
   */
 int32_t com_icc_generic_access(int32_t icc,
-                               const com_char_t *buf_cmd, int32_t len_cmd,
-                               com_char_t *buf_rsp, int32_t len_rsp);
+                               const com_char_t *p_buf_cmd, int32_t len_cmd,
+                               com_char_t *p_buf_rsp, int32_t len_rsp);
 
 /**
   * @brief  ICC session close

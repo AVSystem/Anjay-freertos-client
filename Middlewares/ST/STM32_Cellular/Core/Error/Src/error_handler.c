@@ -21,26 +21,22 @@
 #include "error_handler.h"
 #include "plf_config.h"
 
-
 /* Private macros ------------------------------------------------------------*/
 #if (USE_TRACE_ERROR_HANDLER == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
-#define PRINT_INFO(format, args...) TRACE_PRINT(DBG_CHAN_ERROR_LOGGER, DBL_LVL_P0, "" format "\n\r", ## args)
-#define PRINT_DBG(format, args...)  TRACE_PRINT(DBG_CHAN_ERROR_LOGGER, DBL_LVL_P1, "" format "\n\r", ## args)
+#define PRINT_INFO(format, args...) TRACE_PRINT(DBG_CHAN_ERROR_HANDLER, DBL_LVL_P0, "" format "\n\r", ## args)
 #else
 #include <stdio.h>
 #define PRINT_INFO(format, args...)  (void)printf("Error Handler:" format "\n\r", ## args);
-#define PRINT_DBG(format, args...)   (void)printf("Error Handler" format "\n\r", ## args);
 #endif /* USE_PRINTF */
 #else
 #define PRINT_INFO(...)   __NOP(); /* Nothing to do */
-#define PRINT_DBG(...)    __NOP(); /* Nothing to do */
 #endif /* USE_TRACE_ERROR_HANDLER */
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private defines -----------------------------------------------------------*/
-#define MAX_ERROR_ENTRIES (32U)     /* log only last MAX_ERROR_ENTRIES erros */
+#define MAX_ERROR_ENTRIES (32U)     /* log only last MAX_ERROR_ENTRIES errors */
 #define MAX_ERROR_COUNTER (0xFFFFU) /* count how many errors have been logged since the beginning */
 
 /* Private variables ---------------------------------------------------------*/
@@ -59,7 +55,7 @@ void ERROR_Handler_Init(void)
   /* initialize error array */
   for (i = 0U; i < MAX_ERROR_ENTRIES; i++)
   {
-    errors_table[i].channel = DBG_CHAN_ERROR_LOGGER; /* default value = self (ie no error) */
+    errors_table[i].channel = DBG_CHAN_ERROR_HANDLER; /* default value = self (ie no error) */
     errors_table[i].errorId = 0;
     errors_table[i].gravity = ERROR_NO;
   }
@@ -72,6 +68,10 @@ void ERROR_Handler(dbg_channels_t chan, int32_t errorId, error_gravity_t gravity
   if (error_counter == 0U)
   {
     ERROR_Handler_Init();
+#if (USE_PRINTF == 0U)
+    /* Error Handler may use trace print */
+    traceIF_init();
+#endif /* (USE_PRINTF == 0U)  */
   }
 
   /* log the error */

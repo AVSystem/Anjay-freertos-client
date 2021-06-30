@@ -40,7 +40,7 @@ CS_Bool_t osCDS_cellular_service_init(void);
 
 /**
   * @brief  Read the actual signal quality seen by Modem .
-  * @note   Call CS_get_signal_quality with mutex acces protection
+  * @note   Call CS_get_signal_quality with mutex access protection
   * @param  same parameters as the CS_get_signal_quality function
   * @retval CS_Status_t
   */
@@ -66,11 +66,11 @@ socket_handle_t osCDS_socket_create(CS_IPaddrType_t addr_type,
                                     CS_PDN_conf_id_t cid);
 
 /**
-  * @brief  Set the callbacks to use when datas are received or sent.
+  * @brief  Set the callbacks to use when data are received or sent.
   * @note   This function has to be called before to use a socket.
   * @param  sockHandle Handle of the socket
-  * @param  data_ready_cb Pointer to the callback function to call when datas are received
-  * @param  data_sent_cb Pointer to the callback function to call when datas has been sent
+  * @param  data_ready_cb Pointer to the callback function to call when data are received
+  * @param  data_sent_cb Pointer to the callback function to call when data has been sent
   *         This parameter is only used for asynchronous behavior (NOT IMPLEMENTED)
   * @retval CS_Status_t
   */
@@ -127,7 +127,7 @@ CS_Status_t osCDS_socket_connect(socket_handle_t sockHandle,
 
 /**
   * @brief  Listen to clients (for socket server mode).
-  * @note   Function not implemeted yet
+  * @note   Function not implemented yet
   * @note   Call CDS_socket_listen with mutex access protection
   * @param  same parameters as the CDS_socket_listen function
   * @retval CS_Status_t
@@ -136,7 +136,7 @@ CS_Status_t osCDS_socket_listen(socket_handle_t sockHandle);
 
 /**
   * @brief  Send data over a socket to a remote server.
-  * @note   This function is blocking until the data is transfered or when the
+  * @note   This function is blocking until the data is transferred or when the
   *         timeout to wait for transmission expires.
   * @note   Call CDS_socket_send with mutex access protection
   * @param  same parameters as the CDS_socket_send function
@@ -159,7 +159,7 @@ int32_t osCDS_socket_receive(socket_handle_t sockHandle,
 
 /**
   * @brief  Send data over a socket to a remote server.
-  * @note   This function is blocking until the data is transfered or when the
+  * @note   This function is blocking until the data is transferred or when the
   *         timeout to wait for transmission expires.
   * @note   Call CDS_socket_sendto with mutex access protection
   * @param  same parameters as the CDS_socket_sendto function
@@ -277,7 +277,7 @@ CS_Status_t osCDS_init_modem(CS_ModemInit_t init,
 
 /**
   * @brief  Request the Modem to register to the Cellular Network.
-  * @note   This function is used to select the operator. It returns a detailled
+  * @note   This function is used to select the operator. It returns a detailed
   *         network registration status.
   * @note   Call CS_register_net with mutex access protection
   * @param  same parameters as the CS_register_net function
@@ -285,6 +285,13 @@ CS_Status_t osCDS_init_modem(CS_ModemInit_t init,
   */
 CS_Status_t osCDS_register_net(CS_OperatorSelector_t *p_operator,
                                CS_RegistrationStatus_t *p_reg_status);
+
+/**
+  * @brief  Request detach from packet domain.
+  * @param  none.
+  * @retval CS_Status_t
+  */
+CS_Status_t osCS_detach_PS_domain(void);
 
 /**
   * @brief  Request for packet attach status.
@@ -352,7 +359,7 @@ CS_Status_t osCDS_resume_data(void);
 
 /**
   * @brief  DNS request
-  * @note   Get IP address of the specifed hostname
+  * @note   Get IP address of the specified hostname
   * @note   Call CS_dns_request with mutex access protection
   * @param  same parameters as the CS_dns_request function
   * @retval CS_Status_t
@@ -440,7 +447,7 @@ void osCCS_get_release_cs_resource(void);
   * @param  power_config Pointer to the structure describing the power parameters
   * @retval CS_Status_t
   */
-CS_Status_t osCS_InitPowerConfig(CS_init_power_config_t *p_power_config);
+CS_Status_t osCS_InitPowerConfig(CS_init_power_config_t *p_power_config, cellular_power_status_callback_t lp_status);
 
 
 /**

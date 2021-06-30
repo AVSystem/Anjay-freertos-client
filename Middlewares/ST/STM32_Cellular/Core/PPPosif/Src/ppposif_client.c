@@ -31,13 +31,13 @@
 #include "ppposif.h"
 #include "ipc_uart.h"
 #include "ppposif_ipc.h"
-#include "cmsis_os_misrac2012.h"
+#include "rtosal.h"
 
 #include "main.h"
 #include "error_handler.h"
 #include "trace_interface.h"
 #include "dc_common.h"
-#include "cellular_datacache.h"
+#include "cellular_service_datacache.h"
 
 /* Private defines -----------------------------------------------------------*/
 #define IPC_DEVICE IPC_DEVICE_0
@@ -60,7 +60,7 @@ static void ppp_notify_phase_client_cb(ppp_pcb *pcb, u8_t phase, void *ctx);
 static void ppposif_client_running(ppp_pcb *pcb);
 static void ppposif_client_dead(void);
 static void ppposif_reconf(void);
-static void ppposif_client_thread(const void *argument);
+static void ppposif_client_thread(void *argument);
 static void ppposif_config_timeout_timer_callback(void const *argument);
 
 /* Functions Definition ------------------------------------------------------*/
@@ -85,7 +85,7 @@ the link, which should be self-explanatory:
 static void ppp_notify_phase_client_cb(ppp_pcb *pcb, u8_t phase, void *ctx)
 {
   UNUSED(ctx);
-  (void)osDelay(500U); /* hack, add a delay to avoid race condition with Modem which sends an LCP Request earlier.
+  (void)rtosalDelay(500U); /* hack, add a delay to avoid race condition with Modem which sends an LCP Request earlier.
                    To be improved by syncing the input reading and PPP state machine */
   switch (phase)
   {
@@ -120,10 +120,10 @@ static void ppp_notify_phase_client_cb(ppp_pcb *pcb, u8_t phase, void *ctx)
 }
 
 /* ppposif thread */
-static void ppposif_client_thread(const void *argument)
+static void ppposif_client_thread(void *argument)
 {
   UNUSED(argument);
-  (void)osSemaphoreWait(sem_ppp_init_client, RTOS_WAIT_FOREVER);
+  (void)rtosalSemaphoreAcquire(sem_ppp_init_client, RTOSAL_WAIT_FOREVER);
   while (true)
   {
     ppposif_input(&gnetif_ppp_client, ppp_pcb_client, IPC_DEVICE);
@@ -133,43 +133,38 @@ static void ppposif_client_thread(const void *argument)
 
 static void ppposif_client_running(ppp_pcb *pcb)
 {
-  dc_ppp_client_info_t ppp_client_info;
+  dc_cellular_info_t cellular_info;
   struct netif *pppif;
   pppif = ppp_netif((pcb));
 
-  (void)osTimerStop(ppposif_config_timeout_timer_handle);
+  (void)rtosalTimerStop(ppposif_config_timeout_timer_handle);
 
 
-  (void)dc_com_read(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
-  ppp_client_info.rt_state = DC_SERVICE_ON;
-  ppp_client_info.ip_addr = pppif->ip_addr;
-  ppp_client_info.gw      = pppif->gw;
-  ppp_client_info.netmask = pppif->netmask;
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
+  cellular_info.rt_state_ppp = DC_SERVICE_ON;
+  cellular_info.ip_addr = pppif->ip_addr;
 
-  (void)dc_com_write(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
+  (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
 }
 
 static void ppposif_client_dead(void)
 {
-  dc_ppp_client_info_t ppp_client_info;
+  dc_cellular_info_t cellular_info;
 
-  (void)dc_com_read(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
-  if (ppp_client_info.rt_state == DC_SERVICE_SHUTTING_DOWN)
-  {
-    PRINT_PPPOSIF("ppposif_client_dead: DC_SERVICE_OFF\r\n")
-    ppp_client_info.rt_state = DC_SERVICE_OFF;
-    (void)dc_com_write(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
-  }
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
+  PRINT_PPPOSIF("ppposif_client_dead: DC_SERVICE_OFF\r\n")
+  cellular_info.rt_state_ppp = DC_SERVICE_OFF;
+  (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
 }
 
 static void ppposif_reconf(void)
 {
-  dc_ppp_client_info_t ppp_client_info;
+  dc_cellular_info_t cellular_info;
   (void)ppp_close(ppp_pcb_client, 0U);
   PRINT_PPPOSIF("ppposif_config_timeout_timer_callback")
-  (void)dc_com_read(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
-  ppp_client_info.rt_state = DC_SERVICE_FAIL;
-  (void)dc_com_write(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
+  cellular_info.rt_state_ppp = DC_SERVICE_FAIL;
+  (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
 }
 
 static void ppposif_config_timeout_timer_callback(void const *argument)
@@ -204,26 +199,22 @@ ppposif_status_t ppposif_client_start(void)
 
   PRINT_PPPOSIF("ppposif_client_config")
 
-  osSemaphoreDef(SEM_PPP_CLIENT_INIT);
-  sem_ppp_init_client = osSemaphoreCreate(osSemaphore(SEM_PPP_CLIENT_INIT), 1);
-  (void)osSemaphoreWait(sem_ppp_init_client, RTOS_WAIT_FOREVER);
+  sem_ppp_init_client = rtosalSemaphoreNew((const rtosal_char_t *)"SEM_PPP_CLIENT_INIT", (uint16_t) 1U);
+  (void)rtosalSemaphoreAcquire(sem_ppp_init_client, RTOSAL_WAIT_FOREVER);
 
-  osTimerDef(PPPOSIF_CONFIG_TIMEOUT_timer, ppposif_config_timeout_timer_callback);
-  ppposif_config_timeout_timer_handle = osTimerCreate(osTimer(PPPOSIF_CONFIG_TIMEOUT_timer), osTimerOnce, NULL);
+  ppposif_config_timeout_timer_handle = rtosalTimerNew((const rtosal_char_t *)"PPPOSIF_CONFIG_TIMEOUT_timer",
+                                                       (os_ptimer)ppposif_config_timeout_timer_callback,
+                                                       osTimerOnce,
+                                                       NULL);
 
-  osThreadDef(PPPOS_CLIENT, ppposif_client_thread, PPPOSIF_CLIENT_THREAD_PRIO, 0,
-              USED_PPPOSIF_CLIENT_THREAD_STACK_SIZE);
-  pppClientThreadId = osThreadCreate(osThread(PPPOS_CLIENT), NULL);
+  pppClientThreadId = rtosalThreadNew((const rtosal_char_t *)"PPPosifClt",
+                                      (os_pthread) ppposif_client_thread,
+                                      PPPOSIF_CLIENT_THREAD_PRIO,
+                                      (uint32_t)PPPOSIF_CLIENT_THREAD_STACK_SIZE,
+                                      NULL);
   if (pppClientThreadId == NULL)
   {
     ERROR_Handler(DBG_CHAN_PPPOSIF, 1, ERROR_FATAL);
-  }
-  else
-  {
-#if (USE_STACK_ANALYSIS == 1)
-    (void)stackAnalysis_addStackSizeByHandle(pppClientThreadId,
-                                             USED_PPPOSIF_CLIENT_THREAD_STACK_SIZE);
-#endif /* USE_STACK_ANALYSIS == 1 */
   }
 
   return ret;
@@ -248,8 +239,8 @@ ppposif_status_t ppposif_client_config(void)
     ppp_pcb_client = pppos_create(&gnetif_ppp_client, ppposif_output_cb, ppposif_status_cb, (void *)IPC_DEVICE);
     if (ppp_pcb_client == NULL)
     {
-      ERROR_Handler(DBG_CHAN_PPPOSIF, 3, ERROR_FATAL);
       ret =  PPPOSIF_ERROR;
+      ERROR_Handler(DBG_CHAN_PPPOSIF, 3, ERROR_FATAL);
     }
     else
     {
@@ -266,9 +257,9 @@ ppposif_status_t ppposif_client_config(void)
 
     /*  ppp_set_auth(ppp_pcb_client, PPPAUTHTYPE_PAP, "USER", "PASS"); */
 
-    (void)osTimerStart(ppposif_config_timeout_timer_handle, PPPOSIF_CONFIG_TIMEOUT_VALUE);
+    (void)rtosalTimerStart(ppposif_config_timeout_timer_handle, PPPOSIF_CONFIG_TIMEOUT_VALUE);
     ppp_err = ppp_connect(ppp_pcb_client, 0U);
-    (void)osSemaphoreRelease(sem_ppp_init_client);
+    (void)rtosalSemaphoreRelease(sem_ppp_init_client);
     if (ppp_err != (err_t)ERR_OK)
     {
       ret = PPPOSIF_ERROR;
@@ -285,24 +276,21 @@ ppposif_status_t ppposif_client_config(void)
   */
 ppposif_status_t ppposif_client_close(uint8_t cause)
 {
-  dc_ppp_client_info_t ppp_client_info;
+  dc_cellular_info_t cellular_info;
   PRINT_PPPOSIF("ppposif_client_close")
 
-  (void)osTimerStop(ppposif_config_timeout_timer_handle);
+  (void)rtosalTimerStop(ppposif_config_timeout_timer_handle);
 
   if (cause == PPPOSIF_CAUSE_POWER_OFF)
   {
     PRINT_PPPOSIF("ppposif_client_close : Closing PPP for POWER OFF")
     (void) ppposif_close(ppp_pcb_client);
-    (void)dc_com_read(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
-    ppp_client_info.rt_state = DC_SERVICE_SHUTTING_DOWN;
-    (void)dc_com_write(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
   }
   else
   {
-    (void)dc_com_read(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
-    ppp_client_info.rt_state = DC_SERVICE_FAIL;
-    (void)dc_com_write(&dc_com_db, DC_PPP_CLIENT_INFO, (void *)&ppp_client_info, sizeof(ppp_client_info));
+    (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
+    cellular_info.rt_state_ppp = DC_SERVICE_FAIL;
+    (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
   }
 
 

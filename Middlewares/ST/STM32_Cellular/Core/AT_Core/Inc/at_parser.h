@@ -30,10 +30,7 @@ extern "C" {
 #include "ipc_common.h"
 #include "sysctrl.h"
 #include "plf_config.h"
-
-#if (RTOS_USED == 1)
-#include "cmsis_os_misrac2012.h"
-#endif /* RTOS_USED */
+#include "rtosal.h"
 
 /* Exported constants --------------------------------------------------------*/
 #define AT_CMD_DEFAULT_TIMEOUT    ((uint32_t)3000)
@@ -80,12 +77,10 @@ typedef struct
   /* Parser context */
   atparser_context_t   parser;
 
-#if (RTOS_USED == 1)
   /* RTOS parameters */
   at_action_rsp_t     action_flags;
   at_buf_t            *p_rsp_buf;
   osSemaphoreId       s_SendConfirm_SemaphoreId;
-#endif /* RTOS_USED == 1 */
 
 } at_context_t;
 

@@ -26,16 +26,14 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "plf_config.h"
+#include <stdint.h>
 
-/* Exported constants --------------------------------------------------------*/
-/** @addtogroup COM_Constants
+/** @addtogroup COM_Common
   * @{
   */
 
-/**
-  * @}
-  */
+/* Exported constants --------------------------------------------------------*/
+/* None */
 
 /* Exported types ------------------------------------------------------------*/
 /** @addtogroup COM_Types
@@ -59,7 +57,7 @@ typedef int32_t com_err_t; /*!< Definitions for error constants */
 #define COM_ERR_NONAME      (com_err_t)-10  /*!< Host Name not existing     */
 /* Added value */
 #define COM_ERR_NONETWORK   (com_err_t)-11  /*!< No network to proceed      */
-#define COM_ERR_UNSUPPORTED (com_err_t)-12  /*!< Unsupported functionnality */
+#define COM_ERR_UNSUPPORTED (com_err_t)-12  /*!< Unsupported functionality  */
 #define COM_ERR_STATE       (com_err_t)-13  /*!< Connect rqt but Socket is already connected
                                                  Send/Recv rqt but Socket is not connected
                                                  ... */
@@ -74,28 +72,13 @@ typedef int32_t com_err_t; /*!< Definitions for error constants */
   */
 
 /* External variables --------------------------------------------------------*/
-/** @addtogroup COM_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
-/** @addtogroup COM_Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
-
-/** @addtogroup COM_Functions
-  * @{
-  */
+/* None */
 
 /**
   * @}

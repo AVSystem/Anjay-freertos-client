@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) YYYY STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -41,6 +41,11 @@ sysctrl_status_t SysCtrl_BG96_power_on(sysctrl_device_type_t type);
 sysctrl_status_t SysCtrl_BG96_power_off(sysctrl_device_type_t type);
 sysctrl_status_t SysCtrl_BG96_reset(sysctrl_device_type_t type);
 sysctrl_status_t SysCtrl_BG96_sim_select(sysctrl_device_type_t type, sysctrl_sim_slot_t sim_slot);
+
+/* Note: following functions are not part of standard sysctrl API
+ * They are very specific to this modem and are called by at_custom files of this modem
+ */
+sysctrl_status_t SysCtrl_BG96_wakeup_from_PSM(uint32_t delay);
 
 #ifdef __cplusplus
 }

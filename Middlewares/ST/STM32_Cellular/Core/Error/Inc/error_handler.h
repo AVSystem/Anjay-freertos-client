@@ -40,11 +40,10 @@ typedef enum
 
 typedef struct
 {
-  dbg_channels_t  channel; /* channel where error occured */
-  int32_t             errorId; /* number identifying the error in the channel */
+  dbg_channels_t  channel; /* channel where error occurred */
+  int32_t         errorId; /* number identifying the error in the channel */
   error_gravity_t gravity; /* error gravity */
   uint32_t        count;   /* count how many errors have been logged since the beginning */
-
 } error_handler_decript_t;
 
 /* Exported constants --------------------------------------------------------*/

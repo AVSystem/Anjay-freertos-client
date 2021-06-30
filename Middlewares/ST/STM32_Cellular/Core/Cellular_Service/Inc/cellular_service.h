@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
 #include "at_core.h"
 #include "plf_config.h"
 
@@ -43,7 +44,7 @@ extern "C" {
 #define MAX_SIZE_USERNAME        ((uint16_t) 32U)  /* MAX = 32 characters */
 #define MAX_SIZE_PASSWORD        ((uint16_t) 32U)  /* MAX = 32 characters */
 #define MAX_SIZE_IPADDR          ((uint16_t) 64U)  /* MAX = 64 characters */
-#define MAX_DIREXT_CMD_SIZE      ((uint16_t)(ATCMD_MAX_BUF_SIZE - 10U))
+#define MAX_DIRECT_CMD_SIZE      ((uint16_t)(ATCMD_MAX_BUF_SIZE - 10U))
 
 #define CS_INVALID_SOCKET_HANDLE ((socket_handle_t)-1)
 
@@ -51,13 +52,12 @@ extern "C" {
 typedef int32_t socket_handle_t;
 typedef uint8_t CS_CHAR_t;
 
-/* enum */
-typedef enum
-{
-  CELLULAR_FALSE = 0,
-  CELLULAR_TRUE  = 1,
-} CS_Bool_t;
+/* To ensure backward compatibility */
+typedef bool CS_Bool_t;
+#define CELLULAR_FALSE false
+#define CELLULAR_TRUE  true
 
+/* enum */
 typedef enum
 {
   CELLULAR_OK = 0,                /* No error */
@@ -68,8 +68,7 @@ typedef enum
   CELLULAR_SIM_NOT_INSERTED,       /* SIM error: SIM not inserted */
   CELLULAR_SIM_PIN_OR_PUK_LOCKED,  /* SIM error: SIM locked due to PIN, PIN2, PUK or PUK2 */
   CELLULAR_SIM_INCORRECT_PASSWORD, /* SIM error: SIM password is incorrect */
-  CELLULAR_SIM_ERROR,              /* SIM error: SIM other error */
-
+  CELLULAR_SIM_ERROR               /* SIM error: SIM other error */
 } CS_Status_t;
 
 typedef enum
@@ -92,50 +91,47 @@ typedef enum
   CS_PS_ATTACHED = 1,
 } CS_PSattach_t;
 
-typedef enum
-{
-  CS_NRM_AUTO = 0,
-  CS_NRM_MANUAL = 1,
-  CS_NRM_DEREGISTER = 2,
-  CS_NRM_MANUAL_THEN_AUTO = 4,
-} CS_NetworkRegMode_t;
+/* TS 27.007, <mode> parameter used in AT+COPS */
+typedef uint16_t CS_NetworkRegMode_t;
+#define CS_NRM_AUTO             (CS_NetworkRegMode_t)(0U)
+#define CS_NRM_MANUAL           (CS_NetworkRegMode_t)(1U)
+#define CS_NRM_DEREGISTER       (CS_NetworkRegMode_t)(2U)
+#define CS_NRM_MANUAL_THEN_AUTO (CS_NetworkRegMode_t)(4U)
 
-typedef enum
-{
-  CS_NRS_NOT_REGISTERED_NOT_SEARCHING     = 0,
-  CS_NRS_REGISTERED_HOME_NETWORK          = 1,
-  CS_NRS_NOT_REGISTERED_SEARCHING         = 2,
-  CS_NRS_REGISTRATION_DENIED              = 3,
-  CS_NRS_UNKNOWN                          = 4,
-  CS_NRS_REGISTERED_ROAMING               = 5,
-  CS_NRS_REGISTERED_SMS_ONLY_HOME_NETWORK = 6,
-  CS_NRS_REGISTERED_SMS_ONLY_ROAMING      = 7,
-  CS_NRS_EMERGENCY_ONLY                   = 8,
-  CS_NRS_REGISTERED_CFSB_NP_HOME_NETWORK  = 9,
-  CS_NRS_REGISTERED_CFSB_NP_ROAMING       = 10,
-} CS_NetworkRegState_t;
+/* TS 27.007, <AcT> parameter used in AT+COPS and AT+CEREG */
+typedef uint16_t CS_AccessTechno_t;
+#define  CS_ACT_GSM               (CS_AccessTechno_t)(0U)
+#define  CS_ACT_GSM_COMPACT       (CS_AccessTechno_t)(1U)
+#define  CS_ACT_UTRAN             (CS_AccessTechno_t)(2U)
+#define  CS_ACT_GSM_EDGE          (CS_AccessTechno_t)(3U)
+#define  CS_ACT_UTRAN_HSDPA       (CS_AccessTechno_t)(4U)
+#define  CS_ACT_UTRAN_HSUPA       (CS_AccessTechno_t)(5U)
+#define  CS_ACT_UTRAN_HSDPA_HSUPA (CS_AccessTechno_t)(6U)
+#define  CS_ACT_E_UTRAN           (CS_AccessTechno_t)(7U) /* = LTE Cat.M1 */
+#define  CS_ACT_EC_GSM_IOT        (CS_AccessTechno_t)(8U)
+#define  CS_ACT_E_UTRAN_NBS1      (CS_AccessTechno_t)(9U) /* = LTE Cat.NB1 */
 
-typedef enum
-{
-  CS_ACT_GSM               = 0,
-  CS_ACT_GSM_COMPACT       = 1,
-  CS_ACT_UTRAN             = 2,
-  CS_ACT_GSM_EDGE          = 3,
-  CS_ACT_UTRAN_HSDPA       = 4,
-  CS_ACT_UTRAN_HSUPA       = 5,
-  CS_ACT_UTRAN_HSDPA_HSUPA = 6,
-  CS_ACT_E_UTRAN           = 7, /* = LTE Cat.M1 */
-  CS_ACT_EC_GSM_IOT        = 8,
-  CS_ACT_E_UTRAN_NBS1      = 9, /* = LTE Cat.NB1 */
-} CS_AccessTechno_t;
+/* TS 27.007, <stat> parameter used in AT+CEREG */
+typedef uint16_t CS_NetworkRegState_t;
+#define CS_NRS_NOT_REGISTERED_NOT_SEARCHING     (CS_NetworkRegState_t)(0U)
+#define CS_NRS_REGISTERED_HOME_NETWORK          (CS_NetworkRegState_t)(1U)
+#define CS_NRS_NOT_REGISTERED_SEARCHING         (CS_NetworkRegState_t)(2U)
+#define CS_NRS_REGISTRATION_DENIED              (CS_NetworkRegState_t)(3U)
+#define CS_NRS_UNKNOWN                          (CS_NetworkRegState_t)(4U)
+#define CS_NRS_REGISTERED_ROAMING               (CS_NetworkRegState_t)(5U)
+#define CS_NRS_REGISTERED_SMS_ONLY_HOME_NETWORK (CS_NetworkRegState_t)(6U)
+#define CS_NRS_REGISTERED_SMS_ONLY_ROAMING      (CS_NetworkRegState_t)(7U)
+#define CS_NRS_EMERGENCY_ONLY                   (CS_NetworkRegState_t)(8U)
+#define CS_NRS_REGISTERED_CFSB_NP_HOME_NETWORK  (CS_NetworkRegState_t)(9U)
+#define CS_NRS_REGISTERED_CFSB_NP_ROAMING       (CS_NetworkRegState_t)(10U)
 
-typedef enum
-{
-  CS_ONF_LONG = 0,    /* up to 16 chars */
-  CS_ONF_SHORT = 1,   /* up to 8 chars */
-  CS_ONF_NUMERIC = 2, /* LAI */
-  CS_ONF_NOT_PRESENT = 9, /* Operator Name not present */
-} CS_OperatorNameFormat_t;
+/* TS 27.007, <format> parameter used in AT+COPS */
+typedef uint16_t CS_OperatorNameFormat_t;
+#define CS_ONF_LONG        (CS_OperatorNameFormat_t)(0U) /* operator name is up to 16 chars */
+#define CS_ONF_SHORT       (CS_OperatorNameFormat_t)(1U) /* operator name is up to 8 chars */
+#define CS_ONF_NUMERIC     (CS_OperatorNameFormat_t)(2U) /* LAI */
+#define CS_ONF_NOT_PRESENT (CS_OperatorNameFormat_t)(9U) /* not part of TS 27.00: Operator Name not present */
+/* (custom value) */
 
 typedef enum
 {
@@ -159,6 +155,30 @@ typedef uint16_t CS_ModemEvent_t;
 #define CS_MDMEVENT_LP_ENTER      (CS_ModemEvent_t)(0x0010) /* Modem Enter Low Power state */
 #define CS_MDMEVENT_LP_LEAVE      (CS_ModemEvent_t)(0x0020) /* Modem Leave Low Power state */
 #define CS_MDMEVENT_WAKEUP_REQ    (CS_ModemEvent_t)(0x0040) /* Modem WakeUp request during Low Power state */
+
+typedef enum
+{
+  CS_SIMEVENT_SIM_REFRESH  = 0, /* SIM refresh */
+  CS_SIMEVENT_SIM_DETECT   = 1, /* runtime SIM hotswap detection */
+  CS_SIMEVENT_SIM_STATE    = 2, /* SIM state changed */
+} CS_Sim_Event_t;
+
+typedef uint8_t CS_Sim_extended_infos_t;
+#define CS_SIMINFOS_UNKNOWN          (CS_Sim_extended_infos_t)(0x00) /* unknown event or info not available */
+/* for CS_SIMEVENT_SIM_REFRESH event, no parameters  */
+/* for CS_SIMEVENT_SIM_DETECT event, possible parameter values are: */
+#define CS_SIMINFOS_CARD_INSERTED    (CS_Sim_extended_infos_t)(0x01) /* SIM card has been inserted */
+#define CS_SIMINFOS_CARD_REMOVED     (CS_Sim_extended_infos_t)(0x02) /* SIM card has been removed */
+/* for CS_SIMEVENT_SIM_STATE event, possible parameter values are: */
+#define CS_SIMINFOS_SIM_DEACTIVATED  (CS_Sim_extended_infos_t)(0x03) /* SIM is deactivated */
+#define CS_SIMINFOS_SIM_INITIALIZED  (CS_Sim_extended_infos_t)(0x04) /* SIM is initialized (before PIN code) */
+#define CS_SIMINFOS_SIM_ACTIVATED    (CS_Sim_extended_infos_t)(0x05) /* SIM is activated (ready) */
+
+typedef struct
+{
+  CS_Sim_Event_t           event; /* indicates which Sim event is reported */
+  CS_Sim_extended_infos_t  param1; /* param1 value depends of event type */
+} CS_SimEvent_status_t;
 
 typedef enum
 {
@@ -355,13 +375,13 @@ typedef struct
   CS_Status_t  ping_status;
   CS_Bool_t    is_final_report;
 
-  /* Intermediate ping reponse parameters (if is_final_report = false) */
+  /* Intermediate ping response parameters (if is_final_report = false) */
   CS_CHAR_t  ping_addr[MAX_SIZE_IPADDR];
   uint16_t   ping_size; /* size in bytes */
   uint32_t   time;
   uint8_t    ttl;
 
-  /* Final ping reponse parameters (if is_final_report = true)
+  /* Final ping response parameters (if is_final_report = true)
     *  no parameters reported in this case
     */
 
@@ -369,14 +389,14 @@ typedef struct
 
 typedef struct
 {
-  CS_CHAR_t cmd_str[MAX_DIREXT_CMD_SIZE]; /* the command string to send to the modem (without termination characters)*/
+  CS_CHAR_t cmd_str[MAX_DIRECT_CMD_SIZE]; /* the command string to send to the modem (without termination characters)*/
   uint16_t  cmd_size;                     /* size of cmd_str */
   uint32_t  cmd_timeout;                  /* timeout (in ms) to apply. If set to 0, will use default timer value */
 } CS_direct_cmd_tx_t;
 
 typedef struct
 {
-  CS_CHAR_t cmd_str[MAX_DIREXT_CMD_SIZE]; /* the command string to send to the modem (without termination characters)*/
+  CS_CHAR_t cmd_str[MAX_DIRECT_CMD_SIZE]; /* the command string to send to the modem (without termination characters)*/
   uint16_t  cmd_size;
   CS_Bool_t cmd_final;
 } CS_direct_cmd_rx_t;
@@ -390,9 +410,6 @@ typedef struct
 } CS_sim_generic_access_t;
 
 /* callbacks */
-#if (RTOS_USED == 0)
-typedef void (* cellular_event_callback_t)(uint32_t event_callback);
-#endif /* RTOS_USED == 0 */
 typedef void (* cellular_urc_callback_t)(void);
 typedef void (* cellular_modem_event_callback_t)(CS_ModemEvent_t modem_event_received);
 typedef void (* cellular_pdn_event_callback_t)(CS_PDN_conf_id_t cid, CS_PDN_event_t pdn_event);
@@ -401,18 +418,14 @@ typedef void (* cellular_socket_data_sent_callback_t)(socket_handle_t sockHandle
 typedef void (* cellular_socket_closed_callback_t)(socket_handle_t sockHandle);
 typedef void (* cellular_ping_response_callback_t)(CS_Ping_response_t ping_response);
 typedef void (* cellular_direct_cmd_callback_t)(CS_direct_cmd_rx_t direct_cmd_rx);
+typedef void (* cellular_sim_event_callback_t)(CS_SimEvent_status_t sim_event_infos);
 
 /* External variables --------------------------------------------------------*/
 
 /* Exported macros -----------------------------------------------------------*/
 
 /* Exported functions ------------------------------------------------------- */
-#if (RTOS_USED == 0)
-void CS_check_idle_events(void); /* only used for bare mode */
-CS_Status_t CS_init_bare(cellular_event_callback_t event_callback); /* only used for bare mode */
-#else /* RTOS_USED */
 CS_Status_t CS_init(void);
-#endif /* RTOS_USED */
 CS_Status_t CS_power_on(void);
 CS_Status_t CS_power_off(void);
 CS_Status_t CS_check_connection(void);
@@ -425,6 +438,7 @@ CS_Status_t CS_register_net(CS_OperatorSelector_t *p_operator,
 CS_Status_t CS_get_net_status(CS_RegistrationStatus_t *p_reg_status);
 CS_Status_t CS_subscribe_net_event(CS_UrcEvent_t event, cellular_urc_callback_t urc_callback);
 CS_Status_t CS_unsubscribe_net_event(CS_UrcEvent_t event);
+CS_Status_t CS_subscribe_sim_event(cellular_sim_event_callback_t sim_evt_callback);
 CS_Status_t CS_attach_PS_domain(void);
 CS_Status_t CS_detach_PS_domain(void);
 CS_Status_t CS_get_attach_status(CS_PSattach_t *p_attach);
@@ -502,7 +516,7 @@ CS_Status_t CDS_socket_cnx_status(socket_handle_t sockHandle,
   *   T3412 Timer: this is the value the device informs the network (with periodic TAU) that it is still registered.
   *                T3412 resets after Mobile Origination events.
   *
-  *   Recommanded ratio of T3324/T3412 should be > 90%
+  *   Recommended ratio of T3324/T3412 should be > 90%
   *   T3324: no recommended value but minimum value = 16 sec
   *   T3412: minimum recommended value = 4 hours, maximum value = 413 days
   *
@@ -513,7 +527,7 @@ CS_Status_t CDS_socket_cnx_status(socket_handle_t sockHandle,
   * eDRX allows the time interval during which a device is not listening to the network to be greatly extended.
   * Mobile Origination events can be triggered at any time.
   *
-  *  Recommanded LTE-M values: minimum of 5.12 sec, maximum of 43.69 min
+  *  Recommended LTE-M values: minimum of 5.12 sec, maximum of 43.69 min
   *
   * PSM and eDRX COMBINED IMPLEMENTATION
   * ====================================
@@ -541,30 +555,43 @@ typedef uint8_t CS_EDRX_AcT_type_t;
 #define EDRX_ACT_E_UTRAN_WB_S1     (CS_EDRX_AcT_type_t)(0x4) /* = LTE or LTE Cat.M1 */
 #define EDRX_ACT_E_UTRAN_NB_S1     (CS_EDRX_AcT_type_t)(0x5) /* = LTE Cat.NB1 */
 
-/* Predefined PSM T3312 values (GERAN/UTRAN) */
-#define PSM_T3312_DEACTIVATED (uint8_t)(0xE0) /* "111 00000" = 0xE0 */
-
-/* Predefined PSM T3314 values (GERAN/UTRAN) */
-#define PSM_T3314_DEACTIVATED (uint8_t)(0xE0) /* "111 00000" = 0xE0 */
-
-/* Predefined PSM T3412 values (E-UTRAN) */
+/* Predefined T3412 values (E-UTRAN), periodic TAU
+ * cf TS 27.007, table 10.5.163a
+ */
 #define PSM_T3412_DEACTIVATED (uint8_t)(0xE0) /* "111 00000" = 0xE0 */
 #define PSM_T3412_1_MIN       (uint8_t)(0xA1) /* "101.00001" = 0xA1 - for test only */
+#define PSM_T3412_4_MIN       (uint8_t)(0xA4) /* "101.00100" = 0xA4 */
 #define PSM_T3412_6_MIN       (uint8_t)(0xA6) /* "101.00110" = 0xA6 */
+#define PSM_T3412_15_MIN      (uint8_t)(0xAF) /* "101.01111" = 0xAF */
+#define PSM_T3412_40_MIN      (uint8_t)(0x04) /* "000.00110" = 0x04 */
 #define PSM_T3412_4_HOURS     (uint8_t)(0x24) /* "001.00100" = 0x24 */
 #define PSM_T3412_24_HOURS    (uint8_t)(0x38) /* "001.11000" = 0x38 */
 #define PSM_T3412_170_HOURS   (uint8_t)(0x51) /* "010.10001" = 0x51 */
 #define PSM_T3412_40_DAYS     (uint8_t)(0xD3) /* "110.00011" = 0xD3 */
 
-/* Predefined T3324 values, PSM for active timer (GERAN/UTRAN or E-UTRAN)*/
+/* Predefined T3324 values (GERAN/UTRAN or E-UTRAN), active timer
+ * cf TS 27.007, table 10.5.163 and table 10.5.172
+ */
 #define PSM_T3324_DEACTIVATED (uint8_t)(0xE0) /* "111 00000" = 0xE0 */
 #define PSM_T3324_10_SEC      (uint8_t)(0x05) /* "000.00101" = 0x05  - for test only */
 #define PSM_T3324_16_SEC      (uint8_t)(0x08) /* "000.01000" = 0x08 */
+#define PSM_T3324_2_MIN       (uint8_t)(0x22) /* "001.00010" = 0x22 */
 #define PSM_T3324_4_MIN       (uint8_t)(0x24) /* "001.00100" = 0x24 */
+#define PSM_T3324_12_MIN      (uint8_t)(0x2C) /* "001.01100" = 0x2C */
 #define PSM_T3324_24_MIN      (uint8_t)(0x38) /* "001.11000" = 0x38 */
 #define PSM_T3324_10_HOURS    (uint8_t)(0x41) /* "010.00001" = 0x41 */
 #define PSM_T3324_30_HOURS    (uint8_t)(0x43) /* "010.00011" = 0x43 */
 #define PSM_T3324_90_HOURS    (uint8_t)(0x49) /* "010.01001" = 0x49 */
+
+/* Predefined PSM periodic_RAU T3312 values (GERAN/UTRAN)
+ * timer not used
+ */
+#define PSM_T3312_DEACTIVATED (uint8_t)(0xE0) /* "111 00000" = 0xE0 */
+
+/* Predefined PSM GPRS_READY_timer T3314 values (GERAN/UTRAN)
+ * timer not used
+ */
+#define PSM_T3314_DEACTIVATED (uint8_t)(0xE0) /* "111 00000" = 0xE0 */
 
 /* Predefined EDRX values */
 #define EDRX_WB_S1_PTW_1S_DRX_40S  (uint8_t)(0x03) /* "0000.0011" = 0x49 : WB-S1 mode PTW=1.28 sec, EDRX=40.96 sec */
@@ -583,6 +610,12 @@ typedef struct
   CS_EDRX_AcT_type_t  act_type;
   uint8_t             req_value;
 } CS_EDRX_params_t;
+
+typedef struct
+{
+  uint32_t  nwk_periodic_TAU; /* negotiated value of T3412, expressed in seconds (0 means not available) */
+  uint32_t  nwk_active_time;  /* negotiated value of T3324, expressed in seconds (0 means not available) */
+} CS_LowPower_status_t;
 
 typedef struct
 {
@@ -615,7 +648,14 @@ typedef enum
   MODEM_WAKEUP = 2,
 } CS_wakeup_origin_t;
 
-CS_Status_t CS_InitPowerConfig(CS_init_power_config_t *p_power_config);
+/* PSM callback used to retrieve LowPower information
+ *  - value of PSM timers negotiated between modem and network (T3412 & T3324)
+ */
+typedef void (* cellular_power_status_callback_t)(CS_LowPower_status_t lp_status);
+
+/* eDRX/PSM API */
+CS_Status_t CS_InitPowerConfig(CS_init_power_config_t *p_power_config,
+                               cellular_power_status_callback_t lp_status_callback);
 CS_Status_t CS_SetPowerConfig(CS_set_power_config_t *p_power_config);
 CS_Status_t CS_SleepRequest(void);
 CS_Status_t CS_SleepComplete(void);
@@ -628,9 +668,9 @@ CS_Status_t CDS_socket_listen(socket_handle_t sockHandle); /* for socket server 
 
 /* API functions not available yet
   * CS_Status_t CS_modem_config(CS_ModemConfig_t *p_config);
-  *   => to configure modem persistant parameters
+  *   => to configure modem persistent parameters
   * CS_Status_t CS_dns_config(CS_PDN_conf_id_t cid, CS_DnsConf_t *dns_conf);
-  *   => to offer the possibilty to user to configure the DNS primary address.
+  *   => to offer the possibility to user to configure the DNS primary address.
   *      Actually, it is hard-coded in this file.
   *      Will need to update CS_DnsReq_t to remove primary_dns_addr parameter.
   * CS_Status_t CS_autoactivate_pdn(void);

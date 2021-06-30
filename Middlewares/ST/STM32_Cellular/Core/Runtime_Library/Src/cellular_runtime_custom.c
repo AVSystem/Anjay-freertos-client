@@ -39,7 +39,7 @@
   * @note   input format d[dd].d[dd].d[dd].d[dd][:pppp)
   * @param  string    ip addr + port to parse
   * @param  addr      (out) uint8_t[4]   4 bytes of ipp addr
-  * @param  port      (out) optionnal ip port
+  * @param  port      (out) optional ip port
   * @note             if no port is needed put this parameter to NULL
   * @retval validity of conversion: retval==0 conversion OK /   retval!=0 conversion KO
   */

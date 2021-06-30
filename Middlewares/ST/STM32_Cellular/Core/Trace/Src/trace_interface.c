@@ -19,7 +19,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "trace_interface.h"
-#include "cmsis_os_misrac2012.h"
+#include "rtosal.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
@@ -40,46 +40,28 @@
 /* Private variables ---------------------------------------------------------*/
 static bool traceIF_traceEnable = true; /* Trace enable per default */
 static uint32_t traceIF_Level = TRACE_IF_MASK;
-#if (RTOS_USED == 1)
+
 /* Mutex to avoid trace mixing between components */
 static osMutexId traceIF_uart_mutex = NULL;
-#endif /* (RTOS_USED == 1) */
 
 /* Array to know if trace is activated for a specific channel */
 /* All debug channel  enabled per default */
 static uint8_t traceIF_traceComponent[DBG_CHAN_MAX_VALUE] =
 {
-  1U,   /*  DBG_CHAN_GENERIC           */
   1U,   /*  DBG_CHAN_MAIN              */
   1U,   /*  DBG_CHAN_ATCMD             */
-  1U,   /*  DBG_CHAN_COM               */
-#if (USE_CUSTOM_CLIENT == 1)
-  1U,   /*  DBG_CHAN_CUSTOM_CLIENT     */
-#endif /* USE_CUSTOM_CLIENT == 1 */
-#if (USE_ECHO_CLIENT == 1)
-  1U,   /*  DBG_CHAN_ECHOCLIENT        */
-#endif /* USE_ECHO_CLIENT == 1 */
-#if (USE_HTTP_CLIENT == 1)
-  1U,   /*  DBG_CHAN_HTTP              */
-#endif /* USE_HTTP_CLIENT == 1 */
-#if (USE_PING_CLIENT == 1)
-  1U,   /*  DBG_CHAN_PING              */
-#endif /* USE_PING_CLIENT == 1 */
-#if (USE_COM_CLIENT == 1)
-  1U,   /*  DBG_CHAN_COMCLIENT         */
-#endif /* USE_COM_CLIENT == 1 */
-#if (USE_MQTT_CLIENT == 1)
-  1U,   /*  DBG_CHAN_MQTTCLIENT        */
-#endif /* USE_MQTT_CLIENT == 1 */
-  1U,   /*  DBG_CHAN_IPC               */
-  1U,   /*  DBG_CHAN_PPPOSIF           */
   1U,   /*  DBG_CHAN_CELLULAR_SERVICE  */
-  1U,   /*  DBG_CHAN_NIFMAN            */
-  1U,   /*  DBG_CHAN_DATA_CACHE        */
+  1U,   /*  DBG_CHAN_COMLIB            */
+  1U,   /*  DBG_CHAN_IPC               */
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
+  1U,   /*  DBG_CHAN_PPPOSIF           */
+#endif /* USE_SOCKETS_TYPE == USE_SOCKETS_LWIP */
   1U,   /*  DBG_CHAN_UTILITIES         */
-  1U,   /*  DBG_CHAN_ERROR_LOGGER      */
-  1U,   /*  DBG_CHAN_VALID             */
-  1U    /*  DBG_CHAN_TEST              */
+  1U,   /*  DBG_CHAN_ERROR_HANDLER     */
+#if (USE_DBG_CHAN_APPLICATION == 1U)
+  1U,   /*  DBG_CHAN_APPLICATION       */
+#endif /* USE_DBG_CHAN_APPLICATION == 1U */
+  1U    /*  DBG_CHAN_VALID             */
 };
 
 #if (USE_CMD_CONSOLE == 1)
@@ -100,7 +82,6 @@ static void traceIF_cmd_Help(void);
 
 /* Global variables ----------------------------------------------------------*/
 uint8_t dbgIF_buf[DBG_CHAN_MAX_VALUE][DBG_IF_MAX_BUFFER_SIZE];
-uint8_t *traceIF_UartBusyFlag = NULL;
 
 /* Functions Definition ------------------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
@@ -118,37 +99,20 @@ static void CMD_ComponentEnableDisable(uint8_t *component, uint8_t enable)
   /* Component name string */
   static uint8_t *traceIF_traceComponentName[DBG_CHAN_MAX_VALUE] =
   {
-    (uint8_t *)"generic",
     (uint8_t *)"main",
     (uint8_t *)"atcmd",
-    (uint8_t *)"comlib",
-#if (USE_CUSTOM_CLIENT == 1)
-    (uint8_t *)"customclt",
-#endif /* USE_CUSTOM_CLIENT == 1 */
-#if (USE_ECHO_CLIENT == 1)
-    (uint8_t *)"echoclt",
-#endif /* USE_ECHO_CLIENT == 1 */
-#if (USE_HTTP_CLIENT == 1)
-    (uint8_t *)"http",
-#endif /* USE_HTTP_CLIENT == 1 */
-#if (USE_PING_CLIENT == 1)
-    (uint8_t *)"ping",
-#endif /* USE_PING_CLIENT == 1 */
-#if (USE_COM_CLIENT == 1)
-    (uint8_t *)"comclt",
-#endif /* USE_COM_CLIENT == 1 */
-#if (USE_MQTT_CLIENT == 1)
-    (uint8_t *)"mqtt",
-#endif /* USE_MQTT_CLIENT == 1 */
-    (uint8_t *)"ipc",
-    (uint8_t *)"ppposif",
     (uint8_t *)"cellular_service",
-    (uint8_t *)"nifman",
-    (uint8_t *)"data_cache",
+    (uint8_t *)"comlib",
+    (uint8_t *)"ipc",
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
+    (uint8_t *)"ppposif",
+#endif /* USE_SOCKETS_TYPE == USE_SOCKETS_LWIP */
     (uint8_t *)"utilities",
     (uint8_t *)"error",
-    (uint8_t *)"valid",
-    (uint8_t *)"test"
+#if (USE_DBG_CHAN_APPLICATION == 1U)
+    (uint8_t *)"app",
+#endif /* USE_DBG_CHAN_APPLICATION == 1U */
+    (uint8_t *)"valid"
   };
 
   uint8_t i;
@@ -205,15 +169,23 @@ static void traceIF_cmd_Help(void)
   CMD_print_help(trace_cmd_label);
 
   PRINT_FORCE("%s help\r\n", trace_cmd_label);
-  PRINT_FORCE("%s on (active traces)\r\n", trace_cmd_label);
-  PRINT_FORCE("%s off (deactive traces)\r\n", trace_cmd_label);
-  PRINT_FORCE("%s enable  all|generic|main|atcmd|comlib|echoclt|http|ping|ipc|ppposif|cellular_service|nifman",
+  PRINT_FORCE("%s on (activate traces)\r\n", trace_cmd_label);
+  PRINT_FORCE("%s off (deactivate traces)\r\n", trace_cmd_label);
+#if (USE_DBG_CHAN_APPLICATION == 1U)
+  PRINT_FORCE("%s enable  all|main|atcmd|cellular_service|comlib|ipc|ppposif|utilities|error|app\r\n",
               trace_cmd_label)
-  PRINT_FORCE("           |data_cache|utilities|error\r\n")
+#else /* USE_DBG_CHAN_APPLICATION == 0U or undefined */
+  PRINT_FORCE("%s enable  all|main|atcmd|cellular_service|comlib|ipc|ppposif|utilities|error\r\n",
+              trace_cmd_label)
+#endif /* USE_DBG_CHAN_APPLICATION == 1U */
   PRINT_FORCE(" -> enable traces of selected component\r\n")
-  PRINT_FORCE("%s disable all|generic|main|atcmd|comlib|echoclt|http|ping|ipc|ppposif|cellular_service|nifman",
+#if (USE_DBG_CHAN_APPLICATION == 1U)
+  PRINT_FORCE("%s disable all|main|atcmd|cellular_service|comlib|ipc|ppposif|utilities|error|app\r\n",
               trace_cmd_label)
-  PRINT_FORCE("           |data_cache|utilities|error\r\n")
+#else /* USE_DBG_CHAN_APPLICATION == 0U or undefined */
+  PRINT_FORCE("%s disable all|main|atcmd|cellular_service|comlib|ipc|ppposif|utilities|error\r\n",
+              trace_cmd_label)
+#endif /* USE_DBG_CHAN_APPLICATION == 1U */
   PRINT_FORCE(" -> disable traces of selected component\r\n")
 }
 
@@ -370,26 +342,13 @@ static void ITM_Out(uint32_t port, uint32_t ch)
   */
 static void traceIF_uartTransmit(uint8_t *ptr, uint16_t len)
 {
-#if (RTOS_USED == 1)
   /* Mutex is used to avoid trace mixing between components */
-  (void)osMutexWait(traceIF_uart_mutex, RTOS_WAIT_FOREVER);
-#endif /* (RTOS_USED == 1) */
+  (void)rtosalMutexAcquire(traceIF_uart_mutex, RTOSAL_WAIT_FOREVER);
 
   /* Send the trace */
   (void)HAL_UART_Transmit(&TRACE_INTERFACE_UART_HANDLE, (uint8_t *)ptr, len, HAL_MAX_DELAY);
 
-#if (RTOS_USED == 1)
-  (void)osMutexRelease(traceIF_uart_mutex);
-#endif /* (RTOS_USED == 1) */
-
-  if (traceIF_UartBusyFlag != NULL)
-  {
-    while (HAL_UART_Receive_IT(&TRACE_INTERFACE_UART_HANDLE, traceIF_UartBusyFlag, 1U) != HAL_OK)
-    {
-      /* Nothing to do except continue to wait */
-    }
-    traceIF_UartBusyFlag = NULL;
-  }
+  (void)rtosalMutexRelease(traceIF_uart_mutex);
 }
 
 /* Functions Definition ------------------------------------------------------*/
@@ -671,17 +630,11 @@ void traceIF_BufHexPrint(dbg_channels_t chan, dbg_levels_t level, const CRC_CHAR
   */
 void traceIF_init(void)
 {
-#if (RTOS_USED == 1)
   /* Multi call protection */
   if (traceIF_uart_mutex == NULL)
   {
-    osMutexDef(osTraceUartMutex);
-    traceIF_uart_mutex = osMutexCreate(osMutex(osTraceUartMutex));
+    traceIF_uart_mutex = rtosalMutexNew(NULL);
   }
-#else
-  /* Nothing to do in no RTOS used */
-  __NOP();
-#endif /* (RTOS_USED == 1) */
 }
 
 /**

@@ -48,7 +48,7 @@ extern "C" {
   * @{
   */
 
-#define COM_INADDR_ANY          ((uint32_t)0x00000000UL) /*!< All IP adresses accepted */
+#define COM_INADDR_ANY          ((uint32_t)0x00000000UL) /*!< All IP addresses accepted */
 
 /* Socket Family */
 #define COM_AF_UNSPEC       0 /*!< Socket Family Unspecified */
@@ -74,6 +74,8 @@ extern "C" {
 #define COM_IPPROTO_TCP     6    /*!< Socket Protocol TCP Protocol */
 #define COM_PROTO_CSIM    145    /*!< Socket Protocol CSIM command
                                       Use only for ICC session creation */
+#define COM_PROTO_NDLC    146    /*!< Socket Protocol NDLC command
+                                      Use only for ICC session creation */
 
 /*
  * Socket Options
@@ -96,40 +98,16 @@ extern "C" {
   */
 
 /* Exported types ------------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Types
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* External variables --------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macro ------------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
-/** @addtogroup COM_SOCKETS_Functions
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
@@ -163,8 +141,10 @@ extern "C" {
 #define COM_IPPROTO_UDP     IPPROTO_UDP
 #define COM_IPPROTO_IPV6    IPPROTO_IPV6
 #define COM_IPPROTO_TCP     IPPROTO_TCP
-#define COM_PROTO_CSIM      145  /*!< Socket Protocol CSIM command
-                                      Use only for ICC session creation */
+#define COM_PROTO_CSIM      145    /*!< Socket Protocol CSIM command
+                                        Use only for ICC session creation */
+#define COM_PROTO_NDLC      146    /*!< Socket Protocol NDLC command
+                                        Use only for ICC session creation */
 
 /*
  * Socket Options
@@ -183,12 +163,16 @@ extern "C" {
 #define COM_MSG_DONTWAIT   MSG_DONTWAIT
 
 /* Exported types ------------------------------------------------------------*/
+/* None */
 
 /* External variables --------------------------------------------------------*/
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
+/* None */
 
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
 

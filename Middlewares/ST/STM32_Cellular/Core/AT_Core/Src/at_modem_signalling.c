@@ -104,11 +104,6 @@ static at_action_rsp_t analyze_CmeError(at_context_t *p_at_ctxt,
                                         atcustom_modem_context_t *p_modem_ctxt,
                                         const IPC_RxMessage_t *p_msg_in,
                                         at_element_info_t *element_infos);
-static void set_error_report(csint_error_type_t err_type, atcustom_modem_context_t *p_modem_ctxt);
-static uint32_t extract_hex_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size);
-#if (SW_DEBUG_VERSION == 1U)
-static uint32_t extract_bin_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size);
-#endif /* (SW_DEBUG_VERSION == 1U) */
 
 /* Private function Definition -----------------------------------------------*/
 
@@ -116,7 +111,7 @@ static void display_clear_network_state(CS_NetworkRegState_t state, uint8_t netw
 {
 #if (USE_TRACE_ATCUSTOM_MODEM == 1U) /* to avoid warning when no traces */
   /* Commands Look-up table for AT+QCFG */
-  static const AT_CHAR_t NETWORK_TYPE_LUT[][16] =
+  static const AT_CHAR_t NETWORK_TYPE_LUT[4][16] =
   {
     {"(unknown)"},
     {"(CS)"},
@@ -124,65 +119,56 @@ static void display_clear_network_state(CS_NetworkRegState_t state, uint8_t netw
     {"(EPS)"},
   };
 
-  /* check that network type is valid */
-  if (network_type <= EPS_NETWORK_TYPE)
+  switch (state)
   {
-    switch (state)
-    {
-      case CS_NRS_NOT_REGISTERED_NOT_SEARCHING:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = NOT_REGISTERED_NOT_SEARCHING", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_REGISTERED_HOME_NETWORK:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = REGISTERED_HOME_NETWORK", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_NOT_REGISTERED_SEARCHING:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = NOT_REGISTERED_SEARCHING", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_REGISTRATION_DENIED:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = REGISTRATION_DENIED", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_UNKNOWN:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = UNKNOWN", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_REGISTERED_ROAMING:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = REGISTERED_ROAMING", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_REGISTERED_SMS_ONLY_HOME_NETWORK:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = REGISTERED_SMS_ONLY_HOME_NETWORK", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_REGISTERED_SMS_ONLY_ROAMING:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = REGISTERED_SMS_ONLY_ROAMING", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_EMERGENCY_ONLY:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = EMERGENCY_ONLY", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_REGISTERED_CFSB_NP_HOME_NETWORK:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = REGISTERED_CFSB_NP_HOME_NETWORK", NETWORK_TYPE_LUT[network_type])
-        break;
-      case CS_NRS_REGISTERED_CFSB_NP_ROAMING:
-        /* Trace only */
-        PRINT_INFO("NetworkState %s = REGISTERED_CFSB_NP_ROAMING", NETWORK_TYPE_LUT[network_type])
-        break;
-      default:
-        /* Trace only */
-        PRINT_INFO("unknown state value")
-        break;
-    }
-  }
-  else
-  {
-    /* Trace only */
-    PRINT_ERR("Invalid network type %d", network_type)
+    case CS_NRS_NOT_REGISTERED_NOT_SEARCHING:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = NOT_REGISTERED_NOT_SEARCHING", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_REGISTERED_HOME_NETWORK:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = REGISTERED_HOME_NETWORK", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_NOT_REGISTERED_SEARCHING:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = NOT_REGISTERED_SEARCHING", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_REGISTRATION_DENIED:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = REGISTRATION_DENIED", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_UNKNOWN:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = UNKNOWN", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_REGISTERED_ROAMING:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = REGISTERED_ROAMING", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_REGISTERED_SMS_ONLY_HOME_NETWORK:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = REGISTERED_SMS_ONLY_HOME_NETWORK", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_REGISTERED_SMS_ONLY_ROAMING:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = REGISTERED_SMS_ONLY_ROAMING", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_EMERGENCY_ONLY:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = EMERGENCY_ONLY", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_REGISTERED_CFSB_NP_HOME_NETWORK:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = REGISTERED_CFSB_NP_HOME_NETWORK", NETWORK_TYPE_LUT[network_type])
+      break;
+    case CS_NRS_REGISTERED_CFSB_NP_ROAMING:
+      /* Trace only */
+      PRINT_INFO("NetworkState %s = REGISTERED_CFSB_NP_ROAMING", NETWORK_TYPE_LUT[network_type])
+      break;
+    default:
+      /* Trace only */
+      PRINT_INFO("unknown state value")
+      break;
   }
 #else /* USE_TRACE_ATCUSTOM_MODEM == 0U */
   UNUSED(state);
@@ -286,7 +272,7 @@ static at_action_rsp_t analyze_CmeError(at_context_t *p_at_ctxt, atcustom_modem_
                                         const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
   at_action_rsp_t retval = ATACTION_RSP_IGNORED;
-  PRINT_API("enter analyze_CmeError_CPIN()")
+  PRINT_API("enter analyze_CmeError()")
 
   START_PARAM_LOOP()
   if (element_infos->param_rank == 2U)
@@ -315,66 +301,68 @@ static at_action_rsp_t analyze_CmeError(at_context_t *p_at_ctxt, atcustom_modem_
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_NOT_INSERTED;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM PIN NECESSARY") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PIN_REQUIRED;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM PIN REQUIRED") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PIN_REQUIRED;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM PUK REQUIRED") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PUK_REQUIRED;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM FAILURE") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_FAILURE;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM BUSY") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_BUSY;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM WRONG") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_WRONG;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "INCORRECT PASSWORD") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_INCORRECT_PASSWORD;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM PIN2 REQUIRED") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PIN2_REQUIRED;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM PUK2 REQUIRED") != NULL)
     {
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PUK2_REQUIRED;
-      set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
     else
     {
-      /* other error code, not managed yet */
-      __NOP();
+      /* other error code */
+      p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
+      p_modem_ctxt->persist.sim_state = CS_SIMSTATE_UNKNOWN;
+      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
     }
   }
   END_PARAM_LOOP()
@@ -382,58 +370,10 @@ static at_action_rsp_t analyze_CmeError(at_context_t *p_at_ctxt, atcustom_modem_
   return (retval);
 }
 
-/*
- * Update error report that will be sent to Cellular Service
- */
-static void set_error_report(csint_error_type_t err_type, atcustom_modem_context_t *p_modem_ctxt)
-{
-  p_modem_ctxt->SID_ctxt.error_report.error_type = err_type;
-
-  switch (err_type)
-  {
-    case CSERR_SIM:
-      p_modem_ctxt->SID_ctxt.error_report.sim_state = p_modem_ctxt->persist.sim_state;
-      break;
-
-    default:
-      /* nothing to do*/
-      break;
-  }
-}
-
 #define LAC_TAC_SIZE   4 /* size = 2 bytes -> 4 half-bytes */
 #define CI_SIZE        8 /* size = 4 bytes -> 8 half_bytes */
 #define RAC_SIZE       2 /* size = 1 byte  -> 2 half-bytes */
-#define MAX_PARAM_SIZE 8 /* max of previous values         */
-/*
- * Extract the value of an hexadecimal parameter from a string
- */
-static uint32_t extract_hex_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size)
-{
-  uint8_t tmp_array[MAX_PARAM_SIZE] = {0};
-  uint16_t real_size;
-  uint32_t converted_value;
-  real_size = ATutil_remove_quotes(p_str, str_size, &tmp_array[0], param_size);
-  converted_value = ATutil_convertHexaStringToInt32(&tmp_array[0], real_size);
 
-  return (converted_value);
-}
-
-#if (SW_DEBUG_VERSION == 1U)
-/*
- * Extract the value of an binary parameter from a string
- */
-static uint32_t extract_bin_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size)
-{
-  uint8_t tmp_array[MAX_PARAM_SIZE] = {0};
-  uint16_t real_size;
-  uint32_t converted_value;
-  real_size = ATutil_remove_quotes(p_str, str_size, &tmp_array[0], param_size);
-  converted_value = ATutil_convertBinStringToInt32(&tmp_array[0], real_size);
-
-  return (converted_value);
-}
-#endif /* (SW_DEBUG_VERSION == 1U) */
 /* Functions Definition ------------------------------------------------------*/
 
 /* ==========================  Build 3GPP TS 27.007 commands ========================== */
@@ -568,57 +508,67 @@ at_status_t fCmdBuild_COPS(atparser_context_t *p_atp_ctxt, atcustom_modem_contex
 
     if (operatorSelect->mode == CS_NRM_AUTO)
     {
-      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "0");
-    }
-    else if (operatorSelect->mode == CS_NRM_MANUAL)
-    {
-#if (USE_COPS_ACT == 0)
-      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "1,%d,\"%s\"",
-                     operatorSelect->format,
-                     operatorSelect->operator_name);
-#else
       if (operatorSelect->AcT_present == CELLULAR_FALSE)
       {
-        (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "1,%d,\"%s\"",
-                       operatorSelect->format,
-                       operatorSelect->operator_name);
+        /* no specific Access Technology is requested */
+        (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "0");
       }
       else
       {
-        /* requested Access Techno is specified */
-        (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "1,%d,\"%s\",%d",
-                       operatorSelect->format,
-                       operatorSelect->operator_name,
+        /* a specific Access Technology is requested
+         * it will be used as a priority if found
+         */
+        (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "0,,,%d",
                        operatorSelect->AcT);
       }
-#endif /* (USE_COPS_ACT == 0) */
+    }
+    else if ((operatorSelect->mode == CS_NRM_MANUAL) ||
+             (operatorSelect->mode == CS_NRM_MANUAL_THEN_AUTO))
+    {
+      /* same behaviour for "manual" mode and "manuel then auto" mode */
+      uint8_t selected_mode;
+      if (operatorSelect->mode == CS_NRM_MANUAL)
+      {
+        selected_mode = 1U;
+      }
+      else
+      {
+        selected_mode = 4U;
+      }
+
+      /* according to 3GPP TS 27.007, <oper> field shall be present
+      * in manual modes. */
+      if (operatorSelect->format != CS_ONF_NOT_PRESENT)
+      {
+        if (operatorSelect->AcT_present == CELLULAR_FALSE)
+        {
+          /* no specific Access Technology is requested */
+          (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,%d,\"%s\"",
+                         selected_mode,
+                         operatorSelect->format,
+                         operatorSelect->operator_name);
+        }
+        else
+        {
+          /* a specific Access Technology is requested
+          * it will be used as a priority if found
+          */
+          (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,%d,\"%s\",%d",
+                         selected_mode,
+                         operatorSelect->format,
+                         operatorSelect->operator_name,
+                         operatorSelect->AcT);
+        }
+      }
+      else
+      {
+        /* <oper> is not present */
+        retval = ATSTATUS_ERROR;
+      }
     }
     else if (operatorSelect->mode == CS_NRM_DEREGISTER)
     {
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "2");
-    }
-    else if (operatorSelect->mode == CS_NRM_MANUAL_THEN_AUTO)
-    {
-#if (USE_COPS_ACT == 0)
-      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "4,%d,\"%s\"",
-                     operatorSelect->format,
-                     operatorSelect->operator_name);
-#else
-      if (operatorSelect->AcT_present == CELLULAR_FALSE)
-      {
-        (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "4,%d,\"%s\"",
-                       operatorSelect->format,
-                       operatorSelect->operator_name);
-      }
-      else
-      {
-        /* requested Access Techno is specified */
-        (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "4,%d,\"%s\",%d",
-                       operatorSelect->format,
-                       operatorSelect->operator_name,
-                       operatorSelect->AcT);
-      }
-#endif /* (USE_COPS_ACT == 0) */
     }
     else
     {
@@ -626,6 +576,7 @@ at_status_t fCmdBuild_COPS(atparser_context_t *p_atp_ctxt, atcustom_modem_contex
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "0");
     }
   }
+
   return (retval);
 }
 
@@ -702,7 +653,7 @@ at_status_t fCmdBuild_CGREG(atparser_context_t *p_atp_ctxt, atcustom_modem_conte
     if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_SUSBCRIBE_NET_EVENT)
     {
       atcustom_CxREG_n_t param_value;
-      if (p_modem_ctxt->persist.psm_requested == AT_TRUE)
+      if (p_modem_ctxt->persist.psm_urc_requested == AT_TRUE)
       {
         param_value = CXREG_ENABLE_PSM_NETWK_REG_LOC_URC;
       }
@@ -739,7 +690,7 @@ at_status_t fCmdBuild_CEREG(atparser_context_t *p_atp_ctxt, atcustom_modem_conte
     if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_SUSBCRIBE_NET_EVENT)
     {
       atcustom_CxREG_n_t param_value;
-      if (p_modem_ctxt->persist.psm_requested == AT_TRUE)
+      if (p_modem_ctxt->persist.psm_urc_requested == AT_TRUE)
       {
         param_value = CXREG_ENABLE_PSM_NETWK_REG_LOC_URC;
       }
@@ -804,6 +755,7 @@ at_status_t fCmdBuild_CGEREP(atparser_context_t *p_atp_ctxt, atcustom_modem_cont
   return (retval);
 }
 
+#define APN_EMPTY_STRING ""
 at_status_t fCmdBuild_CGDCONT(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -812,17 +764,35 @@ at_status_t fCmdBuild_CGDCONT(atparser_context_t *p_atp_ctxt, atcustom_modem_con
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-
+    CS_CHAR_t *p_apn;
     CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
     uint8_t modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
     PRINT_INFO("user cid = %d, modem cid = %d", (uint8_t)current_conf_id, modem_cid)
+
+    /* build command */
+    if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CELLULAR_TRUE)
+    {
+      /* use the APN explicitly providedby user */
+      p_apn = (CS_CHAR_t *) &p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn;
+    }
+    else
+    {
+      /* no APN provided by user: use empty APN string to force the network to
+      *  select the appropriate APN.
+      *  NOTE: assumption is that a modem using CGDCONT to specify the APN is able to interpret "" APN and do not
+      *        send an APN to the network in ATTACH REQUEST (to let the network select the appropriate APN).
+      *        If the modem behavior is not aligned, you have to create a specific fCmdBuild_CGDCONT_XXX function.
+      */
+      p_apn = (CS_CHAR_t *) &APN_EMPTY_STRING;
+    }
+
     /* check if this PDP context has been defined */
     if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].conf_id != CS_PDN_NOT_DEFINED)
     {
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,\"%s\",\"%s\"",
                      modem_cid,
                      atcm_get_PDPtypeStr(p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].pdn_conf.pdp_type),
-                     p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn);
+                     p_apn);
     }
     else
     {
@@ -1199,7 +1169,7 @@ at_status_t fCmdBuild_CPSMS(atparser_context_t *p_atp_ctxt, atcustom_modem_conte
      *   other values shall be interpreted as mutliples of 1 minute
      *
      * exple:
-     * AT+CPSMS=1,,,”00000100”,”00001111”
+     * AT+CPSMS=1,,,ï¿½00000100ï¿½,ï¿½00001111ï¿½
      * Set the requested T3412 value to 40 minutes, and set the requested T3324 value to 30 seconds
     */
 
@@ -1234,20 +1204,23 @@ at_status_t fCmdBuild_CPSMS(atparser_context_t *p_atp_ctxt, atcustom_modem_conte
       {
         /* PSM disabled */
         mode = 0U;
+
+        (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d",
+                       mode);
       }
       else
       {
         /* PSM enabled */
         mode = 1U;
-      }
 
-      /* prepare the command
-       *  Note: do not send values for 2G/3G networks
-       */
-      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,,,\"%s\",\"%s\"",
-                     mode,
-                     req_periodic_tau,
-                     req_active_time);
+        /* prepare the command
+        *  Note: do not send values for 2G/3G networks
+        */
+        (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,,,\"%s\",\"%s\"",
+                       mode,
+                       req_periodic_tau,
+                       req_active_time);
+      }
 
       /* full command version:
        *
@@ -1299,7 +1272,7 @@ at_status_t fCmdBuild_CEDRXS(atparser_context_t *p_atp_ctxt, atcustom_modem_cont
      *                        cf Table 10.5.5.32 from TS 24.008
      *
      * exple:
-     * AT+CEDRX=1,5,”0000”
+     * AT+CEDRX=1,5,ï¿½0000ï¿½
      * Set the requested e-I-DRX value to 5.12 second
     */
 
@@ -1458,7 +1431,6 @@ at_action_rsp_t fRspAnalyze_CmeErr(at_context_t *p_at_ctxt, atcustom_modem_conte
   {
     case CMD_AT_CGSN:
     {
-
       if (p_modem_ctxt->CMD_ctxt.cgsn_write_cmd_param == CGSN_SN)
       {
         PRINT_DBG("Modem Error for CGSN_SN, use unitialized value")
@@ -1755,28 +1727,28 @@ at_action_rsp_t fRspAnalyze_CPIN(at_context_t *p_at_ctxt, atcustom_modem_context
         PRINT_DBG("waiting for SIM PIN")
         p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
         p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PIN_REQUIRED;
-        set_error_report(CSERR_SIM, p_modem_ctxt);
+        atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
       }
       else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM PUK") != NULL)
       {
         PRINT_DBG("waiting for SIM PUK")
         p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
         p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PUK_REQUIRED;
-        set_error_report(CSERR_SIM, p_modem_ctxt);
+        atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
       }
       else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM PIN2") != NULL)
       {
         PRINT_DBG("waiting for SIM PUK2")
         p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
         p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PUK2_REQUIRED;
-        set_error_report(CSERR_SIM, p_modem_ctxt);
+        atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
       }
       else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "SIM PUK2") != NULL)
       {
         PRINT_DBG("waiting for SIM PUK")
         p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
         p_modem_ctxt->persist.sim_state = CS_SIMSTATE_SIM_PUK_REQUIRED;
-        set_error_report(CSERR_SIM, p_modem_ctxt);
+        atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
       }
       else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "READY") != NULL)
       {
@@ -1789,7 +1761,7 @@ at_action_rsp_t fRspAnalyze_CPIN(at_context_t *p_at_ctxt, atcustom_modem_context
         PRINT_ERR("UNEXPECTED CPIN STATE")
         p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
         p_modem_ctxt->persist.sim_state = CS_SIMSTATE_UNKNOWN;
-        set_error_report(CSERR_SIM, p_modem_ctxt);
+        atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
       }
     }
     else
@@ -1959,15 +1931,15 @@ at_action_rsp_t fRspAnalyze_COPS(at_context_t *p_at_ctxt, atcustom_modem_context
           p_modem_ctxt->SID_ctxt.read_operator_infos.AcT = CS_ACT_UTRAN_HSDPA_HSUPA;
           break;
         case 7:
+          PRINT_DBG(">>> Access Technology : LTE Cat.M1 <<<")
           p_modem_ctxt->SID_ctxt.read_operator_infos.AcT = CS_ACT_E_UTRAN;
           break;
         case 8:
           p_modem_ctxt->SID_ctxt.read_operator_infos.AcT = CS_ACT_EC_GSM_IOT;
-          PRINT_INFO(">>> Access Technology : LTE Cat.M1 <<<")
           break;
         case 9:
+          PRINT_DBG(">>> Access Technology : LTE Cat.NB1 <<<")
           p_modem_ctxt->SID_ctxt.read_operator_infos.AcT = CS_ACT_E_UTRAN_NBS1;
-          PRINT_INFO(">>> Access Technology : LTE Cat.NB1 <<<")
           break;
         default:
           PRINT_ERR("invalid AcT value")
@@ -2082,15 +2054,15 @@ at_action_rsp_t fRspAnalyze_CREG(at_context_t *p_at_ctxt, atcustom_modem_context
       }
       if (element_infos->param_rank == 4U)
       {
-        uint32_t lac = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                     element_infos->str_size, LAC_TAC_SIZE);
+        uint32_t lac = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                            element_infos->str_size, LAC_TAC_SIZE);
         p_modem_ctxt->persist.cs_location_info.lac = (uint16_t)lac;
         PRINT_INFO("+CREG: lac=%ld =0x%lx", lac, lac)
       }
       if (element_infos->param_rank == 5U)
       {
-        uint32_t ci = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                    element_infos->str_size, CI_SIZE);
+        uint32_t ci = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                           element_infos->str_size, CI_SIZE);
         p_modem_ctxt->persist.cs_location_info.ci = (uint32_t)ci;
         PRINT_INFO("+CREG: ci=%ld =0x%lx", ci, ci)
       }
@@ -2128,16 +2100,16 @@ at_action_rsp_t fRspAnalyze_CREG(at_context_t *p_at_ctxt, atcustom_modem_context
     }
     if (element_infos->param_rank == 3U)
     {
-      uint32_t lac = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                   element_infos->str_size, LAC_TAC_SIZE);
+      uint32_t lac = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                          element_infos->str_size, LAC_TAC_SIZE);
       p_modem_ctxt->persist.urc_avail_cs_location_info_lac = AT_TRUE;
       p_modem_ctxt->persist.cs_location_info.lac = (uint16_t)lac;
       PRINT_INFO("+CREG URC: lac=%ld =0x%lx", lac, lac)
     }
     if (element_infos->param_rank == 4U)
     {
-      uint32_t ci = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                  element_infos->str_size, CI_SIZE);
+      uint32_t ci = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                         element_infos->str_size, CI_SIZE);
       p_modem_ctxt->persist.urc_avail_cs_location_info_ci = AT_TRUE;
       p_modem_ctxt->persist.cs_location_info.ci = (uint32_t)ci;
       PRINT_INFO("+CREG URC: ci=%ld =0x%lx", ci, ci)
@@ -2193,15 +2165,15 @@ at_action_rsp_t fRspAnalyze_CGREG(at_context_t *p_at_ctxt, atcustom_modem_contex
       }
       if (element_infos->param_rank == 4U)
       {
-        uint32_t lac = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                     element_infos->str_size, LAC_TAC_SIZE);
+        uint32_t lac = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                            element_infos->str_size, LAC_TAC_SIZE);
         p_modem_ctxt->persist.gprs_location_info.lac = (uint16_t)lac;
         PRINT_INFO("+CGREG: lac=%ld =0x%lx", lac, lac)
       }
       if (element_infos->param_rank == 5U)
       {
-        uint32_t ci = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                    element_infos->str_size, CI_SIZE);
+        uint32_t ci = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                           element_infos->str_size, CI_SIZE);
         p_modem_ctxt->persist.gprs_location_info.ci = (uint32_t)ci;
         PRINT_INFO("+CGREG: ci=%ld =0x%lx", ci, ci)
       }
@@ -2234,24 +2206,24 @@ at_action_rsp_t fRspAnalyze_CGREG(at_context_t *p_at_ctxt, atcustom_modem_contex
         /* parameter present only if n=4 or 5
          * active_time */
         PRINT_INFO("+CGREG: active_time= 0x%lx)",
-                   extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                 element_infos->str_size, 8))
+                   ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                        element_infos->str_size, 8))
       }
       if (element_infos->param_rank == 11U)
       {
         /* parameter present only if n=4 or 5
          * periodic_rau */
         PRINT_INFO("+CGREG: periodic_rau= 0x%lx",
-                   extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                 element_infos->str_size, 8))
+                   ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                        element_infos->str_size, 8))
       }
       if (element_infos->param_rank == 12U)
       {
         /* parameter present only if n=4 or 5
          * gprs_ready_timer */
         PRINT_INFO("+CGREG: gprs_ready_timer= 0x%lx",
-                   extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                 element_infos->str_size, 8))
+                   ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                        element_infos->str_size, 8))
       }
       END_PARAM_LOOP()
     }
@@ -2279,16 +2251,16 @@ at_action_rsp_t fRspAnalyze_CGREG(at_context_t *p_at_ctxt, atcustom_modem_contex
     }
     if (element_infos->param_rank == 3U)
     {
-      uint32_t lac = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                   element_infos->str_size, LAC_TAC_SIZE);
+      uint32_t lac = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                          element_infos->str_size, LAC_TAC_SIZE);
       p_modem_ctxt->persist.urc_avail_gprs_location_info_lac = AT_TRUE;
       p_modem_ctxt->persist.gprs_location_info.lac = (uint16_t)lac;
       PRINT_INFO("+CGREG URC: lac=%ld =0x%lx", lac, lac)
     }
     if (element_infos->param_rank == 4U)
     {
-      uint32_t ci = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                  element_infos->str_size, CI_SIZE);
+      uint32_t ci = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                         element_infos->str_size, CI_SIZE);
       p_modem_ctxt->persist.urc_avail_gprs_location_info_ci = AT_TRUE;
       p_modem_ctxt->persist.gprs_location_info.ci = (uint32_t)ci;
       PRINT_INFO("+CGREG URC: ci=%ld =0x%lx", ci, ci)
@@ -2303,8 +2275,8 @@ at_action_rsp_t fRspAnalyze_CGREG(at_context_t *p_at_ctxt, atcustom_modem_contex
     {
       /* param traced only */
       PRINT_DBG("+CGREG URC: rac=%ld",
-                extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                              element_infos->str_size, RAC_SIZE))
+                ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                     element_infos->str_size, RAC_SIZE))
     }
     if (element_infos->param_rank == 7U)
     {
@@ -2322,22 +2294,22 @@ at_action_rsp_t fRspAnalyze_CGREG(at_context_t *p_at_ctxt, atcustom_modem_contex
     {
       /* active_time */
       PRINT_INFO("+CGREG URC: active_time= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+                 ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size, 8))
     }
     if (element_infos->param_rank == 10U)
     {
       /* periodic_rau */
       PRINT_INFO("+CGREG URC: periodic_rau= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+                 ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size, 8))
     }
     if (element_infos->param_rank == 11U)
     {
       /* gprs_ready_timer */
       PRINT_INFO("+CGREG URC: gprs_ready_timer= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+                 ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size, 8))
     }
     END_PARAM_LOOP()
   }
@@ -2390,15 +2362,15 @@ at_action_rsp_t fRspAnalyze_CEREG(at_context_t *p_at_ctxt, atcustom_modem_contex
 
       if (element_infos->param_rank == 4U)
       {
-        uint32_t tac = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                     element_infos->str_size, LAC_TAC_SIZE);
+        uint32_t tac = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                            element_infos->str_size, LAC_TAC_SIZE);
         p_modem_ctxt->persist.eps_location_info.lac = (uint16_t)tac;
         PRINT_INFO("+CEREG: tac=%ld =0x%lx", tac, tac)
       }
       if (element_infos->param_rank == 5U)
       {
-        uint32_t ci = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                    element_infos->str_size, CI_SIZE);
+        uint32_t ci = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                           element_infos->str_size, CI_SIZE);
         p_modem_ctxt->persist.eps_location_info.ci = (uint32_t)ci;
         PRINT_INFO("+CEREG: ci=%ld =0x%lx", ci, ci)
       }
@@ -2417,13 +2389,15 @@ at_action_rsp_t fRspAnalyze_CEREG(at_context_t *p_at_ctxt, atcustom_modem_contex
         {
           /* param traced only */
           PRINT_DBG("+CEREG: cause_type=%ld",
-                    ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
+                    ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                              element_infos->str_size))
         }
         if (element_infos->param_rank == 8U)
         {
           /* param traced only */
           PRINT_DBG("+CEREG: reject_cause=%ld",
-                    ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
+                    ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                              element_infos->str_size))
         }
       }
       else if ((n_val == 4U) || (n_val == 5U))
@@ -2432,27 +2406,44 @@ at_action_rsp_t fRspAnalyze_CEREG(at_context_t *p_at_ctxt, atcustom_modem_contex
         {
           /* param traced only */
           PRINT_DBG("+CEREG: cause_type=%ld",
-                    ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
+                    ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                              element_infos->str_size))
         }
         if (element_infos->param_rank == 8U)
         {
           /* param traced only */
           PRINT_DBG("+CEREG: reject_cause=%ld",
-                    ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
+                    ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                              element_infos->str_size))
         }
         if (element_infos->param_rank == 9U)
         {
           /* active_time */
-          PRINT_INFO("+CEREG: active_time= 0x%lx",
-                     extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                   element_infos->str_size, 8))
+          uint32_t t3324_bin = ATutil_extract_bin_value_from_quotes(
+                                 &p_msg_in->buffer[element_infos->str_start_idx],
+                                 element_infos->str_size, 8);
+          uint32_t t3324_value = ATutil_convert_T3324_to_seconds(t3324_bin);
+          if (t3324_value != p_modem_ctxt->persist.low_power_status.nwk_active_time)
+          {
+            p_modem_ctxt->persist.low_power_status.nwk_active_time = t3324_value;
+            p_modem_ctxt->persist.urc_avail_lp_status = AT_TRUE;
+            PRINT_INFO("New T3324 value detected")
+          }
+          PRINT_INFO("+CEREG: active_time= %ld sec [0x%lx]", t3324_value, t3324_bin)
         }
         if (element_infos->param_rank == 10U)
         {
           /* periodic_tau */
-          PRINT_INFO("+CEREG: periodic_tau= 0x%lx",
-                     extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                   element_infos->str_size, 8))
+          uint32_t t3412_bin = ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                                    element_infos->str_size, 8);
+          uint32_t t3412_value = ATutil_convert_T3412_to_seconds(t3412_bin);
+          if (t3412_value != p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU)
+          {
+            p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU = t3412_value;
+            p_modem_ctxt->persist.urc_avail_lp_status = AT_TRUE;
+            PRINT_INFO("New T3412 value detected")
+          }
+          PRINT_INFO("+CEREG: periodic_tau= %ld sec [0x%lx]", t3412_value, t3412_bin)
         }
       }
       else
@@ -2483,16 +2474,16 @@ at_action_rsp_t fRspAnalyze_CEREG(at_context_t *p_at_ctxt, atcustom_modem_contex
     }
     if (element_infos->param_rank == 3U)
     {
-      uint32_t tac = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                   element_infos->str_size, LAC_TAC_SIZE);
+      uint32_t tac = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                          element_infos->str_size, LAC_TAC_SIZE);
       p_modem_ctxt->persist.urc_avail_eps_location_info_tac = AT_TRUE;
       p_modem_ctxt->persist.eps_location_info.lac = (uint16_t)tac;
       PRINT_INFO("+CEREG URC: tac=%ld =0x%lx", tac, tac)
     }
     if (element_infos->param_rank == 4U)
     {
-      uint32_t ci = extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                  element_infos->str_size, CI_SIZE);
+      uint32_t ci = ATutil_extract_hex_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                         element_infos->str_size, CI_SIZE);
       p_modem_ctxt->persist.urc_avail_eps_location_info_ci = AT_TRUE;
       p_modem_ctxt->persist.eps_location_info.ci = (uint32_t)ci;
       PRINT_INFO("+CEREG URC: ci=%ld =0x%lx", ci, ci)
@@ -2518,16 +2509,30 @@ at_action_rsp_t fRspAnalyze_CEREG(at_context_t *p_at_ctxt, atcustom_modem_contex
     if (element_infos->param_rank == 8U)
     {
       /* active_time */
-      PRINT_INFO("+CEREG URC: active_time= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+      uint32_t t3324_bin = ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                                element_infos->str_size, 8);
+      uint32_t t3324_value = ATutil_convert_T3324_to_seconds(t3324_bin);
+      if (t3324_value != p_modem_ctxt->persist.low_power_status.nwk_active_time)
+      {
+        p_modem_ctxt->persist.low_power_status.nwk_active_time = t3324_value;
+        p_modem_ctxt->persist.urc_avail_lp_status = AT_TRUE;
+        PRINT_INFO("New T3324 value detected")
+      }
+      PRINT_INFO("+CEREG URC: active_time= %ld sec [0x%lx]", t3324_value, t3324_bin)
     }
     if (element_infos->param_rank == 9U)
     {
       /* periodic_tau */
-      PRINT_INFO("+CEREG URC: periodic_tau= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+      uint32_t t3412_bin = ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                                element_infos->str_size, 8);
+      uint32_t t3412_value = ATutil_convert_T3412_to_seconds(t3412_bin);
+      if (t3412_value != p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU)
+      {
+        p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU = t3412_value;
+        p_modem_ctxt->persist.urc_avail_lp_status = AT_TRUE;
+        PRINT_INFO("New T3412 value detected")
+      }
+      PRINT_INFO("+CEREG URC: periodic_tau= %ld sec [0x%lx]", t3412_value, t3412_bin)
     }
     END_PARAM_LOOP()
   }
@@ -2902,29 +2907,29 @@ at_action_rsp_t fRspAnalyze_CPSMS(at_context_t *p_at_ctxt, atcustom_modem_contex
     {
       /* req_periodic_rau */
       PRINT_INFO("+CPSMS: req_periodic_rau= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+                 ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size, 8))
     }
     else if (element_infos->param_rank == 4U)
     {
       /* req_gprs_ready_timer */
       PRINT_INFO("+CPSMS: req_gprs_ready_timer= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+                 ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size, 8))
     }
     else if (element_infos->param_rank == 5U)
     {
       /* req_periodic_tau */
       PRINT_INFO("+CPSMS: req_periodic_tau= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+                 ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size, 8))
     }
     else if (element_infos->param_rank == 6U)
     {
       /* req_active_time */
       PRINT_INFO("+CPSMS: req_active_time= 0x%lx",
-                 extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                               element_infos->str_size, 8))
+                 ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size, 8))
     }
     else
     {
@@ -2970,8 +2975,8 @@ at_action_rsp_t fRspAnalyze_CEDRXS(at_context_t *p_at_ctxt, atcustom_modem_conte
       {
         /* req_edrx_value */
         PRINT_INFO("+CEDRXS: req_edrx_value= 0x%lx",
-                   extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                 element_infos->str_size, 4))
+                   ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                        element_infos->str_size, 4))
       }
       else
       {
@@ -3009,22 +3014,22 @@ at_action_rsp_t fRspAnalyze_CEDRXP(at_context_t *p_at_ctxt, atcustom_modem_conte
   {
     /* req_edrx_value */
     PRINT_INFO("+CEDRXP URC: req_edrx_value= 0x%lx",
-               extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                             element_infos->str_size, 4))
+               ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                    element_infos->str_size, 4))
   }
   else if (element_infos->param_rank == 4U)
   {
     /* nw_provided_edrx_value */
     PRINT_INFO("+CEDRXP URC: nw_provided_edrx_value= 0x%lx",
-               extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                             element_infos->str_size, 4))
+               ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                    element_infos->str_size, 4))
   }
   else if (element_infos->param_rank == 5U)
   {
     /* paging_time_window */
     PRINT_INFO("+CEDRXP URC: paging_time_window= 0x%lx",
-               extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                             element_infos->str_size, 4))
+               ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                    element_infos->str_size, 4))
   }
   else
   {
@@ -3063,22 +3068,22 @@ at_action_rsp_t fRspAnalyze_CEDRXRDP(at_context_t *p_at_ctxt, atcustom_modem_con
   {
     /* req_edrx_value */
     PRINT_INFO("+CEDRXRDP: req_edrx_value= 0x%lx",
-               extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                             element_infos->str_size, 4))
+               ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                    element_infos->str_size, 4))
   }
   else if (element_infos->param_rank == 4U)
   {
     /* nw_provided_edrx_value */
     PRINT_INFO("+CEDRXRDP: nw_provided_edrx_value= 0x%lx",
-               extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                             element_infos->str_size, 4))
+               ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                    element_infos->str_size, 4))
   }
   else if (element_infos->param_rank == 5U)
   {
     /* paging_time_window */
     PRINT_INFO("+CEDRXRDP: paging_time_window= 0x%lx",
-               extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
-                                             element_infos->str_size, 4))
+               ATutil_extract_bin_value_from_quotes(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                    element_infos->str_size, 4))
   }
   else
   {

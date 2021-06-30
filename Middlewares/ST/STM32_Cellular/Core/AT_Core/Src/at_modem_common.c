@@ -20,6 +20,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "at_core.h"
+#include "at_modem_common.h"
 #include "at_modem_api.h"
 #include "at_modem_socket.h"
 #include "at_modem_signalling.h"
@@ -502,7 +503,7 @@ const AT_CHAR_t *atcm_get_PDPtypeStr(CS_PDPtype_t pdp_type)
 {
   const AT_CHAR_t *retval = ((uint8_t *)"");
 
-  /* LUT: correspondance between PDPTYPE enum and string (for CGDCONT) */
+  /* LUT: correspondence between PDPTYPE enum and string (for CGDCONT) */
   static const atcm_pdp_type_LUT_t ACTM_PDP_TYPE_LUT[] =
   {
     {CS_PDPTYPE_IP,     "IP"},
@@ -760,7 +761,7 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
   at_status_t retval = ATSTATUS_OK;
 
   /* prepare response for a SID
-  *  all common behaviors for SID which are returning datas in rsp_buf have to be implemented here
+  *  all common behaviors for SID which are returning data in rsp_buf have to be implemented here
   */
 
   switch (p_atp_ctxt->current_SID)
@@ -876,7 +877,7 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
   * @param  p_rsp_buf     pointer to response buffer
   * @retval ATSTATUS_OK if no error and no more pending URC
   *         ATSTATUS_OK_PENDING_URC if no error and still some pending URC
-  *         ATSTATUS_ERROR if an error occured
+  *         ATSTATUS_ERROR if an error occurred
   */
 at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
                                const atparser_context_t *p_atp_ctxt,
@@ -1096,7 +1097,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
 
     /*  We are only interested by following +CGEV URC :
     *   +CGEV: NW DETACH : the network has forced a Packet domain detach (all contexts)
-    *   +CGEV: NW DEACT <PDP_type>, <PDP_addr>, [<cid>] : the nw has forced a contex deactivation
+    *   +CGEV: NW DEACT <PDP_type>, <PDP_addr>, [<cid>] : the nw has forced a context deactivation
     *   +CGEV: NW PDN DEACT <cid>[,<WLAN_Offload>] : context deactivated
     */
     if (p_modem_ctxt->persist.pdn_event.event_origine == CGEV_EVENT_ORIGINE_NW)
@@ -1176,6 +1177,85 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag (systematically to avoid never ending URC) */
     p_modem_ctxt->persist.urc_avail_ping_rsp = AT_FALSE;
   }
+  /* Sim refresh event */
+  else if (p_modem_ctxt->persist.urc_avail_sim_refresh_event == AT_TRUE)
+  {
+    PRINT_DBG("urc_avail_sim_refresh_event")
+
+    CS_SimEvent_status_t sim_status_struct;
+    (void) memcpy((void *)&sim_status_struct,
+                  (void *)&p_modem_ctxt->persist.sim_refresh_infos,
+                  sizeof(CS_SimEvent_status_t));
+    if (DATAPACK_writeStruct(p_rsp_buf,
+                             (uint16_t) CSMT_URC_SIM_EVENT,
+                             (uint16_t) sizeof(CS_SimEvent_status_t),
+                             (void *)&sim_status_struct) != DATAPACK_OK)
+    {
+      retval = ATSTATUS_ERROR;
+    }
+
+    /* reset flag (systematically to avoid never ending URC) */
+    p_modem_ctxt->persist.urc_avail_sim_refresh_event = AT_FALSE;
+  }
+  /* Sim detect event */
+  else if (p_modem_ctxt->persist.urc_avail_sim_detect_event == AT_TRUE)
+  {
+    PRINT_DBG("urc_avail_sim_detect_event")
+
+    CS_SimEvent_status_t sim_status_struct;
+    (void) memcpy((void *)&sim_status_struct,
+                  (void *)&p_modem_ctxt->persist.sim_detect_infos,
+                  sizeof(CS_SimEvent_status_t));
+    if (DATAPACK_writeStruct(p_rsp_buf,
+                             (uint16_t) CSMT_URC_SIM_EVENT,
+                             (uint16_t) sizeof(CS_SimEvent_status_t),
+                             (void *)&sim_status_struct) != DATAPACK_OK)
+    {
+      retval = ATSTATUS_ERROR;
+    }
+
+    /* reset flag (systematically to avoid never ending URC) */
+    p_modem_ctxt->persist.urc_avail_sim_detect_event = AT_FALSE;
+  }
+  /* Sim state event */
+  else if (p_modem_ctxt->persist.urc_avail_sim_state_event == AT_TRUE)
+  {
+    PRINT_DBG("urc_avail_sim_state_event")
+
+    CS_SimEvent_status_t sim_status_struct;
+    (void) memcpy((void *)&sim_status_struct,
+                  (void *)&p_modem_ctxt->persist.sim_state,
+                  sizeof(CS_SimEvent_status_t));
+    if (DATAPACK_writeStruct(p_rsp_buf,
+                             (uint16_t) CSMT_URC_SIM_EVENT,
+                             (uint16_t) sizeof(CS_SimEvent_status_t),
+                             (void *)&sim_status_struct) != DATAPACK_OK)
+    {
+      retval = ATSTATUS_ERROR;
+    }
+
+    /* reset flag (systematically to avoid never ending URC) */
+    p_modem_ctxt->persist.urc_avail_sim_state_event = AT_FALSE;
+  }
+  /* Low Power status event */
+  else if (p_modem_ctxt->persist.urc_avail_lp_status == AT_TRUE)
+  {
+    PRINT_DBG("urc_avail_lp_status")
+
+    CS_LowPower_status_t lp_status_struct;
+    lp_status_struct.nwk_periodic_TAU = p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU;
+    lp_status_struct.nwk_active_time = p_modem_ctxt->persist.low_power_status.nwk_active_time;
+    if (DATAPACK_writeStruct(p_rsp_buf,
+                             (uint16_t) CSMT_URC_LP_STATUS_EVENT,
+                             (uint16_t) sizeof(CS_LowPower_status_t),
+                             (void *)&lp_status_struct) != DATAPACK_OK)
+    {
+      retval = ATSTATUS_ERROR;
+    }
+
+    /* reset flag (systematically to avoid never ending URC) */
+    p_modem_ctxt->persist.urc_avail_lp_status = AT_FALSE;
+  }
   else if (p_modem_ctxt->persist.urc_avail_modem_events != CS_MDMEVENT_NONE)
   {
     PRINT_DBG("urc_avail_modem_events")
@@ -1192,7 +1272,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
   }
   else
   {
-    PRINT_ERR("unexpected URC")
+    PRINT_INFO("no pending URC")
     retval = ATSTATUS_ERROR;
   }
 
@@ -1211,6 +1291,10 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
       (p_modem_ctxt->persist.urc_avail_socket_closed_by_remote == AT_TRUE) ||
       (p_modem_ctxt->persist.urc_avail_pdn_event == AT_TRUE) ||
       (p_modem_ctxt->persist.urc_avail_ping_rsp == AT_TRUE) ||
+      (p_modem_ctxt->persist.urc_avail_lp_status == AT_TRUE) ||
+      (p_modem_ctxt->persist.urc_avail_sim_refresh_event == AT_TRUE) ||
+      (p_modem_ctxt->persist.urc_avail_sim_detect_event == AT_TRUE) ||
+      (p_modem_ctxt->persist.urc_avail_sim_state_event == AT_TRUE) ||
       (p_modem_ctxt->persist.urc_avail_modem_events != CS_MDMEVENT_NONE))
   {
     retval = ATSTATUS_OK_PENDING_URC;
@@ -1277,7 +1361,7 @@ at_status_t atcm_subscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, atp
       }
 
       /* request all URC, we will filter them */
-      if (p_modem_ctxt->persist.psm_requested == AT_TRUE)
+      if (p_modem_ctxt->persist.psm_urc_requested == AT_TRUE)
       {
         p_modem_ctxt->CMD_ctxt.cxreg_write_cmd_param = CXREG_ENABLE_PSM_NETWK_REG_LOC_URC;
       }
@@ -1310,7 +1394,7 @@ at_status_t atcm_subscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, atp
       }
 
       /* request all URC, we will filter them */
-      if (p_modem_ctxt->persist.psm_requested == AT_TRUE)
+      if (p_modem_ctxt->persist.psm_urc_requested == AT_TRUE)
       {
         p_modem_ctxt->CMD_ctxt.cxreg_write_cmd_param = CXREG_ENABLE_PSM_NETWK_REG_LOC_URC;
       }
@@ -1534,6 +1618,9 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
   p_persistent_ctxt->urc_avail_socket_data_pending = AT_FALSE;
   p_persistent_ctxt->urc_avail_socket_closed_by_remote = AT_FALSE;
   p_persistent_ctxt->urc_avail_pdn_event = AT_FALSE;
+  p_persistent_ctxt->urc_avail_sim_refresh_event = AT_FALSE;
+  p_persistent_ctxt->urc_avail_sim_detect_event = AT_FALSE;
+  p_persistent_ctxt->urc_avail_sim_state_event = AT_FALSE;
 
   /* Modem events subscriptions */
   p_persistent_ctxt->modem_events_subscript = CS_MDMEVENT_NONE;
@@ -1562,6 +1649,7 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
     csint_pdn_infos_t *p_tmp;
     p_tmp = &p_persistent_ctxt->pdp_ctxt_infos[i];
     p_tmp->conf_id = CS_PDN_NOT_DEFINED; /* not used */
+    p_tmp->apn_present = CELLULAR_TRUE;
     (void) memset((void *)&p_tmp->apn, 0, MAX_APN_SIZE);
     (void) memset((void *)&p_tmp->pdn_conf, 0, sizeof(CS_PDN_configuration_t));
     /* set default PDP type = IPV4 */
@@ -1574,6 +1662,7 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
   p_predef = &p_persistent_ctxt->pdp_ctxt_infos[CS_PDN_PREDEF_CONFIG];
   p_persistent_ctxt->pdn_default_conf_id = CS_PDN_PREDEF_CONFIG;
   p_predef->conf_id = CS_PDN_PREDEF_CONFIG;
+  p_predef->apn_present = CELLULAR_TRUE;
 
   /* set default PDN parameters */
   reserve_user_modem_cid(p_persistent_ctxt, CS_PDN_PREDEF_CONFIG, 1U);
@@ -1593,7 +1682,7 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
   }
 
   /* Power Saving Mode info */
-  p_persistent_ctxt->psm_requested = AT_FALSE;       /* PSM default value */
+  p_persistent_ctxt->psm_urc_requested = AT_FALSE;       /* PSM default value */
 
   /* other */
   p_persistent_ctxt->modem_at_ready = AT_FALSE;     /* modem ready to receive AT commands */
@@ -1610,6 +1699,19 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
   (void) memset((void *)&p_persistent_ctxt->ping_resp_urc, 0, sizeof(CS_Ping_response_t));
   p_persistent_ctxt->ping_resp_urc.index = PING_INVALID_INDEX;
   p_persistent_ctxt->urc_avail_ping_rsp = AT_FALSE;
+
+  /* low power status */
+  p_persistent_ctxt->low_power_status.nwk_periodic_TAU = 0U; /* T3412, default value (0U means value not available) */
+  p_persistent_ctxt->low_power_status.nwk_active_time = 0U;  /* T3324, default value (0U means value not available) */
+  p_persistent_ctxt->urc_avail_lp_status = AT_FALSE;
+
+  /* SIM infos - initialized for each event, parameters are set to 'not significant' (-1) */
+  p_persistent_ctxt->sim_refresh_infos.event = CS_SIMEVENT_SIM_REFRESH;
+  p_persistent_ctxt->sim_refresh_infos.param1 = CS_SIMINFOS_UNKNOWN;
+  p_persistent_ctxt->sim_detect_infos.event = CS_SIMEVENT_SIM_DETECT;
+  p_persistent_ctxt->sim_detect_infos.param1 = CS_SIMINFOS_UNKNOWN;
+  p_persistent_ctxt->sim_state_infos.event = CS_SIMEVENT_SIM_STATE;
+  p_persistent_ctxt->sim_state_infos.param1 = CS_SIMINFOS_UNKNOWN;
 }
 
 /**
@@ -1672,11 +1774,11 @@ void atcm_reset_CMD_context(atcustom_CMD_context_t *p_cmd_ctxt)
 {
   PRINT_API("enter reset_CMD_context()")
 
-  p_cmd_ctxt->cgsn_write_cmd_param = CGSN_SN;
+  /* p_cmd_ctxt->cgsn_write_cmd_param parameter used in fCmdBuild_CGSN() for AT+GCSN cmd */
   p_cmd_ctxt->cgatt_write_cmd_param = CGATT_UNKNOWN;
   p_cmd_ctxt->cxreg_write_cmd_param = CXREG_DISABLE_NETWK_REG_URC;
-  p_cmd_ctxt->command_echo = AT_FALSE;
-  p_cmd_ctxt->dce_full_resp_format = AT_TRUE;
+  /* p_cmd_ctxt->command_echo parameter  used in fCmdBuild_ATE() for ATE cmd */
+  /* p_cmd_ctxt->dce_full_resp_format parameter used in fCmdBuild_ATV() for ATV cmd*/
   p_cmd_ctxt->pdn_state = PDN_STATE_ACTIVATE;
   p_cmd_ctxt->modem_cid = 0xFFFFU;
   p_cmd_ctxt->baud_rate = MODEM_UART_BAUDRATE;
@@ -1880,7 +1982,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
     switch (p_atp_ctxt->current_SID)
     {
       case SID_CS_MODEM_CONFIG:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_MODEMCONFIG,
                                 (uint16_t) sizeof(CS_ModemConfig_t),
@@ -1891,7 +1993,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_INIT_MODEM:
-        /* retrieve  client datas */
+        /* retrieve  client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_INITMODEM,
                                 (uint16_t) sizeof(csint_modemInit_t),
@@ -1922,7 +2024,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_REGISTER_NET:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_OPERATORSELECT,
                                 (uint16_t) sizeof(CS_OperatorSelector_t),
@@ -1933,7 +2035,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_SUSBCRIBE_NET_EVENT:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_URC_EVENT,
                                 (uint16_t) sizeof(CS_UrcEvent_t),
@@ -1944,7 +2046,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_UNSUSBCRIBE_NET_EVENT:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_URC_EVENT,
                                 (uint16_t) sizeof(CS_UrcEvent_t),
@@ -1965,7 +2067,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_SEND_DATA:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_SOCKET_DATA_BUFFER,
                                 (uint16_t) sizeof(csint_socket_data_buffer_t),
@@ -1998,7 +2100,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_RESET:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_RESET,
                                 (uint16_t) sizeof(CS_Reset_t),
@@ -2009,7 +2111,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_ACTIVATE_PDN:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_ACTIVATE_PDN,
                                 (uint16_t) sizeof(CS_PDN_conf_id_t),
@@ -2020,7 +2122,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_DEACTIVATE_PDN:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_DEACTIVATE_PDN,
                                 (uint16_t) sizeof(CS_PDN_conf_id_t),
@@ -2038,7 +2140,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
                              (uint16_t) CSMT_DEFINE_PDN,
                              (void **)&ptr_pdn_infos) == DATAPACK_OK)
         {
-          /* recopy pdn configuration infos to persistant context */
+          /* recopy pdn configuration infos to persistent context */
           (void) memcpy((void *)&p_modem_ctxt->persist.pdp_ctxt_infos[ptr_pdn_infos->conf_id],
                         (void *)ptr_pdn_infos,
                         sizeof(csint_pdn_infos_t));
@@ -2055,7 +2157,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
       }
 
       case SID_CS_SET_DEFAULT_PDN:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_SET_DEFAULT_PDN,
                                 (uint16_t) sizeof(CS_PDN_conf_id_t),
@@ -2066,7 +2168,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_GET_IP_ADDRESS:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_GET_IP_ADDRESS,
                                 (uint16_t) sizeof(CS_PDN_conf_id_t),
@@ -2102,7 +2204,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_SUSBCRIBE_MODEM_EVENT:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_MODEM_EVENT,
                                 (uint16_t) sizeof(CS_ModemEvent_t),
@@ -2113,7 +2215,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_PING_IP_ADDRESS:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_PING_ADDRESS,
                                 (uint16_t) sizeof(csint_ping_params_t),
@@ -2139,7 +2241,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_SIM_SELECT:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_SIM_SELECT,
                                 (uint16_t) sizeof(CS_SimSlot_t),
@@ -2150,7 +2252,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_SIM_GENERIC_ACCESS:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_SIM_GENERIC_ACCESS,
                                 (uint16_t) sizeof(csint_sim_generic_access_t),
@@ -2178,7 +2280,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_INIT_POWER_CONFIG:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_INIT_POWER_CONFIG,
                                 (uint16_t) sizeof(CS_init_power_config_t),
@@ -2189,7 +2291,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_SET_POWER_CONFIG:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_SET_POWER_CONFIG,
                                 (uint16_t) sizeof(CS_set_power_config_t),
@@ -2207,7 +2309,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         break;
 
       case SID_CS_WAKEUP:
-        /* retrieve client datas */
+        /* retrieve client data */
         if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
                                 (uint16_t) CSMT_WAKEUP_ORIGIN,
                                 (uint16_t) sizeof(CS_wakeup_origin_t),
@@ -2354,4 +2456,65 @@ void reset_pdn_event(atcustom_persistent_context_t *p_persistent_ctxt)
   p_persistent_ctxt->pdn_event.conf_id       = CS_PDN_NOT_DEFINED;
 }
 
+/**
+  * @brief  atcm_report_urc_sim_event is used to report a modem SIM event
+  * @note   User of this function has to fill CS_SimEvent_status_t structure
+  * @param  p_modem_ctxt
+  * @param  sim_event
+  * @retval none
+  */
+void atcm_report_urc_sim_event(atcustom_modem_context_t *p_modem_ctxt, CS_SimEvent_status_t *sim_event)
+{
+  /* limitation: if an event of same type has not been reported yet, it will be overwrited
+  *             by last event
+  */
+  if (sim_event != NULL)
+  {
+    /* recopy sim event info to the good structure */
+    if (sim_event->event == CS_SIMEVENT_SIM_REFRESH)
+    {
+      (void) memcpy((void *)&p_modem_ctxt->persist.sim_refresh_infos,
+                    (void *)sim_event,
+                    sizeof(CS_SimEvent_status_t));
+      p_modem_ctxt->persist.urc_avail_sim_refresh_event = AT_TRUE;
+    }
+    else if (sim_event->event == CS_SIMEVENT_SIM_DETECT)
+    {
+      (void) memcpy((void *)&p_modem_ctxt->persist.sim_detect_infos,
+                    (void *)sim_event,
+                    sizeof(CS_SimEvent_status_t));
+      p_modem_ctxt->persist.urc_avail_sim_detect_event = AT_TRUE;
+    }
+    else if (sim_event->event == CS_SIMEVENT_SIM_STATE)
+    {
+      (void) memcpy((void *)&p_modem_ctxt->persist.sim_state_infos,
+                    (void *)sim_event,
+                    sizeof(CS_SimEvent_status_t));
+      p_modem_ctxt->persist.urc_avail_sim_state_event = AT_TRUE;
+    }
+    else
+    {
+      PRINT_ERR("SIM event not supported")
+    }
+  }
+}
+
+/*
+ * Update error report that will be sent to Cellular Service
+ */
+void atcm_set_error_report(csint_error_type_t err_type, atcustom_modem_context_t *p_modem_ctxt)
+{
+  p_modem_ctxt->SID_ctxt.error_report.error_type = err_type;
+
+  switch (err_type)
+  {
+    case CSERR_SIM:
+      p_modem_ctxt->SID_ctxt.error_report.sim_state = p_modem_ctxt->persist.sim_state;
+      break;
+
+    default:
+      /* nothing to do*/
+      break;
+  }
+}
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

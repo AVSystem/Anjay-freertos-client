@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) YYYY STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -80,9 +80,9 @@
 List of bands parameters (cf .h file to see the list of enum values for each parameter)
   - BG96_BAND_GSM    : hexadecimal value that specifies the GSM frequency band (cf AT+QCFG="band")
   - BG96_BAND_CAT_M1 : hexadecimal value that specifies the LTE Cat.M1 frequency band (cf AT+QCFG="band")
-                       64bits bitmap splitted in two 32bits bitmaps  (MSB and LSB parts)
+                       64bits bitmap split in two 32bits bitmaps  (MSB and LSB parts)
   - BG96_BAND_CAT_NB1: hexadecimal value that specifies the LTE Cat.NB1 frequency band (cf AT+QCFG="band")
-                       64bits bitmap splitted in two 32bits bitmaps  (MSB and LSB parts)
+                       64bits bitmap split in two 32bits bitmaps  (MSB and LSB parts)
   - BG96_IOTOPMODE   : network category to be searched under LTE network (cf AT+QCFG="iotopmode")
   - BG96_SCANSEQ     : network search sequence (GSM, Cat.M1, Cat.NB1) (cf AT+QCFG="nwscanseq")
   - BG96_SCANMODE    : network to be searched (cf AT+QCFG="nwscanmode")
@@ -99,7 +99,14 @@ Below are define default band values that will be used if calling write form of 
 #define BG96_SCANSEQ           ((ATCustom_BG96_QCFGscanseq_t)    QCFGSCANSEQ_M1_NB1_GSM)
 #define BG96_SCANMODE          ((ATCustom_BG96_QCFGscanmode_t)   QCFGSCANMODE_AUTO)
 
-#define BG96_PDP_DUPLICATECHK_ENABLE ((uint8_t)0) /* parameter of AT+QCFG="PDP/DuplicateChk": 0 to refuse, 1 to allow */
+#define BG96_PDP_DUPLICATECHK_ENABLE ((uint8_t)0U) /* parameter of AT+QCFG="PDP/DuplicateChk":
+                                                    * 0 to refuse, 1 to allow
+                                                    */
+
+#define BG96_PSM_URC_ENABLE ((uint8_t)1U) /* parameter of AT+QCFG="psm/urc":
+                                           * 0 to disable QPSMTIMER URC report
+                                           * 1 to enable QPSMTIMER URC report
+                                           */
 
 /* Global variables ----------------------------------------------------------*/
 
@@ -162,7 +169,9 @@ at_status_t fCmdBuild_QPOWD_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_
 at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
-  /* Commands Look-up table for AT+QCFG */
+  /* Commands Look-up table for AT+QCFG
+   * important: it has to be aligned with ATCustom_BG96_QCFG_function_t
+   */
   static const AT_CHAR_t BG96_QCFG_LUT[][32] =
   {
     {"unknown"}, /* QCFG_unknown */
@@ -181,6 +190,7 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
     {"urc/ri/other"}, /* QCFG_urc_ri_other */
     {"signaltype"}, /* QCFG_signaltype */
     {"urc/delay"}, /* QCFG_urc_delay */
+    {"psm/urc"}, /* QCFG_urc_psm */
   };
 
   at_status_t retval = ATSTATUS_OK;
@@ -211,21 +221,21 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
           (void) sprintf((CRC_CHAR_t *)&cmd_param1, "0%lx",
                          BG96_SCANSEQ);  /* print as hexa but without prefix, need to add 1st digit = 0*/
           /* param 2 = effect */
-          (void) sprintf((CRC_CHAR_t *)&cmd_param2, "%d", 1);  /* 1 means take effect immediatly */
+          (void) sprintf((CRC_CHAR_t *)&cmd_param2, "%d", 1);  /* 1 means take effect immediately */
           break;
         case QCFG_nwscanmode:
           cmd_nb_params = 2U;
           /* param 1 = scanmode */
           (void) sprintf((CRC_CHAR_t *)&cmd_param1, "%ld", BG96_SCANMODE);
           /* param 2 = effect */
-          (void) sprintf((CRC_CHAR_t *)&cmd_param2, "%d", 1);  /* 1 means take effect immediatly */
+          (void) sprintf((CRC_CHAR_t *)&cmd_param2, "%d", 1);  /* 1 means take effect immediately */
           break;
         case QCFG_iotopmode:
           cmd_nb_params = 2U;
           /* param 1 = iotopmode */
           (void) sprintf((CRC_CHAR_t *)&cmd_param1, "%ld", BG96_IOTOPMODE);
           /* param 2 = effect */
-          (void) sprintf((CRC_CHAR_t *)&cmd_param2, "%d", 1);  /* 1 means take effect immediatly */
+          (void) sprintf((CRC_CHAR_t *)&cmd_param2, "%d", 1);  /* 1 means take effect immediately */
           break;
         case QCFG_roamservice:
           /* cmd_nb_params = 2U; */
@@ -240,7 +250,7 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
           /* param 3 = catnb1bandval */
           (void) sprintf((CRC_CHAR_t *)&cmd_param3, "%lx%lx", BG96_BAND_CAT_NB1_MSB, BG96_BAND_CAT_NB1_LSB);
           /* param 4 = effect */
-          (void) sprintf((CRC_CHAR_t *)&cmd_param4, "%d", 1);  /* 1 means take effect immediatly */
+          (void) sprintf((CRC_CHAR_t *)&cmd_param4, "%d", 1);  /* 1 means take effect immediately */
           break;
         case QCFG_servicedomain:
           /* cmd_nb_params = 2U; */
@@ -278,6 +288,11 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
         case QCFG_urc_delay:
           /* cmd_nb_params = 1U; */
           /* NOT IMPLEMENTED */
+          break;
+        case QCFG_urc_psm:
+          cmd_nb_params = 1U;
+          /* param 1 = iotopmode */
+          (void) sprintf((CRC_CHAR_t *)&cmd_param1, "%d", BG96_PSM_URC_ENABLE);
           break;
         default:
           break;
@@ -328,6 +343,7 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
   return (retval);
 }
 
+#define APN_EMPTY_STRING ""
 at_status_t fCmdBuild_QICSGP_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -351,6 +367,7 @@ at_status_t fCmdBuild_QICSGP_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem
 
     if (bg96_shared.QICGSP_config_command == AT_TRUE)
     {
+      CS_CHAR_t *p_apn;
       /* Write command is a config command */
       CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
       uint8_t modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
@@ -387,11 +404,27 @@ at_status_t fCmdBuild_QICSGP_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem
         authentication_value = 3U;
       }
 
+
+
       /* build command */
+      if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CELLULAR_TRUE)
+      {
+        /* use the APN explicitly providedby user */
+        p_apn = (CS_CHAR_t *) &p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn;
+      }
+      else
+      {
+        /* no APN provided by user: use empty APN string (BG96 specific) to force the network to
+        *  select the appropriate APN.
+        */
+        p_apn = (CS_CHAR_t *) &APN_EMPTY_STRING;
+      }
+
+      /* use the APN value given by user */
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,%d,\"%s\",\"%s\",\"%s\",%d",
                      modem_cid,
                      context_type_value,
-                     p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn,
+                     p_apn,
                      p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].pdn_conf.username,
                      p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].pdn_conf.password,
                      authentication_value
@@ -512,6 +545,68 @@ at_status_t fCmdBuild_QENG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
   return (retval);
 }
 
+at_status_t fCmdBuild_QURCCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
+{
+  UNUSED(p_modem_ctxt);
+  at_status_t retval = ATSTATUS_OK;
+  PRINT_API("enter fCmdBuild_QURCCFG_BG96()")
+
+  /* only for write command, set parameters */
+  if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
+  {
+    /* set URC output port to UART */
+    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"urcport\",\"uart1\"");
+  }
+
+  return (retval);
+}
+
+at_status_t fCmdBuild_QPSMEXTCFG(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
+{
+  UNUSED(p_modem_ctxt);
+  at_status_t retval = ATSTATUS_OK;
+  PRINT_API("enter fCmdBuild_QPSMEXTCFG()")
+
+  /* only for write command, set parameters */
+  if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
+  {
+    /* Normal Power Down */
+    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "0,,,,,3");
+  }
+
+  return (retval);
+}
+
+at_status_t fCmdBuild_COPS_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
+{
+  UNUSED(p_modem_ctxt);
+  at_status_t retval;
+  PRINT_API("enter fCmdBuild_COPS_BG96()")
+
+  /* BG96 does not follow 3GPP TS 27.007 values for <AcT> parameter in AT+COPS
+   * Encapsulate generic COPS build function to manage this difference
+   */
+
+  CS_OperatorSelector_t *operatorSelect = &(p_modem_ctxt->SID_ctxt.write_operator_infos);
+  if (operatorSelect->AcT_present == CELLULAR_TRUE)
+  {
+    if (operatorSelect->AcT == CS_ACT_E_UTRAN)
+    {
+      /* BG96 AcT = 8 means cat.M1
+      *  3GPP AcT = 8 means CS_ACT_EC_GSM_IOT, cat.M1 value is 9
+      *  convert 9 to 8 for BG96
+      */
+      operatorSelect->AcT = CS_ACT_EC_GSM_IOT;
+    }
+  }
+
+  /* finally call the common COPS function */
+  retval = fCmdBuild_COPS(p_atp_ctxt, p_modem_ctxt);
+
+  return (retval);
+}
+
+
 /* Analyze command functions ------------------------------------------------------- */
 
 at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
@@ -546,6 +641,8 @@ at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
       break;
 
     case CMD_AT_CPSMS:
+    case CMD_AT_QPSMCFG:
+    case CMD_AT_QPSMEXTCFG:
     case CMD_AT_CEDRXS:
     case CMD_AT_QNWINFO:
     case CMD_AT_QENG:
@@ -1050,7 +1147,6 @@ at_action_rsp_t fRspAnalyze_QIURC_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   else if (element_infos->param_rank == 3U)
   {
     uint32_t connectID;
-    uint32_t contextID;
     socket_handle_t sockHandle;
 
     switch (bg96_current_qiurc_ind)
@@ -1082,8 +1178,15 @@ at_action_rsp_t fRspAnalyze_QIURC_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
         break;
 
       case QIURC_PDPDEACT:
+#if 0
+        /* we do not process this event as it is also reported by modem when it enters in PSM.
+         * So we do support only +CGEV to detect PDP deactivation
+         */
+
         /* <contextID> */
-        contextID = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
+        uint32_t contextID = ATutil_convertStringToInt(
+                               &p_msg_in->buffer[element_infos->str_start_idx],
+                               element_infos->str_size);
         PRINT_DBG("+QIURC pdpdeact for contextID=%ld", contextID)
         /* Need to inform  upper layer if pdn event URC has been subscribed
          * apply same treatment than CGEV NW PDN DEACT
@@ -1097,6 +1200,9 @@ at_action_rsp_t fRspAnalyze_QIURC_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
         p_modem_ctxt->persist.urc_avail_pdn_event = AT_TRUE;
         /* last param */
         retval = ATACTION_RSP_URC_FORWARDED;
+#else
+        retval = ATACTION_RSP_IGNORED;
+#endif  /* 0 */
         break;
 
       case QIURC_DNSGIP:
@@ -1533,5 +1639,84 @@ at_action_rsp_t fRspAnalyze_QGMR_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
 
   return (retval);
 }
+
+at_action_rsp_t fRspAnalyze_QPSMTIMER_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
+                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
+{
+  UNUSED(p_at_ctxt);
+  UNUSED(p_modem_ctxt);
+  at_action_rsp_t retval = ATACTION_RSP_IGNORED;
+  PRINT_API("enter fRspAnalyze_QPSMTIMER_BG96()")
+
+  /* analyze parameters for +QPSMTIMER
+   * this is an URC
+   */
+  START_PARAM_LOOP()
+  if (element_infos->param_rank == 2U)
+  {
+    uint32_t t3412_nwk_value = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                         element_infos->str_size);
+    PRINT_INFO("URC +QPSMTIMER received: TAU_duration (T3412) = %ld sec", t3412_nwk_value)
+
+    if (t3412_nwk_value != p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU)
+    {
+      p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU = t3412_nwk_value;
+      p_modem_ctxt->persist.urc_avail_lp_status = AT_TRUE;
+      PRINT_DBG("New T3412 value detected")
+    }
+  }
+  else if (element_infos->param_rank == 3U)
+  {
+    uint32_t t3324_nwk_value = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                         element_infos->str_size);
+    PRINT_INFO("URC +QPSMTIMER received: Active_duration (T3324) = %ld sec", t3324_nwk_value)
+
+    if (t3324_nwk_value != p_modem_ctxt->persist.low_power_status.nwk_active_time)
+    {
+      p_modem_ctxt->persist.low_power_status.nwk_active_time = t3324_nwk_value;
+      p_modem_ctxt->persist.urc_avail_lp_status = AT_TRUE;
+      PRINT_DBG("New T3324 value detected")
+    }
+  }
+  else
+  {
+    /* parameter ignored */
+    __NOP(); /* to avoid warning */
+  }
+
+  END_PARAM_LOOP()
+
+  return (retval);
+}
+
+at_action_rsp_t fRspAnalyze_COPS_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
+                                      const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
+{
+  at_action_rsp_t retval;
+  PRINT_API("enter fRspAnalyze_COPS_BG96()")
+
+  /* BG96 does not follow 3GPP TS 27.007 values for <AcT> parameter in AT+COPS
+  * Encapsulate generic COPS build function to manage this difference
+  */
+  retval = fRspAnalyze_COPS(p_at_ctxt, p_modem_ctxt, p_msg_in, element_infos);
+
+  if (retval != ATACTION_RSP_ERROR)
+  {
+    if ((p_modem_ctxt->SID_ctxt.read_operator_infos.optional_fields_presence & CS_RSF_ACT_PRESENT) != 0U)
+    {
+      if (p_modem_ctxt->SID_ctxt.read_operator_infos.AcT == CS_ACT_EC_GSM_IOT)
+      {
+        /* BG96 AcT = 8 means cat.M1
+        *  3GPP AcT = 8 means CS_ACT_EC_GSM_IOT, cat.M1 value if 9
+        *  convert 8 to 9 for upper layers
+        */
+        p_modem_ctxt->SID_ctxt.read_operator_infos.AcT = CS_ACT_E_UTRAN;
+      }
+    }
+  }
+
+  return (retval);
+}
+
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

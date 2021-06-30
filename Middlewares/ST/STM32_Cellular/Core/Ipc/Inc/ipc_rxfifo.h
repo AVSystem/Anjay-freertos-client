@@ -37,20 +37,20 @@ extern "C" {
 /* Exported macros -----------------------------------------------------------*/
 
 /* Exported functions ------------------------------------------------------- */
-void IPC_RXFIFO_init(IPC_Handle_t *hipc);
-void IPC_RXFIFO_writeCharacter(IPC_Handle_t *hipc, uint8_t rxChar);
-int16_t IPC_RXFIFO_read(IPC_Handle_t *hipc, IPC_RxMessage_t *pMsg);
+void IPC_RXFIFO_init(IPC_Handle_t *const hipc);
+void IPC_RXFIFO_writeCharacter(IPC_Handle_t *const hipc, uint8_t rxChar);
+int16_t IPC_RXFIFO_read(IPC_Handle_t *const hipc, IPC_RxMessage_t *pMsg);
 #if (IPC_USE_STREAM_MODE == 1U)
-void IPC_RXFIFO_stream_init(IPC_Handle_t *hipc);
-void IPC_RXFIFO_writeStream(IPC_Handle_t *hipc, uint8_t rxChar);
+void IPC_RXFIFO_stream_init(IPC_Handle_t *const hipc);
+void IPC_RXFIFO_writeStream(IPC_Handle_t *const hipc, uint8_t rxChar);
 #endif /* IPC_USE_STREAM_MODE */
-uint16_t IPC_RXFIFO_getFreeBytes(IPC_Handle_t *hipc);
-void IPC_RXFIFO_readMsgHeader_at_pos(const IPC_Handle_t *hipc, IPC_RxHeader_t *pHeader, uint16_t pos);
+uint16_t IPC_RXFIFO_getFreeBytes(IPC_Handle_t *const hipc);
+void IPC_RXFIFO_readMsgHeader_at_pos(const IPC_Handle_t *const hipc, IPC_RxHeader_t *pHeader, uint16_t pos);
 
 #if (DBG_IPC_RX_FIFO == 1U)
 /* Debug functions */
-void IPC_RXFIFO_print_data(const IPC_Handle_t *hipc, uint16_t index, uint16_t size, uint8_t readable);
-void dump_RX_dbg_infos(IPC_Handle_t *hipc, uint8_t databuf, uint8_t queue);
+void IPC_RXFIFO_print_data(const IPC_Handle_t *const hipc, uint16_t index, uint16_t size, uint8_t readable);
+void dump_RX_dbg_infos(IPC_Handle_t *const hipc, uint8_t databuf, uint8_t queue);
 #endif /* DBG_IPC_RX_FIFO */
 
 #ifdef __cplusplus

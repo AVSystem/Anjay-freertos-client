@@ -28,8 +28,6 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 #include <stdint.h>
-#include <string.h>
-#include <stdlib.h>
 
 #include "plf_config.h"
 
@@ -125,13 +123,7 @@ typedef struct
   */
 
 /* External variables --------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
 /** @addtogroup COM_SOCKETS_Macros
@@ -179,13 +171,7 @@ typedef struct
   */
 
 /* Exported functions ------------------------------------------------------- */
-/** @addtogroup COM_SOCKETS_Functions
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 

@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) YYYY STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -29,7 +29,7 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* You can specify in project configuration the modem and hardware interface used.
-*  If this is not specified, default configuration is specifed below.
+*  If this is not specified, default configuration is specified below.
 */
 #if defined(HWREF_B_CELL_BG96_V2)
 /* already explicitly defined:
@@ -39,6 +39,9 @@ extern "C" {
 /* set default config */
 #define HWREF_B_CELL_BG96_V2
 #endif /* HWREF_B_CELL_BG96_V2 */
+
+/* Low Power */
+#define ENABLE_BG96_LOW_POWER_MODE  USE_LOW_POWER
 
 /* MODEM parameters */
 #define USE_MODEM_BG96

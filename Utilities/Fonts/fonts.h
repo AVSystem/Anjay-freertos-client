@@ -2,12 +2,12 @@
   ******************************************************************************
   * @file    fonts.h
   * @author  MCD Application Team
-  * @brief   This file provides definition for fonts to be used for STM32
-  *          board's LCD driver
+  * @brief   This file provide definition for fonts to be used for STM32xx-EVAL's
+  *          LCD driver
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2014 STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -19,8 +19,8 @@
   */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __FONTS_H
-#define __FONTS_H
+#ifndef FONTS_H
+#define FONTS_H
 
 #ifdef __cplusplus
  extern "C" {
@@ -45,7 +45,7 @@
   * @{
   */
 
-/** @defgroup FONTS_Exported_Types
+/** @defgroup FONTS_Exported_Types Exported Types
   * @{
   */
 typedef struct _tFont
@@ -64,34 +64,11 @@ extern sFONT Font8;
   * @}
   */
 
-/** @defgroup FONTS_Exported_Constants
-  * @{
-  */
-#define LINE(x) ((x) * (((sFONT *)BSP_LCD_GetFont())->Height))
-
-/**
-  * @}
-  */
-
-/** @defgroup FONTS_Exported_Macros
-  * @{
-  */ 
-/**
-  * @}
-  */ 
-
-/** @defgroup FONTS_Exported_Functions
-  * @{
-  */ 
-/**
-  * @}
-  */
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __FONTS_H */
+#endif /* FONTS_H */
 
 /**
   * @}
@@ -108,9 +85,5 @@ extern sFONT Font8;
 /**
   * @}
   */
-
-/**
-  * @}
-  */      
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

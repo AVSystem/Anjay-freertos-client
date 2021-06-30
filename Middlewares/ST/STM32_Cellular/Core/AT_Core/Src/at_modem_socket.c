@@ -137,7 +137,7 @@ uint32_t atcm_socket_get_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socke
   }
   else
   {
-    /* find  connectid correspondig to this socket_handle */
+    /* find  connectid corresponding to this socket_handle */
     cid = (uint32_t)(p_modem_ctxt->persist.socket[sockHandle].socket_connId_value);
   }
 

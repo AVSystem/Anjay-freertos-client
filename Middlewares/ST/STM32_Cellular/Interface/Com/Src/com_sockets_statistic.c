@@ -23,57 +23,36 @@
 #if (COM_SOCKETS_STATISTIC == 1U)
 
 #include <string.h>
-#include <stdio.h>
 
-#include "cmsis_os_misrac2012.h"
+#include "rtosal.h"
 
-/* Private defines -----------------------------------------------------------*/
-#if ((USE_TRACE_COM_SOCKETS == 1U) || (USE_CMD_CONSOLE == 1U))
-#if (USE_PRINTF == 0U)
-#include "trace_interface.h"
-#define PRINT_STAT(format, args...) \
-  TRACE_PRINT(DBG_CHAN_COMLIB, DBL_LVL_P0, "" format "\n\r", ## args)
-#else /* USE_PRINTF == 1U */
-#define PRINT_STAT(format, args...) \
-  (void)printf("" format "\n\r", ## args);
-#endif /* USE_PRINTF == 0U */
+#include "com_trace.h"
 
-#else /* (USE_TRACE_COM_SOCKETS == 0U) && (USE_CMD_CONSOLE == 0U) */
-#define PRINT_STAT(...)             \
-  __NOP(); /* Nothing to do */
-
-#endif /* (USE_TRACE_COM_SOCKETS == 1U) || (USE_CMD_CONSOLE == 1U) */
-
-#if (USE_DATACACHE == 1)
 #include "dc_common.h"
-#endif /* USE_DATACACHE == 1 */
 
-#if (USE_RTC == 1)
-#include "time_date.h"
-#endif /* USE_RTC == 1 */
+/* Private defines -----------------------------------------------------------*/
 
 /* Private typedef -----------------------------------------------------------*/
 
 /* Private defines -----------------------------------------------------------*/
 
 /* Private typedef -----------------------------------------------------------*/
-/* Socket statitics definition */
+/* Socket statistics counter definition */
 typedef struct
 {
-  uint16_t sock_cre_ok;
-  uint16_t sock_cre_nok;
-  uint16_t sock_cnt_ok;
-  uint16_t sock_cnt_nok;
-  uint16_t sock_snd_ok;
-  uint16_t sock_snd_nok;
-  uint16_t sock_rcv_ok;
-  uint16_t sock_rcv_nok;
-  uint16_t sock_cls_ok;
-  uint16_t sock_cls_nok;
-#if (USE_DATACACHE == 1)
-  uint16_t nwk_up;
-  uint16_t nwk_dwn;
-#endif /* USE_DATACACHE == 1 */
+  uint16_t ok;
+  uint16_t nok;
+} com_sockets_stat_counter_t;
+
+/* Socket statistics definition */
+typedef struct
+{
+  com_sockets_stat_counter_t create;
+  com_sockets_stat_counter_t connect;
+  com_sockets_stat_counter_t send;
+  com_sockets_stat_counter_t receive;
+  com_sockets_stat_counter_t close;
+  com_sockets_stat_counter_t network;
 } com_socket_statistic_t;
 
 /* Private macros ------------------------------------------------------------*/
@@ -111,7 +90,7 @@ static com_socket_statistic_t com_socket_statistic;
 /* Callback prototype */
 /* Callback called when timer expires */
 #if (COM_SOCKETS_STATISTIC_PERIOD != 0U)
-static void com_socket_statistic_timer_cb(void const *argument);
+static void com_socket_statistic_timer_cb(void *argument);
 #endif /* COM_SOCKETS_STATISTIC_PERIOD != 0U */
 
 /* Private function Definition -----------------------------------------------*/
@@ -124,7 +103,7 @@ static void com_socket_statistic_timer_cb(void const *argument);
   * @note   Unused
   * @retval -
   */
-static void com_socket_statistic_timer_cb(void const *argument)
+static void com_socket_statistic_timer_cb(void *argument)
 {
   UNUSED(argument);
   com_sockets_statistic_display();
@@ -148,17 +127,22 @@ void com_sockets_statistic_init(void)
   static osTimerId com_socket_statistic_timer_handle;
 #endif /* COM_SOCKETS_STATISTIC_PERIOD != 0U */
 
-  /* Initialize socket statitics struture to 0U */
+  /* Initialize socket statistics structure to 0U */
   (void)memset(&com_socket_statistic, 0, sizeof(com_socket_statistic_t));
 
 #if (COM_SOCKETS_STATISTIC_PERIOD != 0U)
   /* Timer creation */
-  osTimerDef(com_socket_statistic_timer,
-             com_socket_statistic_timer_cb);
-  com_socket_statistic_timer_handle = osTimerCreate(osTimer(com_socket_statistic_timer),
-                                                    osTimerPeriodic, NULL);
-  (void)osTimerStart(com_socket_statistic_timer_handle,
-                     (uint32_t)(COM_SOCKETS_STATISTIC_PERIOD * 60000U));
+  com_socket_statistic_timer_handle = rtosalTimerNew(NULL, (os_ptimer)com_socket_statistic_timer_cb, osTimerPeriodic,
+                                                     NULL);
+  if (com_socket_statistic_timer_handle != NULL)
+  {
+    (void)rtosalTimerStart(com_socket_statistic_timer_handle, (uint32_t)(COM_SOCKETS_STATISTIC_PERIOD * 60000U));
+  }
+  else
+  {
+    PRINT_FORCE("ComLibStat: Timer creation NOK")
+  }
+
 #endif /* COM_SOCKETS_STATISTIC_PERIOD != 0U */
 }
 
@@ -174,74 +158,45 @@ void com_sockets_statistic_update(com_sockets_stat_update_t stat)
 {
   switch (stat)
   {
-#if (USE_DATACACHE == 1)
-    /* Network status managed through Datacache */
     case COM_SOCKET_STAT_NWK_UP:
-    {
-      com_socket_statistic.nwk_up++;
+      com_socket_statistic.network.ok++;
       break;
-    }
     case COM_SOCKET_STAT_NWK_DWN:
-    {
-      com_socket_statistic.nwk_dwn++;
+      com_socket_statistic.network.nok++;
       break;
-    }
-#endif /* USE_DATACACHE == 1 */
     case COM_SOCKET_STAT_CRE_OK:
-    {
-      com_socket_statistic.sock_cre_ok++;
+      com_socket_statistic.create.ok++;
       break;
-    }
     case COM_SOCKET_STAT_CRE_NOK:
-    {
-      com_socket_statistic.sock_cre_nok++;
+      com_socket_statistic.create.nok++;
       break;
-    }
     case COM_SOCKET_STAT_CNT_OK:
-    {
-      com_socket_statistic.sock_cnt_ok++;
+      com_socket_statistic.connect.ok++;
       break;
-    }
     case COM_SOCKET_STAT_CNT_NOK:
-    {
-      com_socket_statistic.sock_cnt_nok++;
+      com_socket_statistic.connect.nok++;
       break;
-    }
     case COM_SOCKET_STAT_SND_OK:
-    {
-      com_socket_statistic.sock_snd_ok++;
+      com_socket_statistic.send.ok++;
       break;
-    }
     case COM_SOCKET_STAT_SND_NOK:
-    {
-      com_socket_statistic.sock_snd_nok++;
+      com_socket_statistic.send.nok++;
       break;
-    }
     case COM_SOCKET_STAT_RCV_OK:
-    {
-      com_socket_statistic.sock_rcv_ok++;
+      com_socket_statistic.receive.ok++;
       break;
-    }
     case COM_SOCKET_STAT_RCV_NOK:
-    {
-      com_socket_statistic.sock_rcv_nok++;
+      com_socket_statistic.receive.nok++;
       break;
-    }
     case COM_SOCKET_STAT_CLS_OK:
-    {
-      com_socket_statistic.sock_cls_ok++;
+      com_socket_statistic.close.ok++;
       break;
-    }
     case COM_SOCKET_STAT_CLS_NOK:
-    {
-      com_socket_statistic.sock_cls_nok++;
+      com_socket_statistic.close.nok++;
       break;
-    }
     default:
-    {
-      /* Nothing to do */
+      __NOP(); /* Nothing to do */
       break;
-    }
   }
 }
 
@@ -259,74 +214,52 @@ void com_sockets_statistic_display(void)
 #endif /* not yet supported */
 
   /* Check that at least one socket has run */
-  if (com_socket_statistic.sock_cre_ok != 0U)
+  if (com_socket_statistic.create.ok != 0U)
   {
-    PRINT_STAT("*** Socket Stat Begin ***")
-#if (USE_RTC == 1)
-    /* Date and Time managed through Datacache */
-    timedate_t time;
+    PRINT_FORCE("*** Socket Stat Begin ***")
 
-    (void)timedate_get(&time, TIMEDATE_DATE_AND_TIME);
-
-    PRINT_STAT("%02d/%02d/%04d - %02d:%02d:%02d",
-               time.mday,
-               time.month,
-               time.year,
-               time.hour,
-               time.min,
-               time.sec)
-#endif /* (USE_RTC == 1) */
-
-#if (USE_DATACACHE == 1)
-    /* Network status managed through Datacache */
-    PRINT_STAT("Nwk: up:%5d dwn:%5d tot:%6d",
-               com_socket_statistic.nwk_up,
-               com_socket_statistic.nwk_dwn,
-               (com_socket_statistic.nwk_up + com_socket_statistic.nwk_dwn))
-#endif /* USE_DATACACHE == 1 */
-
-    PRINT_STAT("Cre: ok:%5d nok:%5d tot:%6d",
-               com_socket_statistic.sock_cre_ok,
-               com_socket_statistic.sock_cre_nok,
-               (com_socket_statistic.sock_cre_ok + com_socket_statistic.sock_cre_nok))
-    PRINT_STAT("Con: ok:%5d nok:%5d tot:%6d",
-               com_socket_statistic.sock_cnt_ok,
-               com_socket_statistic.sock_cnt_nok,
-               (com_socket_statistic.sock_cnt_ok + com_socket_statistic.sock_cnt_nok))
-    PRINT_STAT("Snd: ok:%5d nok:%5d tot:%6d",
-               com_socket_statistic.sock_snd_ok,
-               com_socket_statistic.sock_snd_nok,
-               (com_socket_statistic.sock_snd_ok + com_socket_statistic.sock_snd_nok))
-    PRINT_STAT("Rcv: ok:%5d nok:%5d tot:%6d",
-               com_socket_statistic.sock_rcv_ok,
-               com_socket_statistic.sock_rcv_nok,
-               (com_socket_statistic.sock_rcv_ok + com_socket_statistic.sock_rcv_nok))
-    PRINT_STAT("Cls: ok:%5d nok:%5d tot:%6d",
-               com_socket_statistic.sock_cls_ok,
-               com_socket_statistic.sock_cls_nok,
-               (com_socket_statistic.sock_cls_ok + com_socket_statistic.sock_cls_nok))
+    PRINT_FORCE("ComLibStat: Nwk: up:%5d - dwn:%5d - tot:%6d",
+                com_socket_statistic.network.ok, com_socket_statistic.network.nok,
+                (com_socket_statistic.network.ok + com_socket_statistic.network.nok))
+    PRINT_FORCE("ComLibStat: Cre: ok:%5d - nok:%5d - tot:%6d",
+                com_socket_statistic.create.ok, com_socket_statistic.create.nok,
+                (com_socket_statistic.create.ok + com_socket_statistic.create.nok))
+    PRINT_FORCE("ComLibStat: Con: ok:%5d - nok:%5d - tot:%6d",
+                com_socket_statistic.connect.ok, com_socket_statistic.connect.nok,
+                (com_socket_statistic.connect.ok + com_socket_statistic.connect.nok))
+    PRINT_FORCE("ComLibStat: Snd: ok:%5d - nok:%5d - tot:%6d",
+                com_socket_statistic.send.ok, com_socket_statistic.send.nok,
+                (com_socket_statistic.send.ok + com_socket_statistic.send.nok))
+    PRINT_FORCE("ComLibStat: Rcv: ok:%5d - nok:%5d - tot:%6d",
+                com_socket_statistic.receive.ok, com_socket_statistic.receive.nok,
+                (com_socket_statistic.receive.ok + com_socket_statistic.receive.nok))
+    PRINT_FORCE("ComLibStat: Cls: ok:%5d - nok:%5d - tot:%6d",
+                com_socket_statistic.close.ok, com_socket_statistic.close.nok,
+                (com_socket_statistic.close.ok + com_socket_statistic.close.nok))
 #if 0
     /* Socket status displayed */
     while (socket_desc != NULL)
     {
       if (socket_desc->local == COM_SOCKETS_FALSE)
       {
-        PRINT_STAT("Sock: id:%3d-State:%s-Err:%d",
-                   socket_desc->id,
-                   com_socket_state_string[socket_desc->state],
-                   socket_desc->error)
+        PRINT_FORCE("ComLibStat: Sock: id:%3d-State:%s-Err:%d",
+                    socket_desc->id, com_socket_state_string[socket_desc->state], socket_desc->error)
       }
       else
       {
-        PRINT_STAT("Ping: id:%3d-State:%s-Err:%d",
-                   socket_desc->id,
-                   com_socket_state_string[socket_desc->state],
-                   socket_desc->error)
+        PRINT_FORCE("ComLibStat: Ping: id:%3d-State:%s-Err:%d",
+                    socket_desc->id, com_socket_state_string[socket_desc->state], socket_desc->error)
       }
       socket_desc = socket_desc->next;
     }
 #endif /* not yet supported */
-    PRINT_STAT("*** Socket Stat End ***")
+    PRINT_FORCE("*** Socket Stat End ***")
+  }
+  else
+  {
+    PRINT_FORCE("*** Socket Stat Begin ***")
+    PRINT_FORCE("ComLibStat: No connection or exchange done !")
+    PRINT_FORCE("*** Socket Stat End ***")
   }
 }
 
@@ -340,8 +273,7 @@ void com_sockets_statistic_display(void)
   */
 void com_sockets_statistic_init(void)
 {
-  /* Nothing to do */
-  __NOP();
+  __NOP(); /* Nothing to do */
 }
 
 /**
@@ -353,8 +285,8 @@ void com_sockets_statistic_init(void)
   */
 void com_sockets_statistic_update(com_sockets_stat_update_t stat)
 {
-  UNUSED(stat);
-  /* Nothing to do */
+  UNUSED(stat); /* Nothing to do */
+  __NOP();
 }
 
 /**
@@ -365,7 +297,7 @@ void com_sockets_statistic_update(com_sockets_stat_update_t stat)
   */
 void com_sockets_statistic_display(void)
 {
-  /* Nothing to do */
+  __NOP(); /* Nothing to do */
 }
 
 #endif /* COM_SOCKET_STATISTIC == 1U */

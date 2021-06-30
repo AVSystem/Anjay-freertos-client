@@ -21,7 +21,8 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "com_sockets.h"
-#include "plf_config.h"
+
+#include "com_trace.h"
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
 #include "com_sockets_ip_modem.h"
@@ -32,116 +33,15 @@
 #include "com_sockets_statistic.h"
 #include "cellular_service_os.h"
 
-#if (USE_CMD_CONSOLE == 1)
-#include <string.h>
-#include "cmd.h"
-#endif /* USE_CMD_CONSOLE == 1 */
-
 /* Private defines -----------------------------------------------------------*/
-#if (USE_CMD_CONSOLE == 1)
-#if (USE_PRINTF == 0U)
-#include "trace_interface.h"
-#define PRINT_FORCE(format, args...) \
-  TRACE_PRINT_FORCE(DBG_CHAN_COMLIB, DBL_LVL_P0, format "\n\r", ## args)
-
-#else /* USE_PRINTF == 1U */
-#include <stdio.h>
-#define PRINT_FORCE(format, args...)  \
-  (void)printf(format "\n\r", ## args);
-#endif /* USE_PRINTF == 0U */
-#endif /* USE_CMD_CONSOLE == 1 */
-
 
 /* Private typedef -----------------------------------------------------------*/
-typedef char COM_SOCKETS_CHAR_t; /* used in stdio.h and string.h service call */
-
 /* Private macros ------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Global variables ----------------------------------------------------------*/
-
 /* Private function prototypes -----------------------------------------------*/
-#if (USE_CMD_CONSOLE == 1)
-static cmd_status_t com_sockets_cmd(uint8_t *cmd_line_p);
-#endif /* USE_CMD_CONSOLE == 1 */
-
 /* Private function Definition -----------------------------------------------*/
-#if (USE_CMD_CONSOLE == 1)
 
-/**
-  * @brief  console cmd help
-  * @param  -
-  * @note   -
-  * @retval -
-  */
-static void com_help_cmd(void)
-{
-  CMD_print_help((uint8_t *)"com");
-  PRINT_FORCE("comsocket help")
-  PRINT_FORCE("comsocket stat\n\r")
-}
-
-/**
-  * @brief  console cmd management
-  * @param  cmd_line_p - command line
-  * @note   command parameters
-  * @retval cmd_status_t - status of cmd management
-  */
-static cmd_status_t com_sockets_cmd(uint8_t *cmd_line_p)
-{
-  uint32_t argc;
-  uint8_t  *argv_p[10];
-  const uint8_t *cmd_p;
-
-  PRINT_FORCE("")
-  cmd_p = (uint8_t *)strtok((COM_SOCKETS_CHAR_t *)cmd_line_p, " \t");
-
-  if (cmd_p != NULL)
-  {
-    if (strncmp((const COM_SOCKETS_CHAR_t *)cmd_p,
-                "comsocket",
-                strlen((const COM_SOCKETS_CHAR_t *)cmd_p))
-        == 0)
-    {
-      /* parameters parsing */
-      for (argc = 0U; argc < 10U; argc++)
-      {
-        argv_p[argc] = (uint8_t *)strtok(NULL, " \t");
-        if (argv_p[argc] == NULL)
-        {
-          break;
-        }
-      }
-
-      if (argc == 0U)
-      {
-        com_help_cmd();
-      }
-
-      /*  1st parameter analysis */
-      else if (strncmp((COM_SOCKETS_CHAR_t *)argv_p[0],
-                       "help",
-                       strlen((COM_SOCKETS_CHAR_t *)argv_p[0]))
-               == 0)
-      {
-        com_help_cmd();
-      }
-      else if (strncmp((COM_SOCKETS_CHAR_t *)argv_p[0],
-                       "stat",
-                       strlen((COM_SOCKETS_CHAR_t *)argv_p[0]))
-               == 0)
-      {
-        com_sockets_statistic_display();
-      }
-      else
-      {
-        PRINT_FORCE("comsocket: Unrecognized command. Usage:")
-        com_help_cmd();
-      }
-    }
-  }
-  return CMD_OK;
-}
-#endif /* USE_CMD_CONSOLE == 1 */
 
 /* Functions Definition ------------------------------------------------------*/
 
@@ -591,8 +491,6 @@ bool com_sockets_init(void)
 {
   bool result;
 
-  result = false;
-
   (void)osCDS_cellular_service_init();
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
@@ -624,10 +522,6 @@ void com_sockets_start(void)
 #endif /* USE_SOCKETS_TYPE == USE_SOCKETS_MODEM */
 
   /* no com_sockets_statistic_start(); */
-
-#if (USE_CMD_CONSOLE == 1)
-  CMD_Declare((uint8_t *)"comsocket", com_sockets_cmd, (uint8_t *)"com socket commands");
-#endif /* USE_CMD_CONSOLE == 1 */
 }
 
 

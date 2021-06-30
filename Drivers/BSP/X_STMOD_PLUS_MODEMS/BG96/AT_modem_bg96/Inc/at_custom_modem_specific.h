@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) YYYY STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -49,7 +49,7 @@ enum
   CMD_AT_QCFG,                           /* Extended configuration settings */
   CMD_AT_QINDCFG,                        /* URC indication configuration settings */
   CMD_AT_QIND,                           /* URC indication */
-  CMD_AT_QUSIM,                          /* URC indication SIM card typpe (SIM or USIM) */
+  CMD_AT_QUSIM,                          /* URC indication SIM card type (SIM or USIM) */
   CMD_AT_QNWINFO,                        /* Query Network Information */
   CMD_AT_QENG,                           /* Switch on or off Engineering Mode */
   /* BG96 specific TCP/IP commands */
@@ -61,7 +61,7 @@ enum
   CMD_AT_QISEND,                         /* Send Data - waiting for prompt */
   CMD_AT_QISEND_WRITE_DATA,              /* Send Data - writing data */
   CMD_AT_QIRD,                           /* Retrieve the received TCP/IP Data */
-  CMD_AT_QICFG,                          /* Configure optionnal parameters */
+  CMD_AT_QICFG,                          /* Configure optional parameters */
   CMD_AT_QISTATE,                        /* Query socket service status */
   CMD_AT_QIURC,                          /* TCP/IP URC */
   CMD_AT_SOCKET_PROMPT,                  /* when sending socket data : prompt = "> " */
@@ -74,13 +74,20 @@ enum
   CMD_AT_QINISTAT,                       /* query initialization status of SIM */
   CMD_AT_QCSQ,                           /* query and report signal strength */
   CMD_AT_QGMR,                           /* request Modem and Application Firmware Versions */
+  CMD_AT_QPSMS,
+  CMD_AT_QPSMCFG,
+  CMD_AT_QPSMEXTCFG,
+  CMD_AT_QURCCFG,
 
   /* modem specific events (URC, BOOT, ...) */
   CMD_AT_WAIT_EVENT,
   CMD_AT_BOOT_EVENT,
   CMD_AT_SIMREADY_EVENT,
   CMD_AT_RDY_EVENT,
+  CMD_AT_APP_RDY_EVENT,
   CMD_AT_POWERED_DOWN_EVENT,
+  CMD_AT_PSM_POWER_DOWN_EVENT,
+  CMD_AT_QPSMTIMER_EVENT,
 
 };
 
@@ -114,6 +121,7 @@ typedef enum
   QCFG_urc_ri_other,
   QCFG_signaltype,
   QCFG_urc_delay,
+  QCFG_urc_psm,
 } ATCustom_BG96_QCFG_function_t;
 
 typedef enum
@@ -255,6 +263,36 @@ typedef uint32_t ATCustom_BG96_QCFGscanseq_t;
 #define  QCFGSCANSEQ_NB1_GSM_M1 ((ATCustom_BG96_QCFGscanseq_t) 0x030102)
 #define  QCFGSCANSEQ_NB1_M1_GSM ((ATCustom_BG96_QCFGscanseq_t) 0x030201)
 
+typedef enum
+{
+  HOST_LP_STATE_IDLE,               /* state 0 */
+  HOST_LP_STATE_LP_REQUIRED,        /* state 1 */
+  HOST_LP_STATE_LP_ONGOING,         /* state 2 */
+  HOST_LP_STATE_WAKEUP_REQUIRED,    /* state 3 */
+  HOST_LP_STATE_ERROR,              /* state 4 */
+} ATCustom_BG96_Host_LP_state_t;
+
+typedef enum
+{
+  MDM_LP_STATE_IDLE,             /* state 0 */
+  MDM_LP_STATE_PSM,              /* state 1 */
+  MDM_LP_STATE_ERROR,            /* state 2 */
+} ATCustom_BG96_Modem_LP_state_t;
+
+#if (ENABLE_BG96_LOW_POWER_MODE != 0U)
+typedef enum
+{
+  EVENT_LP_HOST_SLEEP_REQ,        /* event 0 */
+  EVENT_LP_HOST_SLEEP_CANCEL,     /* event 1 */
+  EVENT_LP_HOST_SLEEP_COMPLETE,   /* event 2 */
+  EVENT_LP_HOST_WAKEUP_REQ,       /* event 3 */
+  EVENT_LP_MDM_WAKEUP_REQ,        /* event 4 */
+  EVENT_LP_MDM_ENTER_PSM,         /* event 5 */
+  EVENT_LP_MDM_LEAVE_PSM,         /* event 6 */
+
+} ATCustom_BG96_LP_event_t;
+#endif /* ENABLE_BG96_LOW_POWER_MODE != 0U */
+
 typedef struct
 {
   ATCustom_BG96_QCFGscanseq_t    nw_scanseq;
@@ -297,6 +335,10 @@ typedef struct
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
   at_bool_t                  pdn_already_active; /* check if request PDN to activate is already active (QIACT) */
 #endif /* USE_SOCKETS_TYPE */
+  ATCustom_BG96_Host_LP_state_t   host_lp_state;         /* to manage automaton Host Low Power state */
+  ATCustom_BG96_Modem_LP_state_t  modem_lp_state;        /* to manage automaton Modem Low Power state */
+  at_bool_t                       modem_resume_from_PSM; /* indicates that modem has just leave PSM */
+
 } bg96_shared_variables_t;
 
 /* External variables --------------------------------------------------------*/

@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) YYYY STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -56,7 +56,7 @@
 /* Private defines -----------------------------------------------------------*/
 #define BG96_BOOT_TIME (5500U) /* Time in ms allowed to complete the modem boot procedure
                                 *  according to spec, time = 13 sec
-                                *  but pratically, it seems that about 5 sec is acceptable
+                                *  but practically, it seems that about 5 sec is acceptable
                                 */
 
 /* Private variables ---------------------------------------------------------*/
@@ -160,30 +160,44 @@ sysctrl_status_t SysCtrl_BG96_power_on(sysctrl_device_type_t type)
   UNUSED(type);
   sysctrl_status_t retval = SCSTATUS_OK;
 
-  /* Reference: Quectel BG96&EG95&UG96&M95 R2.0_Compatible_Design_V1.0
+  /* Reference: Quectel BG96 Hardware Design V1.4
   *  PWRKEY   connected to MODEM_PWR_EN (inverse pulse)
   *  RESET_N  connected to MODEM_RST    (inverse)
   *
-  * Turn ON module sequence (cf paragraph 4.2)
+  * Turn ON module sequence
   *
-  *          PWRKEY   modem_state
-  * init       0        OFF
-  * T=0        1        OFF
-  * T1=100     0        BOOTING
-  * T1+100     1        BOOTING
-  * T1+13000   1        RUNNING
+  *                PWRKEY  PWR_EN  modem_state
+  * init             0       1      OFF
+  * T=0 ms           1       0      OFF
+  * T1=30 ms         0       1      BOOTING
+  * T2=T1+500 ms     1       0      BOOTING
+  * T3=T1+4800 ms    1       0      RUNNING
   */
 
-  /* POWER ON sequence
-  * PWR_EN to 0
-  */
-  /* Set PWR_EN to 1 during at least 30 ms */
+  /* First, turn OFF module in case it was not switched off correctly (can occur after
+   *  a manual reset).
+   * Set PWR_EN to 0 at least 650ms
+   */
+  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  SysCtrl_delay(700U);
+  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  SysCtrl_delay(1000U);
+
+  /* Power ON sequence */
+  /* Set PWR_EN to 1 (initial state) */
   HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
   SysCtrl_delay(50U);
-  /* Set PWR_EN to 0 during at least 100ms (200ms) then PWR_EN = 0 */
+
+  /* Set PWR_EN to 0 during at least 30ms as defined by Quectel */
   HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
-  SysCtrl_delay(200U);
+  SysCtrl_delay(30U);
+
+  /* Set PWR_EN to 1 during at least 500ms */
   HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  SysCtrl_delay(510U);
+
+  /* Set PWR_EN to 0 */
+  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
 
   /* wait for Modem to complete its booting procedure */
   PRINT_INFO("Waiting %d millisec for modem running...", BG96_BOOT_TIME)
@@ -198,24 +212,28 @@ sysctrl_status_t SysCtrl_BG96_power_off(sysctrl_device_type_t type)
   UNUSED(type);
   sysctrl_status_t retval = SCSTATUS_OK;
 
-  /* Reference: Quectel BG96&EG95&UG96&M95 R2.0_Compatible_Design_V1.0
+  /* Reference: Quectel BG96 Hardware Design V1.4
   *  PWRKEY   connected to MODEM_PWR_EN (inverse pulse)
   *  RESET_N  connected to MODEM_RST    (inverse)
   *
-  * Turn OFF module sequence (cf paragraph 4.3)
+  * Turn OFF module sequence
   *
-  * Need to use AT+QPOWD command
-  * reset GPIO pins to initial state only after completion of previous command (between 2s and 40s)
+  *                PWRKEY  PWR_EN  modem_state
+  * init             1       0      RUNNING
+  * T=0 ms           0       1      RUNNING
+  * T1=650 ms        1       0      POWER-DOWN PROCEDURE
+  * T2=T1+2000 ms    1       0      OFF
+  *
+  * It is also safe to use AT+QPOWD command which is similar to turning off the modem
+  * via PWRKEY pin.
   */
 
-  /* POWER OFF sequence
-  * set PWR_EN and wait at least 650ms (800ms) then PWR_EN = 0
-  */
-  /* No HW power off for BG96 (done by AT command) */
+  /* wait at least 650ms */
+  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  SysCtrl_delay(700U);
+
+  /* wait at least 2s but, in practice, it can exceed 4s or 5s */
   HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
-  SysCtrl_delay(800U);
-
-  /* wait at least 2000ms but, in pratice, it can exceed 4000ms */
   SysCtrl_delay(5000U);
 
   return (retval);
@@ -226,11 +244,11 @@ sysctrl_status_t SysCtrl_BG96_reset(sysctrl_device_type_t type)
   UNUSED(type);
   sysctrl_status_t retval = SCSTATUS_OK;
 
-  /* Reference: Quectel BG96&EG95&UG96&M95 R2.0_Compatible_Design_V1.0
+  /* Reference: Quectel BG96 Hardware Design V1.4
   *  PWRKEY   connected to MODEM_PWR_EN (inverse pulse)
   *  RESET_N  connected to MODEM_RST    (inverse)
   *
-  * Reset module sequence (cf paragraph 4.4)
+  * Reset module sequence
   *
   * Can be done using RESET_N pin to low voltage for 100ms minimum
   *
@@ -324,6 +342,31 @@ static sysctrl_status_t SysCtrl_BG96_setup(void)
 
   PRINT_FORCE("BG96 UART config: BaudRate=%d / HW flow ctrl=%d", MODEM_UART_BAUDRATE,
               ((MODEM_UART_HWFLOWCTRL == UART_HWCONTROL_NONE) ? 0 : 1))
+
+  return (retval);
+}
+
+/**
+  * @brief  Request Modem to wake up from PSM.
+  * @param  delay Delay (in ms) to apply before to request wake up (for some usecases).
+  * @retval sysctrl_status_t
+  */
+sysctrl_status_t SysCtrl_BG96_wakeup_from_PSM(uint32_t delay)
+{
+  sysctrl_status_t retval = SCSTATUS_OK;
+
+  /* Reference: Quectel BG96 Hardware Design V1.4
+  *  PWRKEY   connected to MODEM_PWR_EN (inverse pulse)
+  *  RESET_N  connected to MODEM_RST    (inverse)
+  *
+  * wake up from PSM sequence : Drive PWRKEY pin to low level will wake up the module.
+  *                             ie drive MODEM_PWR_EN to high level
+  */
+
+  SysCtrl_delay(delay);
+  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  SysCtrl_delay(200U);
+  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
 
   return (retval);
 }

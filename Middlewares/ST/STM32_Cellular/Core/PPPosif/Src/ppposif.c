@@ -48,7 +48,7 @@
 /* Functions Definition ------------------------------------------------------*/
 
 /**
-  * @brief  PPP status callback is called on PPP status change (up, down, …) from lwIP
+  * @brief  PPP status callback is called on PPP status change (up, down, ï¿½) from lwIP
   * @param  pcb        pcb reference
   * @param  err_code   error
   * @param  pcb        user context
@@ -59,8 +59,10 @@ static void ppposif_err_none_mngt(ppp_pcb *pcb);
 
 static void ppposif_err_none_mngt(ppp_pcb *pcb)
 {
-#if (USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1)
+#if ((USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1))
   struct netif *pppif = ppp_netif((pcb));
+#else
+  UNUSED(pcb);
 #endif  /* (USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1) */
 #if LWIP_DNS
   const ip_addr_t *ns;
@@ -134,7 +136,6 @@ void ppposif_status_cb(ppp_pcb *pcb, int32_t err_code, void *ctx)
     case PPPERR_USER:
     {
       PRINT_PPPOSIF("status_cb: User interrupt\n\r")
-      (void)ppposif_client_close(PPPOSIF_CAUSE_CONNECTION_LOST);
       break;
     }
     case PPPERR_CONNECT:

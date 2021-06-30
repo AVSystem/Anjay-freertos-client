@@ -7,29 +7,13 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2017 STMicroelectronics</center></h2>
+  * <h2><center>&copy; Copyright (c) 2017 STMicroelectronics.
+  * All rights reserved.</center></h2>
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software component is licensed by ST under BSD 3-Clause license,
+  * the "License"; You may not use this file except in compliance with the
+  * License. You may obtain a copy of the License at:
+  *                        opensource.org/licenses/BSD-3-Clause
   *
   ******************************************************************************
   */
@@ -71,7 +55,7 @@
    */
 #define __STM32L496G_DISCOVERY_BSP_VERSION_MAIN   (0x01) /*!< [31:24] main version */
 #define __STM32L496G_DISCOVERY_BSP_VERSION_SUB1   (0x01) /*!< [23:16] sub1 version */
-#define __STM32L496G_DISCOVERY_BSP_VERSION_SUB2   (0x01) /*!< [15:8]  sub2 version */
+#define __STM32L496G_DISCOVERY_BSP_VERSION_SUB2   (0x05) /*!< [15:8]  sub2 version */
 #define __STM32L496G_DISCOVERY_BSP_VERSION_RC     (0x00) /*!< [7:0]  release candidate */
 #define __STM32L496G_DISCOVERY_BSP_VERSION            ((__STM32L496G_DISCOVERY_BSP_VERSION_MAIN << 24)\
                                                       |(__STM32L496G_DISCOVERY_BSP_VERSION_SUB1 << 16)\
@@ -192,7 +176,7 @@ void            LCD_IO_WriteMultipleData(uint16_t *pData, uint32_t Size);
 uint16_t        LCD_IO_ReadData(void);
 void            LCD_IO_Delay(uint32_t Delay);
 
-/* Link functions for Audio Codec peripheral */      /* TBC */
+/* Link functions for Audio Codec peripheral */
 void                      AUDIO_IO_Init(void);
 void                      AUDIO_IO_DeInit(void);
 void                      AUDIO_IO_Write(uint8_t Addr, uint8_t Reg, uint8_t Value);
@@ -491,11 +475,11 @@ JOYState_TypeDef BSP_JOY_GetState(void)
   * @brief  Configures COM port.
   * @param  COM: COM port to be configured.
   *          This parameter can be one of the following values:
-  *            @arg  COM1 
+  *            @arg  COM1
   * @param  huart: Pointer to a UART_HandleTypeDef structure that contains the
   *                configuration information for the specified USART peripheral.
   */
-void BSP_COM_Init(COM_TypeDef COM, UART_HandleTypeDef *huart) 
+void BSP_COM_Init(COM_TypeDef COM, UART_HandleTypeDef *huart)
 {
   GPIO_InitTypeDef gpio_init_structure;
 
@@ -516,7 +500,6 @@ void BSP_COM_Init(COM_TypeDef COM, UART_HandleTypeDef *huart)
 
   /* Configure USART Rx as alternate function */
   gpio_init_structure.Pin = COM_RX_PIN[COM];
-  gpio_init_structure.Mode = GPIO_MODE_AF_PP;
   gpio_init_structure.Alternate = COM_RX_AF[COM];
   HAL_GPIO_Init(COM_RX_PORT[COM], &gpio_init_structure);
 
@@ -529,7 +512,7 @@ void BSP_COM_Init(COM_TypeDef COM, UART_HandleTypeDef *huart)
   * @brief  DeInit COM port.
   * @param  COM: COM port to be configured.
   *          This parameter can be one of the following values:
-  *            @arg  COM1 
+  *            @arg  COM1
   * @param  huart: Pointer to a UART_HandleTypeDef structure that contains the
   *                configuration information for the specified USART peripheral.
   */
@@ -1276,16 +1259,6 @@ void FMC_BANK1_MspInit(void)
   __HAL_RCC_PWR_CLK_ENABLE();
   HAL_PWREx_EnableVddIO2();
 
-  /* Set PD11 */
-  GPIO_Init_Structure.Pin =   GPIO_PIN_11;
-  GPIO_Init_Structure.Mode =  GPIO_MODE_OUTPUT_PP;
-  GPIO_Init_Structure.Pull =  GPIO_NOPULL;
-  GPIO_Init_Structure.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_Init_Structure.Alternate = 0;
-
-  HAL_GPIO_Init(GPIOD, &GPIO_Init_Structure);
-
-
   GPIO_Init_Structure.Mode      = GPIO_MODE_AF_PP;
   GPIO_Init_Structure.Pull      = GPIO_PULLUP;
   GPIO_Init_Structure.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
@@ -1305,12 +1278,10 @@ void FMC_BANK1_MspInit(void)
                               GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
   HAL_GPIO_Init(GPIOE, &GPIO_Init_Structure);
 
-  /* GPIOF configuration */
+  /* GPIOD configuration */
   GPIO_Init_Structure.Pin   = GPIO_PIN_13 ;
   HAL_GPIO_Init(GPIOD, &GPIO_Init_Structure);
 
-  GPIO_Init_Structure.Pin   = GPIO_PIN_0;
-  HAL_GPIO_Init(GPIOF, &GPIO_Init_Structure);
 }
 
 
@@ -1392,16 +1363,13 @@ void FMC_BANK1_MspDeInit(void)
 
 
   HAL_GPIO_DeInit(GPIOD, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_8 | \
-                  GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_14 | GPIO_PIN_15 | GPIO_PIN_7 | GPIO_PIN_11 | GPIO_PIN_13);
+                  GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_14 | GPIO_PIN_15 | GPIO_PIN_7 | GPIO_PIN_13);
 
 
 
   HAL_GPIO_DeInit(GPIOE, GPIO_PIN_7 | \
                   GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12 | \
                   GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15);
-
-  HAL_GPIO_DeInit(GPIOF, GPIO_PIN_0);
-
 
 }
 

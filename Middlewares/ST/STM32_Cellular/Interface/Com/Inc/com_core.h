@@ -28,8 +28,6 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
 
-#include "plf_config.h"
-
 /**
   ******************************************************************************
   @verbatim
@@ -40,7 +38,7 @@ extern "C" {
   COM module allows :
   1) communication with a Remote host using IP protocol
   2) ping a Remote host
-  3) communication with the SIM
+  3) communication with the International Circuit Card
 
   @endverbatim
   */
@@ -81,31 +79,13 @@ extern "C" {
   */
 
 /* External variables --------------------------------------------------------*/
-/** @defgroup COM_Variables Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
-/** @defgroup COM_Macros Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
-/** @defgroup COM_Functions Functions
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /**
   * @}

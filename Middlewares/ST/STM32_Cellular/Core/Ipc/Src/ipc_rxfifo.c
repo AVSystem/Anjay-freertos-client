@@ -63,11 +63,11 @@ typedef char IPC_TYPE_CHAR_t;
 /* Global variables ----------------------------------------------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
-static void RXFIFO_incrementTail(IPC_Handle_t *hipc, uint16_t inc_size);
-static void RXFIFO_incrementHead(IPC_Handle_t *hipc);
-static void RXFIFO_updateMsgHeader(IPC_Handle_t *hipc);
-static void RXFIFO_prepareNextMsgHeader(IPC_Handle_t *hipc);
-static void RXFIFO_rearm_RX_IT(IPC_Handle_t *hipc);
+static void RXFIFO_incrementTail(IPC_Handle_t *const hipc, uint16_t inc_size);
+static void RXFIFO_incrementHead(IPC_Handle_t *const hipc);
+static void RXFIFO_updateMsgHeader(IPC_Handle_t *const hipc);
+static void RXFIFO_prepareNextMsgHeader(IPC_Handle_t *const hipc);
+static void RXFIFO_rearm_RX_IT(IPC_Handle_t *const hipc);
 
 /* Functions Definition ------------------------------------------------------*/
 /**
@@ -75,7 +75,7 @@ static void RXFIFO_rearm_RX_IT(IPC_Handle_t *hipc);
   * @param  hipc IPC handle.
   * @retval none.
   */
-void IPC_RXFIFO_init(IPC_Handle_t *hipc)
+void IPC_RXFIFO_init(IPC_Handle_t *const hipc)
 {
   (void) memset(hipc->RxQueue.data, 0, sizeof(uint8_t) * IPC_RXBUF_MAXSIZE);
   hipc->RxQueue.index_read = 0U;
@@ -102,7 +102,7 @@ void IPC_RXFIFO_init(IPC_Handle_t *hipc)
   * @param  rxChar character to write.
   * @retval none.
   */
-void IPC_RXFIFO_writeCharacter(IPC_Handle_t *hipc, uint8_t rxChar)
+void IPC_RXFIFO_writeCharacter(IPC_Handle_t *const hipc, uint8_t rxChar)
 {
   if (hipc != NULL)
   {
@@ -149,9 +149,9 @@ void IPC_RXFIFO_writeCharacter(IPC_Handle_t *hipc, uint8_t rxChar)
   * @brief  Read first unread message in the IPC RX FIFO.
   * @param  hipc IPC handle.
   * @param  pMsg ptr to the message read from IPC RX FIFO.
-  * @retval message size (-1 if an error occured).
+  * @retval message size (-1 if an error occurred).
   */
-int16_t IPC_RXFIFO_read(IPC_Handle_t *hipc, IPC_RxMessage_t *pMsg)
+int16_t IPC_RXFIFO_read(IPC_Handle_t *const hipc, IPC_RxMessage_t *pMsg)
 {
   int16_t retval;
   uint16_t oversize;
@@ -168,7 +168,7 @@ int16_t IPC_RXFIFO_read(IPC_Handle_t *hipc, IPC_RxMessage_t *pMsg)
 
     if (header.complete != 1U)
     {
-      /* error: trying to read an uncomplete message */
+      /* error: trying to read an incomplete message */
       retval = -1;
     }
     else
@@ -241,7 +241,7 @@ int16_t IPC_RXFIFO_read(IPC_Handle_t *hipc, IPC_RxMessage_t *pMsg)
   * @param  hipc IPC handle.
   * @retval none.
   */
-void IPC_RXFIFO_stream_init(IPC_Handle_t *hipc)
+void IPC_RXFIFO_stream_init(IPC_Handle_t *const hipc)
 {
   if (hipc != NULL)
   {
@@ -259,7 +259,7 @@ void IPC_RXFIFO_stream_init(IPC_Handle_t *hipc)
   * @param  rxChar character to write.
   * @retval none.
   */
-void IPC_RXFIFO_writeStream(IPC_Handle_t *hipc, uint8_t rxChar)
+void IPC_RXFIFO_writeStream(IPC_Handle_t *const hipc, uint8_t rxChar)
 {
   if (hipc != NULL)
   {
@@ -287,7 +287,7 @@ void IPC_RXFIFO_writeStream(IPC_Handle_t *hipc, uint8_t rxChar)
   * @param  hipc IPC handle.
   * @retval Number of free bytes in the IPC RX FIFO.
   */
-uint16_t IPC_RXFIFO_getFreeBytes(IPC_Handle_t *hipc)
+uint16_t IPC_RXFIFO_getFreeBytes(IPC_Handle_t *const hipc)
 {
   uint16_t free_bytes;
 
@@ -319,7 +319,7 @@ uint16_t IPC_RXFIFO_getFreeBytes(IPC_Handle_t *hipc)
   * @param  pos Position of the message to decode.
   * @retval none.
   */
-void IPC_RXFIFO_readMsgHeader_at_pos(const IPC_Handle_t *hipc, IPC_RxHeader_t *pHeader, uint16_t pos)
+void IPC_RXFIFO_readMsgHeader_at_pos(const IPC_Handle_t *const hipc, IPC_RxHeader_t *pHeader, uint16_t pos)
 {
   uint8_t header_byte1;
   uint8_t header_byte2;
@@ -356,7 +356,7 @@ void IPC_RXFIFO_readMsgHeader_at_pos(const IPC_Handle_t *hipc, IPC_RxHeader_t *p
   * @param  readable If equal 1, print special characters explicitly (<CR>, <LF>, <NULL>).
   * @retval none.
   */
-void IPC_RXFIFO_print_data(const IPC_Handle_t *hipc, uint16_t index, uint16_t size, uint8_t readable)
+void IPC_RXFIFO_print_data(const IPC_Handle_t *const hipc, uint16_t index, uint16_t size, uint8_t readable)
 {
   UNUSED(readable);
 #if ((USE_TRACE_IPC == 1U) || (USE_PRINTF == 1U))
@@ -399,7 +399,7 @@ void IPC_RXFIFO_print_data(const IPC_Handle_t *hipc, uint16_t index, uint16_t si
   * @param  queue Print queue infos is equal to 1.
   * @retval none.
   */
-void dump_RX_dbg_infos(IPC_Handle_t *hipc, uint8_t databuf, uint8_t queue)
+void dump_RX_dbg_infos(IPC_Handle_t *const hipc, uint8_t databuf, uint8_t queue)
 {
   uint32_t idx;
 
@@ -435,7 +435,7 @@ void dump_RX_dbg_infos(IPC_Handle_t *hipc, uint8_t databuf, uint8_t queue)
   * @param  inc_size Size to increment.
   * @retval none.
   */
-static void RXFIFO_incrementTail(IPC_Handle_t *hipc, uint16_t inc_size)
+static void RXFIFO_incrementTail(IPC_Handle_t *const hipc, uint16_t inc_size)
 {
   hipc->RxQueue.index_read = (hipc->RxQueue.index_read + inc_size) % IPC_RXBUF_MAXSIZE;
 }
@@ -445,7 +445,7 @@ static void RXFIFO_incrementTail(IPC_Handle_t *hipc, uint16_t inc_size)
   * @param  hipc IPC handle.
   * @retval none.
   */
-static void RXFIFO_incrementHead(IPC_Handle_t *hipc)
+static void RXFIFO_incrementHead(IPC_Handle_t *const hipc)
 {
   uint16_t free_bytes;
 
@@ -471,7 +471,7 @@ static void RXFIFO_incrementHead(IPC_Handle_t *hipc)
   * @param  hipc IPC handle.
   * @retval none.
   */
-static void RXFIFO_updateMsgHeader(IPC_Handle_t *hipc)
+static void RXFIFO_updateMsgHeader(IPC_Handle_t *const hipc)
 {
   /* update header with the size of last complete msg received */
   uint8_t header_byte1;
@@ -502,7 +502,7 @@ static void RXFIFO_updateMsgHeader(IPC_Handle_t *hipc)
   * @param  hipc IPC handle.
   * @retval none.
   */
-static void RXFIFO_prepareNextMsgHeader(IPC_Handle_t *hipc)
+static void RXFIFO_prepareNextMsgHeader(IPC_Handle_t *const hipc)
 {
   uint8_t idx;
   for (idx = 0U; idx < IPC_RXMSG_HEADER_SIZE; idx++)
@@ -513,7 +513,7 @@ static void RXFIFO_prepareNextMsgHeader(IPC_Handle_t *hipc)
   }
 }
 
-static void RXFIFO_rearm_RX_IT(IPC_Handle_t *hipc)
+static void RXFIFO_rearm_RX_IT(IPC_Handle_t *const hipc)
 {
 #if (IPC_USE_UART == 1U)
   IPC_UART_rearm_RX_IT(hipc);

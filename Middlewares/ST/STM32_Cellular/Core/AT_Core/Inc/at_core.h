@@ -29,10 +29,7 @@ extern "C" {
 #include <stdbool.h>
 #include "sysctrl.h"
 #include "plf_config.h"
-
-#if (RTOS_USED == 1)
-#include "cmsis_os_misrac2012.h"
-#endif /* RTOS_USED */
+#include "rtosal.h"
 
 /* Exported constants --------------------------------------------------------*/
 
@@ -44,14 +41,20 @@ extern "C" {
 #define ATCMD_MAX_CMD_SIZE   ((uint16_t) 128U)
 #endif /* USE_SOCKETS_TYPE */
 
+/* LowPower, and especially PSM, is currently not supported with LwIP due to unpredictable modem behavior.
+ * PSM is supported with Socket mode only. */
+#if ((USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) && (USE_LOW_POWER == 1))
+#error Low Power (PSM) is not supported with LwIP, only with Socket mode
+#endif /* ((USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) && (USE_LOW_POWER == 1))*/
+
 #define ATCMD_MAX_BUF_SIZE   ((uint16_t) 128U) /* this is the maximum size allowed for p_cmd_in_buf and p_rsp_buf
                                                * which are buffers shared between ATCore and upper layer.
                                                * Size is limited because for big structures (or data buffers), only
                                                * a ptr should be send using DATAPACK writes functions.
                                                * 128 is the maximum size allowed to send data without ptrs (ie using
                                                * DATAPACK_writeStruct()).
-                                               * Value of 128 has been choosen to add a marge for the maximum value seen
-                                               * until now (71).
+                                               * Value of 128 has been chosen to add a flexibility for the maximum
+                                               * value seen until now (71).
                                                * If struct size exceed this value, an error is raised.
                                                */
 
@@ -60,7 +63,8 @@ extern "C" {
 #define SID_INVALID               (0U)
 #define CELLULAR_SERVICE_START_ID (100U)
 #define WIFI_SERVICE_START_ID     (300U)
-#define AT_HANDLE_INVALID         (-1)
+#define AT_HANDLE_INVALID         (-1)  /* AT handle is not allocated */
+#define AT_HANDLE_MODEM           (1)   /* AT handle is allocated to the modem */
 
 /* at_action_send_t
  * code returned when preparing a command to send
@@ -133,7 +137,6 @@ typedef struct
 typedef uint16_t at_msg_t;
 typedef int16_t at_handle_t;
 typedef uint8_t  at_buf_t;
-typedef void (* event_callback_t)(void);
 typedef void (* urc_callback_t)(at_buf_t *p_rsp_buf);
 
 typedef uint16_t at_hw_event_t;
@@ -146,19 +149,13 @@ typedef uint16_t at_hw_event_t;
 
 /* Exported functions ------------------------------------------------------- */
 at_status_t  AT_init(void);
-at_handle_t  AT_open(sysctrl_info_t *p_device_infos, const event_callback_t event_callback,
-                     urc_callback_t urc_callback);
+at_handle_t  AT_open(sysctrl_info_t *p_device_infos, urc_callback_t urc_callback);
 at_status_t  AT_reset_context(at_handle_t athandle);
 at_status_t  AT_sendcmd(at_handle_t athandle, at_msg_t msg_in_id, at_buf_t *p_cmd_in_buf, at_buf_t *p_rsp_buf);
 at_status_t  AT_open_channel(at_handle_t athandle);
 at_status_t  AT_close_channel(at_handle_t athandle);
 void         AT_internalEvent(sysctrl_device_type_t deviceType);
-
-#if (RTOS_USED == 1)
-at_status_t atcore_task_start(osPriority taskPrio, uint16_t stackSize);
-#else
-at_status_t  AT_getevent(at_handle_t athandle, at_buf_t *p_rsp_buf);
-#endif /* RTOS_USED */
+at_status_t  atcore_task_start(osPriority taskPrio, uint16_t stackSize);
 
 #ifdef __cplusplus
 }

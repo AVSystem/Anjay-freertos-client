@@ -61,10 +61,6 @@ static at_buf_t rsp_buf[ATCMD_MAX_BUF_SIZE];
 
 /* Permanent variables */
 static at_handle_t _Adapter_Handle;
-#if (RTOS_USED == 0)
-static cellular_event_callback_t register_event_callback; /* to report idle event in Bare mode */
-static __IO uint32_t eventReceived = 0U;
-#endif /* RTOS_USED */
 
 /* URC callbacks */
 #define CS_MAX_NB_PDP_CTXT  ((uint8_t) CS_PDN_CONFIG_MAX + 1U)
@@ -78,6 +74,8 @@ static cellular_urc_callback_t urc_signal_quality_callback = NULL;
 static cellular_ping_response_callback_t urc_ping_rsp_callback = NULL;
 static cellular_pdn_event_callback_t urc_packet_domain_event_callback[CS_MAX_NB_PDP_CTXT] = {NULL};
 static cellular_modem_event_callback_t urc_modem_event_callback = NULL;
+static cellular_power_status_callback_t urc_lp_status_callback = NULL;
+static cellular_sim_event_callback_t urc_sim_event_callback = NULL;
 
 /* Non-permanent variables  */
 static csint_urc_subscription_t cs_ctxt_urc_subscription =
@@ -123,7 +121,6 @@ static CS_NetworkRegState_t cs_ctxt_cs_network_reg_state = CS_NRS_UNKNOWN;
 static void CELLULAR_reset_context(void);
 static void CELLULAR_reset_socket_context(void);
 static CS_Status_t CELLULAR_init(void);
-static void CELLULAR_idle_event_notif(void);
 static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf);
 static CS_Status_t CELLULAR_analyze_error_report(at_buf_t *p_rsp_buf);
 static CS_Status_t convert_SIM_error(const csint_error_report_t *p_error_report);
@@ -137,45 +134,6 @@ static CS_PDN_event_t convert_to_PDN_event(csint_PDN_event_desc_t event_desc);
 static CS_PDN_conf_id_t convert_index_to_PDN_conf(uint8_t index);
 
 /* Functions Definition ------------------------------------------------------*/
-#if (RTOS_USED == 0)
-/**
-  * @brief  Check if events have been received in idle (bare mode only)
-  * @note   This function has to be called peridiocally by the client in bare mode.
-  * @param  event_callback client callback to call when an event occured
-  */
-void CS_check_idle_events(void)
-{
-  if (eventReceived > 0)
-  {
-    AT_getevent(_Adapter_Handle, &rsp_buf[0]);
-    eventReceived--;
-  }
-}
-
-/**
-  * @brief  Initialization of Cellular Service in bare mode
-  * @note   This function is used to init Cellular Service and also set the event
-  *         callback which is used in bare mode only.
-  * @note   !!! IMPORTANT !!! in Bare mode, event_callback will be call under interrupt
-  *         The client implementation should be as short as possible
-  *         (for example: no traces !!!)
-  * @param  event_callback client callback to call when an event occured
-  */
-CS_Status_t CS_init_bare(cellular_event_callback_t event_callback)
-{
-  CS_Status_t retval = CELLULAR_OK;
-  PRINT_API("CS_init_bare")
-
-  retval = CELLULAR_init();
-
-  /* save the callback (after the call to CELLULAR_init) */
-  register_event_callback = event_callback;
-
-  return (retval);
-}
-
-#else /* RTOS_USED */
-
 /**
   * @brief  Initialization of Cellular Service in RTOS mode
   * @param  none
@@ -190,7 +148,6 @@ CS_Status_t CS_init(void)
 
   return (retval);
 }
-#endif /* RTOS_USED */
 
 /**
   * @brief  Power ON the modem
@@ -261,7 +218,7 @@ CS_Status_t CS_power_off(void)
   {
     /* In case of Power Off request, ignore errors to be sure to finish by hardware power off */
 
-    /* 1st step: send AT commands sequence for power off (if exist fot this modem) */
+    /* 1st step: send AT commands sequence for power off (if exist for this modem) */
     (void) AT_sendcmd(_Adapter_Handle, (at_msg_t) SID_CS_POWER_OFF, &cmd_buf[0], &rsp_buf[0]);
 
     /* 2nd step: close AT channel (IPC) */
@@ -320,6 +277,10 @@ CS_Status_t CS_check_connection(void)
 /**
   * @brief  Select SIM slot to use.
   * @note   Only one SIM slot is active at a time.
+  * @note   IMPORTANT !!! if the modem adaptation layer decides that a modem reboot
+  * @note   is required (because the SIM slot has changed for example), this
+  * @note   function will return an error to upper layer. This error means that
+  * @note   a modem reboot is needed.
   * @param  simSelected Selected SIM slot
   * @retval CS_Status_t
   */
@@ -340,11 +301,15 @@ CS_Status_t CS_sim_select(CS_SimSlot_t simSelected)
       PRINT_DBG("<Cellular_Service> SIM %d selected", simSelected)
       retval = CELLULAR_OK;
     }
+    else
+    {
+      retval = CELLULAR_analyze_error_report(&rsp_buf[0]);
+    }
   }
 
   if (retval == CELLULAR_ERROR)
   {
-    PRINT_ERR("<Cellular_Service> error with sim selection")
+    PRINT_INFO("<Cellular_Service> SIM selection need a modem restart to be applied")
   }
   return (retval);
 }
@@ -457,7 +422,7 @@ CS_Status_t CS_init_modem(CS_ModemInit_t init, CS_Bool_t reset, const CS_CHAR_t 
     err = AT_sendcmd(_Adapter_Handle, (at_msg_t) SID_CS_INIT_MODEM, &cmd_buf[0], &rsp_buf[0]);
     if (err == ATSTATUS_OK)
     {
-      PRINT_DBG("<Cellular_Service> Init done succesfully")
+      PRINT_DBG("<Cellular_Service> Init done successfully")
       retval = CELLULAR_OK;
     }
     else
@@ -480,7 +445,7 @@ CS_Status_t CS_init_modem(CS_ModemInit_t init, CS_Bool_t reset, const CS_CHAR_t 
   */
 CS_Status_t CS_get_device_info(CS_DeviceInfo_t *p_devinfo)
 {
-  /* static structure used to send datas to lower layer */
+  /* static structure used to send data to lower layer */
   static CS_DeviceInfo_t cs_ctxt_device_info = {0};
 
   CS_Status_t retval = CELLULAR_ERROR;
@@ -517,7 +482,7 @@ CS_Status_t CS_get_device_info(CS_DeviceInfo_t *p_devinfo)
 
 /**
   * @brief  Request the Modem to register to the Cellular Network.
-  * @note   This function is used to select the operator. It returns a detailled
+  * @note   This function is used to select the operator. It returns a detailed
   *         network registration status.
   * @param  p_devinfo Handle on operator information structure.
   * @param  p_reg_status Handle on registration information structure.
@@ -527,7 +492,7 @@ CS_Status_t CS_get_device_info(CS_DeviceInfo_t *p_devinfo)
 CS_Status_t CS_register_net(CS_OperatorSelector_t *p_operator,
                             CS_RegistrationStatus_t *p_reg_status)
 {
-  /* static structure used to send datas to lower layer */
+  /* static structure used to send data to lower layer */
   static CS_OperatorSelector_t cs_ctxt_operator;
 
   CS_Status_t retval = CELLULAR_ERROR;
@@ -729,6 +694,26 @@ CS_Status_t CS_unsubscribe_net_event(CS_UrcEvent_t event)
 }
 
 /**
+  * @brief  Register to event change notifications related to SIM status.
+  * @note   When this function is called, SIM events will be reported through the callback.
+  * @note   Events are modem dependent: some events may be not reported by all modems.
+  * @param  sim_evt_callback Handle on user callback that will be used to notify a change on SIM event.
+  * @retval CS_Status_t
+  */
+CS_Status_t CS_subscribe_sim_event(cellular_sim_event_callback_t sim_evt_callback)
+{
+  PRINT_API("CS_subscribe_sim_event")
+
+  /* Save the callback pointer.
+   * No message is sent to AT layer. URC will be reported by AT layer (from modem)
+   * and will be forwarded to client if a valid callback pointer exists.
+   */
+  urc_sim_event_callback = sim_evt_callback;
+
+  return (CELLULAR_OK);
+}
+
+/**
   * @brief  Request attach to packet domain.
   * @param  none.
   * @retval CS_Status_t
@@ -892,7 +877,7 @@ CS_Status_t CS_get_signal_quality(CS_SignalQuality_t *p_sig_qual)
     err = AT_sendcmd(_Adapter_Handle, (at_msg_t) SID_CS_GET_SIGNAL_QUALITY, &cmd_buf[0], &rsp_buf[0]);
     if (err == ATSTATUS_OK)
     {
-      PRINT_DBG("<Cellular_Service> Signal quality informations received")
+      PRINT_DBG("<Cellular_Service> Signal quality information received")
       /* recopy info to user */
       (void) memcpy((void *)p_sig_qual, (void *)&local_sig_qual, sizeof(CS_SignalQuality_t));
       retval = CELLULAR_OK;
@@ -979,7 +964,8 @@ CS_Status_t CS_deactivate_pdn(CS_PDN_conf_id_t cid)
 /**
   * @brief  Define internet data profile for a configuration identifier
   * @param  cid Configuration identifier
-  * @param  apn A string of the access point name (must be non NULL)
+  * @param  apn A string of the access point name. If NULL is passed, lower layers will use, if possible, a modem
+  *             specific value in order to use APN value defined by the network side.
   * @param  pdn_conf Structure which contains additional configurations parameters (if non NULL)
   * @retval CS_Status_t
   */
@@ -995,15 +981,36 @@ CS_Status_t CS_define_pdn(CS_PDN_conf_id_t cid, const CS_CHAR_t *apn, CS_PDN_con
   {
     PRINT_ERR("<Cellular_Service> selected configuration id %d can not be set by user", cid)
   }
+  else if (pdn_conf == NULL)
+  {
+    PRINT_ERR("<Cellular_Service> pdn_conf must be non NULL")
+  }
   else if (apn == NULL)
   {
-    PRINT_ERR("<Cellular_Service> apn must be non NULL")
+    /* prepare and send PDN infos, without apn */
+    (void) memset((void *)&pdn_infos, 0, sizeof(csint_pdn_infos_t));
+    pdn_infos.conf_id = cid;
+    pdn_infos.apn_present = CELLULAR_FALSE;
+    (void) memcpy((void *)&pdn_infos.pdn_conf, (void *)pdn_conf, sizeof(CS_PDN_configuration_t));
+
+    if (DATAPACK_writePtr(&cmd_buf[0],
+                          (uint16_t) CSMT_DEFINE_PDN,
+                          (void *)&pdn_infos) == DATAPACK_OK)
+    {
+      at_status_t err;
+      err = AT_sendcmd(_Adapter_Handle, (at_msg_t) SID_CS_DEFINE_PDN, &cmd_buf[0], &rsp_buf[0]);
+      if (err == ATSTATUS_OK)
+      {
+        retval = CELLULAR_OK;
+      }
+    }
   }
   else
   {
-    /* prepare and send PDN infos */
+    /* prepare and send PDN infos, with apn */
     (void) memset((void *)&pdn_infos, 0, sizeof(csint_pdn_infos_t));
     pdn_infos.conf_id = cid;
+    pdn_infos.apn_present = CELLULAR_TRUE;
     (void) memcpy((void *)&pdn_infos.apn[0],
                   (const CS_CHAR_t *)apn,
                   strlen((const CRC_CHAR_t *)apn));
@@ -1088,7 +1095,7 @@ CS_Status_t CS_get_dev_IP_address(CS_PDN_conf_id_t cid, CS_IPaddrType_t *ip_addr
                               (uint16_t) sizeof(csint_ip_addr_info_t),
                               &ip_addr_info) == DATAPACK_OK)
       {
-        PRINT_DBG("<Cellular_Service> IP address informations received")
+        PRINT_DBG("<Cellular_Service> IP address information received")
         /* recopy info to user */
         *ip_addr_type = ip_addr_info.ip_addr_type;
         (void) memcpy((void *)p_ip_addr_value,
@@ -1103,7 +1110,7 @@ CS_Status_t CS_get_dev_IP_address(CS_PDN_conf_id_t cid, CS_IPaddrType_t *ip_addr
 
   if (retval == CELLULAR_ERROR)
   {
-    PRINT_ERR("<Cellular_Service> error when getting IP address informations")
+    PRINT_ERR("<Cellular_Service> error when getting IP address information")
   }
   return (retval);
 }
@@ -1131,7 +1138,7 @@ CS_Status_t CS_subscribe_modem_event(CS_ModemEvent_t events_mask, cellular_modem
     if (err == ATSTATUS_OK)
     {
       urc_modem_event_callback = modem_evt_cb;
-      PRINT_DBG("<Cellular_Service> modem events suscribed")
+      PRINT_DBG("<Cellular_Service> modem events subscribed")
       retval = CELLULAR_OK;
     }
   }
@@ -1147,9 +1154,9 @@ CS_Status_t CS_subscribe_modem_event(CS_ModemEvent_t events_mask, cellular_modem
   * @brief  Register to event notifications related to internet connection.
   * @note   This function is used to register to an event related to a PDN
   *         Only explicit config id (CS_PDN_USER_CONFIG_1 to CS_PDN_USER_CONFIG_5) are
-  *         suppported and CS_PDN_PREDEF_CONFIG
+  *         supported and CS_PDN_PREDEF_CONFIG
   * @param  cid Configuration identifier number.
-  * @param  pdn_event_callback client callback to call when an event occured.
+  * @param  pdn_event_callback client callback to call when an event occurred.
   * @retval CS_Status_t
   */
 CS_Status_t  CS_register_pdn_event(CS_PDN_conf_id_t cid, cellular_pdn_event_callback_t pdn_event_callback)
@@ -1307,11 +1314,11 @@ CS_Status_t CDS_socket_bind(socket_handle_t sockHandle,
 }
 
 /**
-  * @brief  Set the callbacks to use when datas are received or sent.
+  * @brief  Set the callbacks to use when data are received or sent.
   * @note   This function has to be called before to use a socket.
   * @param  sockHandle Handle of the socket
-  * @param  data_ready_cb Pointer to the callback function to call when datas are received
-  * @param  data_sent_cb Pointer to the callback function to call when datas has been sent
+  * @param  data_ready_cb Pointer to the callback function to call when data are received
+  * @param  data_sent_cb Pointer to the callback function to call when data has been sent
   *         This parameter is only used for asynchronous behavior (NOT IMPLEMENTED)
   * @retval CS_Status_t
   */
@@ -1433,7 +1440,7 @@ CS_Status_t CDS_socket_connect(socket_handle_t sockHandle,
   retval = csint_socket_configure_remote(sockHandle, ip_addr_type, p_ip_addr_value, remote_port);
   if (retval == CELLULAR_OK)
   {
-    /* Send socket informations to ATcustom
+    /* Send socket information to ATcustom
     * no need to test sockHandle validity, it has been tested in csint_socket_configure_remote()
     */
     csint_socket_infos_t *socket_infos = &cs_ctxt_sockets_info[sockHandle];
@@ -1475,7 +1482,7 @@ CS_Status_t CDS_socket_connect(socket_handle_t sockHandle,
 
 /**
   * @brief  Listen to clients (for socket server mode).
-  * @note   Function not implemeted yet
+  * @note   Function not implemented yet
   * @param  sockHandle Handle of the socket
   * @retval CS_Status_t
   */
@@ -1489,7 +1496,7 @@ CS_Status_t CDS_socket_listen(socket_handle_t sockHandle)
 
 /**
   * @brief  Send data over a socket to a remote server.
-  * @note   This function is blocking until the data is transfered or when the
+  * @note   This function is blocking until the data is transferred or when the
   *         timeout to wait for transmission expires.
   * @param  sockHandle Handle of the socket
   * @param  p_buf Pointer to the data buffer to transfer.
@@ -1556,7 +1563,7 @@ CS_Status_t CDS_socket_send(socket_handle_t sockHandle,
 
 /**
   * @brief  Send data over a socket to a remote server.
-  * @note   This function is blocking until the data is transfered or when the
+  * @note   This function is blocking until the data is transferred or when the
   *         timeout to wait for transmission expires.
   * @param  sockHandle Handle of the socket
   * @param  p_buf Pointer to the data buffer to transfer.
@@ -1846,7 +1853,7 @@ CS_Status_t CDS_socket_close(socket_handle_t sockHandle, uint8_t force)
 
   if (cs_ctxt_sockets_info[sockHandle].state == SOCKETSTATE_CONNECTED)
   {
-    /* Send socket informations to ATcustom */
+    /* Send socket information to ATcustom */
     csint_socket_infos_t *socket_infos = &cs_ctxt_sockets_info[sockHandle];
     if (DATAPACK_writePtr(&cmd_buf[0],
                           (uint16_t) CSMT_SOCKET_INFO,
@@ -1914,7 +1921,7 @@ CS_Status_t CDS_socket_cnx_status(socket_handle_t sockHandle,
   }
   else
   {
-    /* Send socket informations to ATcustom */
+    /* Send socket information to ATcustom */
     csint_socket_cnx_infos_t socket_cnx_infos;
     socket_cnx_infos.socket_handle = sockHandle;
     socket_cnx_infos.infos = p_infos;
@@ -2074,7 +2081,7 @@ CS_Status_t CS_reset(CS_Reset_t rst_type)
 
 /**
   * @brief  DNS request
-  * @note   Get IP address of the specifed hostname
+  * @note   Get IP address of the specified hostname
   * @param  cid Configuration identifier number.
   * @param  *dns_req Handle to DNS request structure.
   * @param  *dns_resp Handle to DNS response structure.
@@ -2130,7 +2137,7 @@ CS_Status_t CS_dns_request(CS_PDN_conf_id_t cid, CS_DnsReq_t *dns_req, CS_DnsRes
 /**
   * @brief  Ping an IP address on the network
   * @note   Usually, the command AT is sent and OK is expected as response
-  * @param  address or full paramaters set
+  * @param  address or full parameters set
   * @param  ping_callback Handle on user callback that will be used to analyze
   *                              the ping answer from the network address.
   * @retval CS_Status_t
@@ -2202,7 +2209,7 @@ CS_Status_t CDS_ping(CS_PDN_conf_id_t cid, CS_Ping_params_t *ping_params,
   * @note   The termination char will be automatically added by the lower layer
   * @param  direct_cmd_tx The structure describing the command to send to the modem
   * @param  direct_cmd_callback Callback to send back to user the content of response received from the modem
-  *                             paramater NOT IMPLEMENTED YET
+  *                             parameter NOT IMPLEMENTED YET
   * @retval CS_Status_t
   */
 CS_Status_t CS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx, cellular_direct_cmd_callback_t direct_cmd_callback)
@@ -2212,7 +2219,7 @@ CS_Status_t CS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx, cellular_direct_cmd
   CS_Status_t retval = CELLULAR_ERROR;
   PRINT_API("CS_direct_cmd")
 
-  if (direct_cmd_tx->cmd_size <= MAX_DIREXT_CMD_SIZE)
+  if (direct_cmd_tx->cmd_size <= MAX_DIRECT_CMD_SIZE)
   {
     if (DATAPACK_writePtr(&cmd_buf[0],
                           (uint16_t) CSMT_DIRECT_CMD,
@@ -2233,7 +2240,7 @@ CS_Status_t CS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx, cellular_direct_cmd
   }
   else
   {
-    PRINT_INFO("<Cellular_Service> Direct command command size to big (limit=%d)", MAX_DIREXT_CMD_SIZE)
+    PRINT_INFO("<Cellular_Service> Direct command command size to big (limit=%d)", MAX_DIRECT_CMD_SIZE)
   }
 
   if (retval == CELLULAR_ERROR)
@@ -2249,12 +2256,17 @@ CS_Status_t CS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx, cellular_direct_cmd
   * @brief  Initialise power configuration. Called systematically first.
   * @note
   * @param  power_config Pointer to the structure describing the power parameters
+  * @param  lp_status_callback callback function
   * @retval CS_Status_t
   */
-CS_Status_t CS_InitPowerConfig(CS_init_power_config_t *p_power_config)
+CS_Status_t CS_InitPowerConfig(CS_init_power_config_t *p_power_config,
+                               cellular_power_status_callback_t lp_status_callback)
 {
   CS_Status_t retval = CELLULAR_ERROR;
   PRINT_INFO("CS_InitPowerConfig")
+
+  /* save the callback */
+  urc_lp_status_callback = lp_status_callback;
 
   static CS_init_power_config_t cs_ctxt_init_power_config;
   (void) memset((void *)&cs_ctxt_init_power_config, 0, sizeof(CS_init_power_config_t));
@@ -2572,14 +2584,14 @@ static CS_Status_t CELLULAR_init(void)
   CS_Status_t retval = CELLULAR_ERROR;
 
   /* static variables */
-  static sysctrl_info_t modem_device_infos;  /* LTE Modem informations */
+  static sysctrl_info_t modem_device_infos;  /* LTE Modem information */
 
   if (SysCtrl_getDeviceDescriptor(DEVTYPE_MODEM_CELLULAR, &modem_device_infos) == SCSTATUS_OK)
   {
     /* init ATCore & IPC layers*/
     (void) AT_init();
 
-    _Adapter_Handle = AT_open(&modem_device_infos, CELLULAR_idle_event_notif, CELLULAR_urc_notif);
+    _Adapter_Handle = AT_open(&modem_device_infos, CELLULAR_urc_notif);
     if (_Adapter_Handle != AT_HANDLE_INVALID)
     {
       /* init local context variables */
@@ -2593,20 +2605,6 @@ static CS_Status_t CELLULAR_init(void)
   }
 
   return (retval);
-}
-
-static void CELLULAR_idle_event_notif(void)
-{
-#if (RTOS_USED == 0)
-  PRINT_API("<Cellular_Service> idle event notif")
-  eventReceived++;
-
-  if (register_event_callback != NULL)
-  {
-    /* inform client that an event has been received */
-    (* register_event_callback)(eventReceived);
-  }
-#endif /* RTOS_USED */
 }
 
 static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf)
@@ -2634,7 +2632,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf)
         cs_ctxt_eps_network_reg_state = rx_state;
         if (urc_eps_network_registration_callback != NULL)
         {
-          /* possible evolution: pack datas to client */
+          /* possible evolution: pack data to client */
           (* urc_eps_network_registration_callback)();
         }
       }
@@ -2904,7 +2902,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf)
   /* --- SOCKET DATA PENDING URC --- */
   else if (msgtype == (uint16_t) CSMT_URC_SOCKET_DATA_PENDING)
   {
-    /* unpack datas received */
+    /* unpack data received */
     socket_handle_t sockHandle;
     if (DATAPACK_readStruct(p_rsp_buf,
                             (uint16_t) CSMT_URC_SOCKET_DATA_PENDING,
@@ -2924,7 +2922,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf)
   /* --- SOCKET DATA CLOSED BY REMOTE URC --- */
   else if (msgtype == (uint16_t) CSMT_URC_SOCKET_CLOSED)
   {
-    /* unpack datas received */
+    /* unpack data received */
     socket_handle_t sockHandle;
     if (DATAPACK_readStruct(p_rsp_buf,
                             (uint16_t) CSMT_URC_SOCKET_CLOSED,
@@ -2950,7 +2948,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf)
   else if ((msgtype == (uint16_t) CSMT_URC_PACKET_DOMAIN_EVENT) &&
            (cs_ctxt_urc_subscription.packet_domain_event == CELLULAR_TRUE))
   {
-    /* unpack datas received */
+    /* unpack data received */
     csint_PDN_event_desc_t pdn_event;
     if (DATAPACK_readStruct(p_rsp_buf,
                             (uint16_t) CSMT_URC_PACKET_DOMAIN_EVENT,
@@ -2997,7 +2995,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf)
   /* --- PING URC --- */
   else if (msgtype == (uint16_t) CSMT_URC_PING_RSP)
   {
-    /* unpack datas received */
+    /* unpack data received */
     CS_Ping_response_t ping_rsp;
     if (DATAPACK_readStruct(p_rsp_buf,
                             (uint16_t) CSMT_URC_PING_RSP,
@@ -3014,7 +3012,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf)
   /* --- MODEM EVENT URC --- */
   else if (msgtype == (uint16_t) CSMT_URC_MODEM_EVENT)
   {
-    /* unpack datas received */
+    /* unpack data received */
     CS_ModemEvent_t modem_events;
     if (DATAPACK_readStruct(p_rsp_buf,
                             (uint16_t) CSMT_URC_MODEM_EVENT,
@@ -3025,6 +3023,41 @@ static void CELLULAR_urc_notif(at_buf_t *p_rsp_buf)
       if (urc_modem_event_callback != NULL)
       {
         (* urc_modem_event_callback)(modem_events);
+      }
+    }
+  }
+  /* --- SIM STATUS EVENT URC --- */
+  else if (msgtype == (uint16_t) CSMT_URC_SIM_EVENT)
+  {
+    /* unpack data received */
+    CS_SimEvent_status_t sim_status;
+    if (DATAPACK_readStruct(p_rsp_buf,
+                            (uint16_t) CSMT_URC_SIM_EVENT,
+                            (uint16_t) sizeof(CS_SimEvent_status_t),
+                            (void *)&sim_status) == DATAPACK_OK)
+    {
+      PRINT_INFO("MODEM SIM event received= %d", sim_status.event)
+      if (urc_sim_event_callback != NULL)
+      {
+        (* urc_sim_event_callback)(sim_status);
+      }
+    }
+  }
+  /* --- LOW POWER STATUS EVENT URC --- */
+  else if (msgtype == (uint16_t) CSMT_URC_LP_STATUS_EVENT)
+  {
+    /* unpack data received */
+    CS_LowPower_status_t lp_status;
+    if (DATAPACK_readStruct(p_rsp_buf,
+                            (uint16_t) CSMT_URC_LP_STATUS_EVENT,
+                            (uint16_t) sizeof(CS_LowPower_status_t),
+                            (void *)&lp_status) == DATAPACK_OK)
+    {
+      PRINT_DBG("negotiated value of T3324 = %ld", lp_status.nwk_active_time)
+      PRINT_DBG("negotiated value of T3412 = %ld", lp_status.nwk_periodic_TAU)
+      if (urc_lp_status_callback != NULL)
+      {
+        (* urc_lp_status_callback)(lp_status);
       }
     }
   }
@@ -3040,8 +3073,10 @@ static CS_Status_t CELLULAR_analyze_error_report(at_buf_t *p_rsp_buf)
   uint16_t msgtype;
 
   PRINT_API("<Cellular_Service> CELLULAR_analyze_error_report")
-  retval = CELLULAR_ERROR;
   msgtype = DATAPACK_readMsgType(p_rsp_buf);
+
+  /* default return value */
+  retval = CELLULAR_ERROR;
 
   /* check if we have received an error report */
   if (msgtype == (uint16_t) CSMT_ERROR_REPORT)
@@ -3057,6 +3092,7 @@ static CS_Status_t CELLULAR_analyze_error_report(at_buf_t *p_rsp_buf)
         /* SIM error */
         retval = convert_SIM_error(&error_report);
       }
+      /* other errors returns generic error value */
     }
   }
 

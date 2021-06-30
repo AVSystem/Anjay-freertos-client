@@ -80,13 +80,7 @@ extern "C" {
   */
 
 /* Exported constants --------------------------------------------------------*/
-/** @defgroup COM_PING_Constants Constants
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported types ------------------------------------------------------------*/
 /** @defgroup COM_PING_Types Types
@@ -98,22 +92,10 @@ extern "C" {
   */
 
 /* External variables --------------------------------------------------------*/
-/** @defgroup COM_PING_Variables Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
-/** @defgroup COM_PING_Macros Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
 /**
@@ -212,13 +194,7 @@ extern "C" {
   */
 
 /* External variables --------------------------------------------------------*/
-/** @defgroup COM_SOCKETS_Variables Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
 /** @defgroup COM_SOCKETS_Macros Macros

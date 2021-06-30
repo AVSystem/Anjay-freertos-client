@@ -131,7 +131,7 @@ typedef struct
   at_bool_t   socket_closed_pending_urc;  /* is there a pending closed urc for this connID ?*/
 } atcustom_persistent_SOCKET_context_t;
 
-/* atcustom_persistent_context_t is a structure to save datas
+/* atcustom_persistent_context_t is a structure to save data
 *  which are persistent across different SID
 */
 typedef struct
@@ -161,13 +161,18 @@ typedef struct
   at_bool_t   urc_avail_socket_closed_by_remote;
   at_bool_t   urc_avail_pdn_event;
 
+  /* SIM event - one flag for each sim event type */
+  at_bool_t   urc_avail_sim_refresh_event; /* SIM refresh event */
+  at_bool_t   urc_avail_sim_detect_event;  /* runtime SIM hotswap detection */
+  at_bool_t   urc_avail_sim_state_event;   /* SIM state changed */
+
   /* Modem events subscriptions */
   CS_ModemEvent_t modem_events_subscript; /* bitmask */
 
   /* Modem events received */
   CS_ModemEvent_t urc_avail_modem_events; /* bitmask */
 
-  /* URC datas */
+  /* URC data */
   csint_location_info_t  eps_location_info;  /* updated on CEREG reception (answer to CEREG cmd or URC) */
   CS_NetworkRegState_t   eps_network_state;  /* updated on CEREG reception (answer to CEREG cmd or URC) */
   csint_location_info_t  gprs_location_info; /* updated on CGREG reception (answer to CGREG cmd or URC) */
@@ -188,7 +193,7 @@ typedef struct
   atcustom_persistent_SOCKET_context_t   socket[CELLULAR_MAX_SOCKETS];
 
   /* Power Saving Mode info */
-  at_bool_t              psm_requested;      /* PSM has been requested by upper layers (not necessarily activated !) */
+  at_bool_t              psm_urc_requested;  /* indicates if PSM parameters requested in CEREG/CGREG urc */
 
   /* other infos */
   at_bool_t              modem_at_ready;     /* modem ready to receive AT commands */
@@ -204,7 +209,7 @@ typedef struct
   /* Ping infos:
    * Some modems are receiving ping responses as URC after the end of the ping command and some modems are receiving
    * ping infos before the end of the command.
-   * Implemenation choice is to manage ping responses as if they are URC (even if this is not the case).
+   * Implementation choice is to manage ping responses as if they are URC (even if this is not the case).
    * Keep ping input params in persistent context because ping responses can be received after end of current SID
    * (assimilated to URC) and these infos can be useful when receiving a ping response.
    */
@@ -212,14 +217,24 @@ typedef struct
   CS_Ping_response_t     ping_resp_urc;  /* ping response parameters (assimililated ton an URC) */
   at_bool_t              urc_avail_ping_rsp;
 
+  /* Low Power status */
+  CS_LowPower_status_t   low_power_status;     /* low power status information */
+  at_bool_t              urc_avail_lp_status;  /* low power status available (negotiated PSM timers,...) */
+
+  /* SIM events */
+  CS_SimEvent_status_t sim_refresh_infos; /* structure for SIM refresh event */
+  CS_SimEvent_status_t sim_detect_infos;  /* structure for SIM detect event */
+  CS_SimEvent_status_t sim_state_infos;   /*structure for SIM STATE event */
+
 } atcustom_persistent_context_t;
 
-/* atcustom_SID_context_t is a structure to save SID datas
+/* atcustom_SID_context_t is a structure to save SID data
 *   received from Cellular service and related infos
+*   data lifetime = SID duration
 */
 typedef struct
 {
-  /* list of paramaters used for SID */
+  /* list of parameters used for SID */
   CS_ModemConfig_t            modem_config;           /* SID_CS_MODEM_CONFIG */
   csint_modemInit_t           modem_init;             /* SID_CS_INIT_MODEM */
   CS_DeviceInfo_t             *device_info;           /* SID_CS_GET_DEVICE_INFO */
@@ -245,9 +260,12 @@ typedef struct
   csint_error_report_t        error_report;           /* used if an error occurs during an SID */
 } atcustom_SID_context_t;
 
+/* atcustom_CMD_context_t is a structure to save CMD data
+*   data lifetime = CMD duration
+*/
 typedef struct
 {
-  /* list of paramaters used for COMMANDS */
+  /* list of parameters used for COMMANDS */
   atcustom_CGSN_snt_t           cgsn_write_cmd_param;  /* AT+CGSN <snt> value */
   atcustom_CGATT_state_t        cgatt_write_cmd_param; /* AT+CGATT <state> value */
   atcustom_CxREG_n_t            cxreg_write_cmd_param; /* AT+CREG,AT+CGREG,AT+CEREG <n> value */
@@ -263,7 +281,7 @@ typedef struct
 
 typedef struct
 {
-  /* SOCKET command data mode : SID or cmd datas */
+  /* SOCKET command data mode : SID or cmd data */
   csint_socket_infos_t      *socket_info;        /* current socket infos */
   csint_socket_data_buffer_t socketReceivedata;  /* for RX data buffer */
   uint32_t                   socket_current_connId;  /* connection ID for current command (only for received cmd) */
@@ -393,6 +411,10 @@ at_status_t atcm_select_hw_simslot(CS_SimSlot_t sim);
 
 CS_PDN_conf_id_t atcm_convert_index_to_PDN_conf(uint8_t index);
 void reset_pdn_event(atcustom_persistent_context_t *p_persistent_ctxt);
+
+void atcm_report_urc_sim_event(atcustom_modem_context_t *p_modem_ctxt, CS_SimEvent_status_t *sim_event);
+void atcm_set_error_report(csint_error_type_t err_type, atcustom_modem_context_t *p_modem_ctxt);
+
 
 #ifdef __cplusplus
 }

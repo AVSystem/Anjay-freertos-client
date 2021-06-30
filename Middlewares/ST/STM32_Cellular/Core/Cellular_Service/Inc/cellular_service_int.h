@@ -54,12 +54,14 @@ enum
   CSMT_URC_GPRS_LOCATION_INFO,                /* for +CGREG */
   CSMT_URC_CS_NETWORK_REGISTRATION_STATUS,    /* for +CREG */
   CSMT_URC_CS_LOCATION_INFO,                  /* for +CREG */
-  CSMT_URC_SIGNAL_QUALITY,                    /* not in rec, modem dependant */
+  CSMT_URC_SIGNAL_QUALITY,                    /* not in rec, modem dependent */
   CSMT_URC_PACKET_DOMAIN_EVENT,               /* for +CGEV */
   CSMT_URC_SOCKET_DATA_PENDING,               /* for socket data available */
   CSMT_URC_SOCKET_CLOSED,                     /* for socket closed by remote */
   CSMT_URC_MODEM_EVENT,                       /* for subscribed modem events */
   CSMT_URC_PING_RSP,                          /* for ping responses */
+  CSMT_URC_LP_STATUS_EVENT,                   /* for Low Power status event */
+  CSMT_URC_SIM_EVENT,                         /* for SIM events */
   /* internal messages and corresponding structure */
   CSMT_PINCODE,            /* csint_pinCode_t */
   CSMT_INITMODEM,          /* csint_modemInit_t */
@@ -138,7 +140,7 @@ typedef struct
   csint_CGEV_event_values_t   event_origine;
   csint_CGEV_event_values_t   event_scope;
   csint_CGEV_event_values_t   event_type;
-  CS_PDN_conf_id_t            conf_id;      /* PDN on which event occured
+  CS_PDN_conf_id_t            conf_id;      /* PDN on which event occurred
                                                * CS_PDN_NOT_DEFINED if not known
                                                * CS_PDN_ALL if all PDN impacte
                                                */
@@ -160,6 +162,7 @@ typedef struct
 typedef struct
 {
   CS_PDN_conf_id_t        conf_id;
+  CS_Bool_t               apn_present;
   CS_CHAR_t               apn[MAX_APN_SIZE];
   CS_PDN_configuration_t  pdn_conf;
 } csint_pdn_infos_t;
@@ -258,8 +261,9 @@ typedef struct
 
 typedef enum
 {
-  CSERR_UNKNOWN    = 0,
-  CSERR_SIM        = 1,
+  CSERR_UNKNOWN              = 0,
+  CSERR_SIM                  = 1,
+  CSERR_MODEM_REBOOT_NEEDED  = 2,
 
 } csint_error_type_t;
 
@@ -290,7 +294,7 @@ typedef struct
 {
   csint_error_type_t  error_type;
 
-  /* detailled error infos =f(error_type) are listed below */
+  /* detailed error infos =f(error_type) are listed below */
   csint_SIMState_t    sim_state; /* if error_type = CSERR_SIM */
 
 } csint_error_report_t;

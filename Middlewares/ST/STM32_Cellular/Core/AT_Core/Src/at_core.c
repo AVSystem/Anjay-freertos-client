@@ -52,16 +52,15 @@
 #define LOG_ERROR(ErrId, gravity)   ERROR_Handler(DBG_CHAN_ATCMD, (ErrId), (gravity))
 
 /* Private defines -----------------------------------------------------------*/
-#define ATCORE_MAX_HANDLES   ((int16_t) DEVTYPE_INVALID)
+#define USE_PARSING_MUTEX    (1)
 
 /* specific debug flags */
 #define DBG_DUMP_IPC_RX_QUEUE (0) /* dump the IPC RX queue (advanced debug only) */
 
-#if (RTOS_USED == 1)
 /* Private defines -----------------------------------------------------------*/
-#define ATCORE_SEM_WAIT_ANSWER_COUNT     (1)
-#define ATCORE_SEM_SEND_COUNT            (1)
-#define MSG_IPC_RECEIVED_SIZE (uint32_t) (128)
+#define ATCORE_SEM_WAIT_ANSWER_COUNT     ((uint16_t) 1U)
+#define ATCORE_SEM_SEND_COUNT            ((uint16_t) 1U)
+#define MSG_IPC_RECEIVED_SIZE (uint32_t) ((uint16_t) 128U)
 #define SIG_IPC_MSG                      (1U) /* signals definition for IPC message queue */
 #define SIG_INTERNAL_EVENT_MODEM         (2U) /* signals definition for internal event from the cellular modem */
 
@@ -70,50 +69,39 @@
 /* Private variables ---------------------------------------------------------*/
 /* this semaphore is used for waiting for an answer from Modem */
 static osSemaphoreId s_WaitAnswer_SemaphoreId = NULL;
-/* this semaphore is used to confirm that a msg has been sent (1 semaphore per device) */
-#define ATCORE_SEMAPHORE_DEF(name,index)  \
-  const osSemaphoreDef_t os_semaphore_def_##name##index = { 0 }
-#define ATCORE_SEMAPHORE(name,index)  \
-  &os_semaphore_def_##name##index
 /* Queues definition */
 /* this queue is used by IPC to inform that messages are ready to be retrieved */
 static osMessageQId q_msg_IPC_received_Id;
 
 /* Private function prototypes -----------------------------------------------*/
-static at_status_t findMsgReceivedHandle(at_handle_t *athandle);
-static void ATCoreTaskBody(void const *argument);
-#endif /* RTOS_USED == 1 */
+static void ATCoreTaskBody(void *argument);
+
+/* Mutex used to avoid crossing cases when preparing/parsing AT commands/responses/URC */
+#if (USE_PARSING_MUTEX == 1)
+static osMutexId ATCore_ParsingMutexHandle;
+#endif /* USE_PARSING_MUTEX == 1 */
 
 /* Private variables ---------------------------------------------------------*/
 static uint8_t         AT_Core_initialized = 0U;
-static IPC_Handle_t    ipcHandleTab[ATCORE_MAX_HANDLES];
-static at_context_t    at_context[ATCORE_MAX_HANDLES];
-static urc_callback_t  register_URC_callback[ATCORE_MAX_HANDLES];
-static IPC_RxMessage_t msgFromIPC[ATCORE_MAX_HANDLES];        /* array of IPC msg (1 per ATCore handler) */
-static __IO uint8_t    MsgReceived[ATCORE_MAX_HANDLES] = {0}; /* array of rx msg counters (1 per ATCore handler) */
+static IPC_Handle_t    ipcHandleTab;
+static at_context_t    at_context;
+static urc_callback_t  register_URC_callback;
+static IPC_RxMessage_t msgFromIPC;       /* IPC msg */
+static __IO uint8_t    MsgReceived = 0U; /* received IPC msg counter */
 static IPC_CheckEndOfMsgCallbackTypeDef custom_checkEndOfMsgCallback = NULL;
-
-#if (RTOS_USED == 0)
-static event_callback_t    register_event_callback[ATCORE_MAX_HANDLES];
-#endif /* RTOS_USED == 0 */
 
 /* Global variables ----------------------------------------------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
 static void msgReceivedCallback(IPC_Handle_t *ipcHandle);
 static void msgSentCallback(IPC_Handle_t *ipcHandle);
-static uint8_t find_index(const IPC_Handle_t *ipcHandle);
 
-static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_id, at_buf_t *p_rsp_buf);
-static at_status_t allocate_ATHandle(at_handle_t *athandle);
-static at_handle_t find_deviceType_ATHandle(sysctrl_device_type_t deviceType);
-static at_status_t waitOnMsgUntilTimeout(at_handle_t athandle, uint32_t Tickstart, uint32_t Timeout);
-static at_status_t sendToIPC(at_handle_t athandle,
-                             uint8_t *cmdBuf, uint16_t cmdSize);
-static at_status_t waitFromIPC(at_handle_t athandle,
-                               uint32_t tickstart, uint32_t cmdTimeout, IPC_RxMessage_t *p_msg);
-static at_action_rsp_t process_answer(at_handle_t athandle, at_action_send_t action_send, uint32_t at_cmd_timeout);
-static at_action_rsp_t analyze_action_result(at_handle_t athandle, at_action_rsp_t val);
+static at_status_t process_AT_transaction(at_msg_t msg_in_id, at_buf_t *p_rsp_buf);
+static at_status_t waitOnMsgUntilTimeout(uint32_t Tickstart, uint32_t Timeout);
+static at_status_t sendToIPC(uint8_t *cmdBuf, uint16_t cmdSize);
+static at_status_t waitFromIPC(uint32_t tickstart, uint32_t cmdTimeout, IPC_RxMessage_t *p_msg);
+static at_action_rsp_t process_answer(at_action_send_t action_send, uint32_t at_cmd_timeout);
+static at_action_rsp_t analyze_action_result(at_action_rsp_t val);
 
 static void IRQ_DISABLE(void);
 static void IRQ_ENABLE(void);
@@ -128,7 +116,6 @@ static void IRQ_ENABLE(void);
 at_status_t  AT_init(void)
 {
   at_status_t retval;
-  at_handle_t idx;
 
   /* should be called once */
   if (AT_Core_initialized == 1U)
@@ -138,26 +125,27 @@ at_status_t  AT_init(void)
   }
   else
   {
-    /* Initialize at_context */
-    for (idx = 0; idx < ATCORE_MAX_HANDLES; idx++)
-    {
-      MsgReceived[idx] = 0U;
-      register_URC_callback[idx] = NULL;
-#if (RTOS_USED == 0)
-      register_event_callback[idx] = NULL;
-#endif /* RTOS_USED == 0 */
-      at_context[idx].device_type = DEVTYPE_INVALID;
-      at_context[idx].in_data_mode = AT_FALSE;
-      at_context[idx].processing_cmd = 0U;
-      at_context[idx].dataSent = AT_FALSE;
-#if (RTOS_USED == 1)
-      at_context[idx].action_flags = ATACTION_RSP_NO_ACTION;
-      at_context[idx].p_rsp_buf = NULL;
-      at_context[idx].s_SendConfirm_SemaphoreId = NULL;
-#endif /* RTOS_USED == 1 */
+    MsgReceived = 0U;
+    register_URC_callback = NULL;
 
-      (void) memset((void *)&at_context[idx].parser, 0, sizeof(atparser_context_t));
+    at_context.device_type = DEVTYPE_INVALID;
+    at_context.in_data_mode = AT_FALSE;
+    at_context.processing_cmd = 0U;
+    at_context.dataSent = AT_FALSE;
+    at_context.action_flags = ATACTION_RSP_NO_ACTION;
+    at_context.p_rsp_buf = NULL;
+    at_context.s_SendConfirm_SemaphoreId = NULL;
+
+    (void) memset((void *)&at_context.parser, 0, sizeof(atparser_context_t));
+
+#if (USE_PARSING_MUTEX == 1U)
+    ATCore_ParsingMutexHandle = rtosalMutexNew(NULL);
+    if (ATCore_ParsingMutexHandle == NULL)
+    {
+      /* Platform is reset */
+      ERROR_Handler(DBG_CHAN_ATCMD, 20, ERROR_FATAL);
     }
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
 
     AT_Core_initialized = 1U;
     retval = ATSTATUS_OK;
@@ -173,12 +161,8 @@ at_status_t  AT_init(void)
   * @param  urc_callback Client callback for URC
   * @retval at_handle_t Handle of the AT context created.
   */
-at_handle_t  AT_open(sysctrl_info_t *p_device_infos, const event_callback_t event_callback, urc_callback_t urc_callback)
+at_handle_t  AT_open(sysctrl_info_t *p_device_infos, urc_callback_t urc_callback)
 {
-#if (RTOS_USED == 1)
-  UNUSED(event_callback); /* used only for non-RTOS */
-#endif /* RTOS_USED == 1 */
-
   at_handle_t affectedHandle;
 
   /* Initialize parser for required device type */
@@ -186,52 +170,44 @@ at_handle_t  AT_open(sysctrl_info_t *p_device_infos, const event_callback_t even
   {
     affectedHandle = AT_HANDLE_INVALID;
   }
-  /* allocate a free handle */
-  else if (allocate_ATHandle(&affectedHandle) != ATSTATUS_OK)
-  {
-    affectedHandle = AT_HANDLE_INVALID;
-  }
+  /* allocate handle */
   else
   {
-    /* nothing to do */
+    affectedHandle = AT_HANDLE_MODEM;
   }
 
   if (affectedHandle != AT_HANDLE_INVALID)
   {
     /* set adapter name for this context */
-    at_context[affectedHandle].ipc_handle = &ipcHandleTab[affectedHandle];
-    at_context[affectedHandle].device_type = p_device_infos->type;
-    at_context[affectedHandle].ipc_device  = p_device_infos->ipc_device;
+    at_context.ipc_handle = &ipcHandleTab;
+    at_context.device_type = p_device_infos->type;
+    at_context.ipc_device  = p_device_infos->ipc_device;
     if (p_device_infos->ipc_interface == IPC_INTERFACE_UART)
     {
-      at_context[affectedHandle].ipc_mode = IPC_MODE_UART_CHARACTER;
+      at_context.ipc_mode = IPC_MODE_UART_CHARACTER;
 
       /* start in COMMAND MODE */
-      at_context[affectedHandle].in_data_mode = AT_FALSE;
+      at_context.in_data_mode = AT_FALSE;
 
       /* no command actually in progress */
-      at_context[affectedHandle].processing_cmd = 0U;
+      at_context.processing_cmd = 0U;
 
       /* init semaphore for data sent indication */
-      at_context[affectedHandle].dataSent = AT_FALSE;
+      at_context.dataSent = AT_FALSE;
 
-#if (RTOS_USED == 1)
-      ATCORE_SEMAPHORE_DEF(ATCORE_SEM_SEND, affectedHandle);
-      at_context[affectedHandle].s_SendConfirm_SemaphoreId =
-        osSemaphoreCreate(ATCORE_SEMAPHORE(ATCORE_SEM_SEND, affectedHandle), ATCORE_SEM_SEND_COUNT);
-      if (at_context[affectedHandle].s_SendConfirm_SemaphoreId != NULL)
+      at_context.s_SendConfirm_SemaphoreId =
+        rtosalSemaphoreNew((const rtosal_char_t *)"ATCORE_SEM_SEND",
+                           ATCORE_SEM_SEND_COUNT);
+      if (at_context.s_SendConfirm_SemaphoreId != NULL)
       {
         /* init semaphore */
-        (void) osSemaphoreWait(at_context[affectedHandle].s_SendConfirm_SemaphoreId, 5000U);
-#else /* RTOS_USED */
-      register_event_callback[affectedHandle] = event_callback;
-#endif /* RTOS_USED == 1 */
+        (void) rtosalSemaphoreAcquire(at_context.s_SendConfirm_SemaphoreId, 5000U);
 
         /* register client callback for URC */
-        register_URC_callback[affectedHandle] = urc_callback;
+        register_URC_callback = urc_callback;
 
         /* init the ATParser */
-        ATParser_init(&at_context[affectedHandle], &custom_checkEndOfMsgCallback);
+        ATParser_init(&at_context, &custom_checkEndOfMsgCallback);
       }
       else
       {
@@ -259,24 +235,23 @@ at_status_t  AT_open_channel(at_handle_t athandle)
 
   if (athandle != AT_HANDLE_INVALID)
   {
-    at_context[athandle].in_data_mode = AT_FALSE;
-    at_context[athandle].processing_cmd = 0U;
-    at_context[athandle].dataSent = AT_FALSE;
-#if (RTOS_USED == 1)
-    at_context[athandle].action_flags = ATACTION_RSP_NO_ACTION;
-#endif /* RTOS_USED == 1 */
+    at_context.in_data_mode = AT_FALSE;
+    at_context.processing_cmd = 0U;
+    at_context.dataSent = AT_FALSE;
+    at_context.action_flags = ATACTION_RSP_NO_ACTION;
 
     /* Open the IPC channel */
-    if (IPC_open(at_context[athandle].ipc_handle,
-                 at_context[athandle].ipc_device,
-                 at_context[athandle].ipc_mode,
+    if (IPC_open(at_context.ipc_handle,
+                 at_context.ipc_device,
+                 at_context.ipc_mode,
                  msgReceivedCallback,
                  msgSentCallback,
+                 NULL,
                  custom_checkEndOfMsgCallback) == IPC_OK)
     {
 
       /* Select the IPC opened channel as current channel */
-      if (IPC_select(at_context[athandle].ipc_handle) == IPC_OK)
+      if (IPC_select(at_context.ipc_handle) == IPC_OK)
       {
         retval = ATSTATUS_OK;
       }
@@ -312,7 +287,7 @@ at_status_t  AT_close_channel(at_handle_t athandle)
 
   if (athandle != AT_HANDLE_INVALID)
   {
-    if (IPC_close(at_context[athandle].ipc_handle) == IPC_OK)
+    if (IPC_close(at_context.ipc_handle) == IPC_OK)
     {
       retval = ATSTATUS_OK;
     }
@@ -342,19 +317,16 @@ at_status_t AT_reset_context(at_handle_t athandle)
 
   if (athandle != AT_HANDLE_INVALID)
   {
-    at_context[athandle].in_data_mode = AT_FALSE;
-    at_context[athandle].processing_cmd = 0U;
-    at_context[athandle].dataSent = AT_FALSE;
-
-#if (RTOS_USED == 1)
-    at_context[athandle].action_flags = ATACTION_RSP_NO_ACTION;
-#endif /* RTOS_USED == 1 */
+    at_context.in_data_mode = AT_FALSE;
+    at_context.processing_cmd = 0U;
+    at_context.dataSent = AT_FALSE;
+    at_context.action_flags = ATACTION_RSP_NO_ACTION;
 
     /* reinit IPC channel and select our channel */
     retval = ATSTATUS_ERROR;
-    if (IPC_reset(at_context[athandle].ipc_handle) == IPC_OK)
+    if (IPC_reset(at_context.ipc_handle) == IPC_OK)
     {
-      if (IPC_select(at_context[athandle].ipc_handle) == IPC_OK)
+      if (IPC_select(at_context.ipc_handle) == IPC_OK)
       {
         retval = ATSTATUS_OK;
       }
@@ -393,8 +365,8 @@ at_status_t AT_sendcmd(at_handle_t athandle, at_msg_t msg_in_id, at_buf_t *p_cmd
   }
   else
   {
-    /* Check if a command is already ongoing for this handle */
-    if (at_context[athandle].processing_cmd == 1U)
+    /* Check if a command is already ongoing */
+    if (at_context.processing_cmd == 1U)
     {
       TRACE_ERR("!!!!!!!!!!!!!!!!!! WARNING COMMAND IS UNDER PROCESS !!!!!!!!!!!!!!!!!!")
       retval = ATSTATUS_ERROR;
@@ -406,22 +378,20 @@ at_status_t AT_sendcmd(at_handle_t athandle, at_msg_t msg_in_id, at_buf_t *p_cmd
     (void) memset((void *)p_rsp_buf, 0, ATCMD_MAX_BUF_SIZE);
 
     /* start to process this command */
-    at_context[athandle].processing_cmd = 1U;
+    at_context.processing_cmd = 1U;
 
-#if (RTOS_USED == 1)
     /* save ptr on response buffer */
-    at_context[athandle].p_rsp_buf = p_rsp_buf;
-#endif /* RTOS_USED == 1 */
+    at_context.p_rsp_buf = p_rsp_buf;
 
     /* Check if current mode is DATA mode */
-    if (at_context[athandle].in_data_mode == AT_TRUE)
+    if (at_context.in_data_mode == AT_TRUE)
     {
       /* Check if user command is DATA suspend */
       if (msg_in_id == (at_msg_t) SID_CS_DATA_SUSPEND)
       {
         /* restore IPC Command channel to send ESCAPE COMMAND */
         TRACE_DBG("<<< restore IPC COMMAND channel >>>")
-        (void) IPC_select(at_context[athandle].ipc_handle);
+        (void) IPC_select(at_context.ipc_handle);
       }
     }
     /* check if trying to suspend DATA while in command mode */
@@ -438,98 +408,35 @@ at_status_t AT_sendcmd(at_handle_t athandle, at_msg_t msg_in_id, at_buf_t *p_cmd
     }
 
     /* Process the user request */
-    ATParser_process_request(&at_context[athandle], msg_in_id, p_cmd_in_buf);
+    ATParser_process_request(&at_context, msg_in_id, p_cmd_in_buf);
 
     /* Start an AT command transaction */
-    retval = process_AT_transaction(athandle, msg_in_id, p_rsp_buf);
+    retval = process_AT_transaction(msg_in_id, p_rsp_buf);
     if (retval != ATSTATUS_OK)
     {
       TRACE_DBG("AT_sendcmd error: process AT transaction")
       /* retrieve and send error report if exist */
-      (void) ATParser_get_error(&at_context[athandle], p_rsp_buf);
-      ATParser_abort_request(&at_context[athandle]);
+      (void) ATParser_get_error(&at_context, p_rsp_buf);
+      ATParser_abort_request(&at_context);
       if (msg_in_id == (at_msg_t) SID_CS_DATA_SUSPEND)
       {
         /* force to return to command mode */
         TRACE_ERR("force to return to COMMAND mode")
-        at_context[athandle].in_data_mode = AT_FALSE ;
+        at_context.in_data_mode = AT_FALSE ;
       }
       goto exit_func;
     }
 
     /* get command response buffer */
-    (void) ATParser_get_rsp(&at_context[athandle], p_rsp_buf);
+    (void) ATParser_get_rsp(&at_context, p_rsp_buf);
 
 exit_func:
     /* finished to process this command */
-    at_context[athandle].processing_cmd = 0U;
+    at_context.processing_cmd = 0U;
   }
 
   return (retval);
 }
-
-#if (RTOS_USED == 0)
-/**
-  * @brief  Request to retrieve a complete message.
-  * @note   This function is used for bare mode only.
-  * @note   It has to be called by the client to retrieve a message when
-  * @note   it has been notified that a complete message has been received.
-  * @param  athandle Handle of the AT context.
-  * @param  p_rsp_buf Pointer to the buffer to return the message.
-  * @retval at_status_t
-  */
-at_status_t  AT_getevent(at_handle_t athandle, at_buf_t *p_rsp_buf)
-{
-  at_status_t retval = ATSTATUS_OK, retUrc;
-  at_action_rsp_t action;
-
-  /* retrieve response */
-  if (IPC_receive(at_context[athandle].ipc_handle, &msgFromIPC[athandle]) == IPC_ERROR)
-  {
-    TRACE_ERR("IPC receive error")
-    LOG_ERROR(4, ERROR_WARNING);
-    return (ATSTATUS_ERROR);
-  }
-
-  /* one message has been read */
-  IRQ_DISABLE();
-  MsgReceived[athandle]--;
-  IRQ_ENABLE();
-
-  /* Parse the response */
-  action = ATParser_parse_rsp(&at_context[athandle], &msgFromIPC[athandle]);
-
-  TRACE_DBG("RAW ACTION (get_event) = 0x%x", action)
-
-  /* continue if this is an intermediate response */
-  if ((action != ATACTION_RSP_URC_IGNORED) &&
-      (action != ATACTION_RSP_URC_FORWARDED))
-  {
-    TRACE_INFO("this is not an URC (%d)", action)
-    return (ATSTATUS_ERROR);
-  }
-
-  if (action == ATACTION_RSP_URC_FORWARDED)
-  {
-    /* notify user with callback */
-    if (register_URC_callback[athandle] != NULL)
-    {
-      /* get URC response buffer */
-      do
-      {
-        retUrc = ATParser_get_urc(&at_context[athandle], p_rsp_buf);
-        if ((retUrc == ATSTATUS_OK) || (retUrc == ATSTATUS_OK_PENDING_URC))
-        {
-          /* call the URC callback */
-          (* register_URC_callback[athandle])(p_rsp_buf);
-        }
-      } while (retUrc == ATSTATUS_OK_PENDING_URC);
-    }
-  }
-
-  return (retval);
-}
-#endif /* RTOS_USED == 0 */
 
 /**
   * @brief  Notify that an internal event has been received.
@@ -538,162 +445,66 @@ at_status_t  AT_getevent(at_handle_t athandle, at_buf_t *p_rsp_buf)
   */
 void AT_internalEvent(sysctrl_device_type_t deviceType)
 {
-  /* add internal event for the deviceType (supports only cellular modem actually) */
+  /* add internal event for the deviceType (supports only cellular modem actually)
+   * NOTE: do not add trace in this function which can be called under interrupt !
+   */
   if (deviceType == DEVTYPE_MODEM_CELLULAR)
   {
-    if (osMessagePut(q_msg_IPC_received_Id, SIG_INTERNAL_EVENT_MODEM, 0U) != osOK)
-    {
-      TRACE_ERR("q_msg_IPC_received_Id error for SIG_INTERNAL_EVENT_MODEM")
-    }
+    (void) rtosalMessageQueuePut(q_msg_IPC_received_Id, (uint32_t) SIG_INTERNAL_EVENT_MODEM, (uint32_t)0U);
   }
 }
 
 /* Private function Definition -----------------------------------------------*/
-static uint8_t find_index(const IPC_Handle_t *ipcHandle)
-{
-  at_handle_t idx    = 0;
-  uint8_t found  = 0U;
-  uint8_t retval = 0U;
-
-  do
-  {
-    if (&ipcHandleTab[idx] == ipcHandle)
-    {
-      found = 1U;
-      retval = idx;
-    }
-    idx++;
-  } while ((idx < ATCORE_MAX_HANDLES) && (found == 0U));
-
-  if (found == 0U)
-  {
-    LOG_ERROR(5, ERROR_FATAL);
-  }
-  return (retval);
-}
-
 static void msgReceivedCallback(IPC_Handle_t *ipcHandle)
 {
-  /* Warning ! this function is called under IT */
-  uint8_t index = find_index(ipcHandle);
-
-#if (RTOS_USED == 1)
-  /* disable irq not required, we are under IT */
-  MsgReceived[index]++;
-
-  if (osMessagePut(q_msg_IPC_received_Id, SIG_IPC_MSG, 0U) != osOK)
+  UNUSED(ipcHandle);
+  /* Warning ! this function is called under IT
+   * disable irq not required, we are under IT */
+  MsgReceived++;
+  if (rtosalMessageQueuePut(q_msg_IPC_received_Id,
+                            (uint32_t)SIG_IPC_MSG, (uint32_t)0U) != osOK)
   {
     TRACE_ERR("q_msg_IPC_received_Id error for SIG_IPC_MSG")
   }
-
-#else
-  MsgReceived[index]++;
-  /* received during in IDLE state ? this is an URC */
-  if (at_context[index].processing_cmd == 0)
-  {
-    if (register_event_callback[index] != NULL)
-    {
-      (* register_event_callback[index])();
-    }
-  }
-#endif /* RTOS_USED == 1 */
 }
 
 static void msgSentCallback(IPC_Handle_t *ipcHandle)
 {
+  UNUSED(ipcHandle);
   /* Warning ! this function is called under IT */
-  uint8_t index = find_index(ipcHandle);
-  at_context[index].dataSent = AT_TRUE;
-
-#if (RTOS_USED == 1)
-  (void) osSemaphoreRelease(at_context[index].s_SendConfirm_SemaphoreId);
-#endif /* RTOS_USED == 1 */
-
+  at_context.dataSent = AT_TRUE;
+  (void) rtosalSemaphoreRelease(at_context.s_SendConfirm_SemaphoreId);
 }
 
-static at_status_t allocate_ATHandle(at_handle_t *athandle)
+static at_status_t waitOnMsgUntilTimeout(uint32_t Tickstart, uint32_t Timeout)
 {
   at_status_t retval = ATSTATUS_OK;
-  at_handle_t idx = 0;
 
-  /* find first free handle */
-  while ((idx < ATCORE_MAX_HANDLES) && (at_context[idx].device_type != DEVTYPE_INVALID))
-  {
-    idx++;
-  }
-
-  if (idx == ATCORE_MAX_HANDLES)
-  {
-    LOG_ERROR(6, ERROR_WARNING);
-    retval = ATSTATUS_ERROR;
-  }
-  *athandle = (at_handle_t) idx;
-
-  return (retval);
-}
-
-static at_handle_t find_deviceType_ATHandle(sysctrl_device_type_t deviceType)
-{
-  at_handle_t retval = AT_HANDLE_INVALID; /* default value */
-  at_handle_t idx = 0;
-
-  /* find handle */
-  while (idx < ATCORE_MAX_HANDLES)
-  {
-    if (at_context[idx].device_type == deviceType)
-    {
-      /* return corresponding athandle */
-      retval = idx;
-      /* leave loop */
-      break;
-    }
-    idx++;
-  }
-
-  return (retval);
-}
-
-static at_status_t waitOnMsgUntilTimeout(at_handle_t athandle, uint32_t Tickstart, uint32_t Timeout)
-{
-  at_status_t retval = ATSTATUS_OK;
-#if (RTOS_USED == 1)
-  UNUSED(athandle);
   UNUSED(Tickstart);
 
   TRACE_DBG("**** Waiting Sema (to=%lu) *****", Timeout)
-  if (osSemaphoreWait(s_WaitAnswer_SemaphoreId, Timeout) != ((int32_t)osOK))
+  if (Timeout != 0U)
   {
-    TRACE_DBG("**** Sema Timeout (=%ld) !!! *****", Timeout)
-    retval = ATSTATUS_TIMEOUT;
-  }
-  TRACE_DBG("**** Sema Freed *****")
-
-#else
-  if (athandle == AT_HANDLE_INVALID)
-  {
-    retvalk = ATSTATUS_ERROR;
+    rtosalStatus sem_status;
+    sem_status = rtosalSemaphoreAcquire(s_WaitAnswer_SemaphoreId, Timeout);
+    /* check if sema released because IPC msg received */
+    if (sem_status != ((rtosalStatus)osOK))
+    {
+      TRACE_DBG("**** Sema Timeout (=%ld) !!! *****", Timeout)
+      retval = ATSTATUS_TIMEOUT;
+    }
+    TRACE_DBG("**** Sema Freed *****")
   }
   else
   {
-    /* Wait until flag is set */
-    while (!(MsgReceived[athandle]))
-    {
-      /* Check for the Timeout */
-      if (Timeout != ATCMD_MAX_DELAY)
-      {
-        if ((Timeout == 0) || ((HAL_GetTick() - Tickstart) > Timeout))
-        {
-          retval = ATSTATUS_TIMEOUT;
-          break;
-        }
-      }
-    }
+    /* simulate a timeout */
+    retval = ATSTATUS_TIMEOUT;
   }
-#endif /* RTOS_USED == 1 */
+
   return (retval);
 }
 
-static at_action_rsp_t process_answer(at_handle_t athandle, at_action_send_t action_send, uint32_t at_cmd_timeout)
+static at_action_rsp_t process_answer(at_action_send_t action_send, uint32_t at_cmd_timeout)
 {
   at_action_rsp_t  action_rsp;
   at_status_t  waitIPCstatus;
@@ -704,10 +515,10 @@ static at_action_rsp_t process_answer(at_handle_t athandle, at_action_send_t act
   do
   {
     /* Wait for response from IPC */
-    waitIPCstatus = waitFromIPC(athandle, tickstart, at_cmd_timeout, &msgFromIPC[athandle]);
+    waitIPCstatus = waitFromIPC(tickstart, at_cmd_timeout, &msgFromIPC);
     if (waitIPCstatus != ATSTATUS_OK)
     {
-      (void) IPC_abort(at_context[athandle].ipc_handle);
+      (void) IPC_abort(at_context.ipc_handle);
 
       /* No response received before timeout */
       if ((action_send & ATACTION_SEND_WAIT_MANDATORY_RSP) != 0U)
@@ -719,7 +530,7 @@ static at_action_rsp_t process_answer(at_handle_t athandle, at_action_send_t act
         /* in case of advanced debug of IPC RX queue only */
         if (waitIPCstatus == ATSTATUS_TIMEOUT)
         {
-          IPC_DumpRXQueue(at_context[athandle].ipc_handle, 1);
+          IPC_DumpRXQueue(at_context.ipc_handle, 1);
         }
 #endif /* (DBG_DUMP_IPC_RX_QUEUE == 1) */
 
@@ -742,28 +553,27 @@ static at_action_rsp_t process_answer(at_handle_t athandle, at_action_send_t act
       }
     }
     else
-#if (RTOS_USED == 1)
     {
       /* Treat the received response */
       /* Retrieve the action which has been set on IPC msg reception in ATCoreTaskBody
       *  More than one action could has been set
       */
-      if ((at_context[athandle].action_flags & ATACTION_RSP_FRC_END) != 0U)
+      if ((at_context.action_flags & ATACTION_RSP_FRC_END) != 0U)
       {
         action_rsp = ATACTION_RSP_FRC_END;
         /* clean flag */
-        at_context[athandle].action_flags &= ~((at_action_rsp_t) ATACTION_RSP_FRC_END);
+        at_context.action_flags &= ~((at_action_rsp_t) ATACTION_RSP_FRC_END);
       }
-      else if ((at_context[athandle].action_flags & ATACTION_RSP_FRC_CONTINUE) != 0U)
+      else if ((at_context.action_flags & ATACTION_RSP_FRC_CONTINUE) != 0U)
       {
         action_rsp = ATACTION_RSP_FRC_CONTINUE;
         /* clean flag */
-        at_context[athandle].action_flags &= ~((at_action_rsp_t) ATACTION_RSP_FRC_CONTINUE);
+        at_context.action_flags &= ~((at_action_rsp_t) ATACTION_RSP_FRC_CONTINUE);
       }
-      else if ((at_context[athandle].action_flags & ATACTION_RSP_ERROR) != 0U)
+      else if ((at_context.action_flags & ATACTION_RSP_ERROR) != 0U)
       {
         /* clean flag */
-        at_context[athandle].action_flags &= ~((at_action_rsp_t) ATACTION_RSP_ERROR);
+        at_context.action_flags &= ~((at_action_rsp_t) ATACTION_RSP_ERROR);
         TRACE_ERR("AT_sendcmd error: parse from rsp")
         LOG_ERROR(11, ERROR_WARNING);
         action_rsp = ATACTION_RSP_ERROR;
@@ -774,56 +584,16 @@ static at_action_rsp_t process_answer(at_handle_t athandle, at_action_send_t act
         action_rsp = ATACTION_RSP_IGNORED;
       }
     }
-#else /* RTOS_USED == 0 */
-    {
-      /* Treat the received response */
-      /* Parse the response */
-      action_rsp = ATParser_parse_rsp(&at_context[athandle], &msgFromIPC[athandle]);
-
-      /* analyze the response (check data mode flag) */
-      action_rsp = analyze_action_result(athandle, action_rsp);
-      TRACE_DBG("RAW ACTION (AT_sendcmd) = 0x%x", action_rsp)
-    }
-
-    /* URC received during AT transaction */
-    if (action_rsp == ATACTION_RSP_URC_FORWARDED)
-    {
-      /* notify user with callback */
-      if (register_URC_callback[athandle] != NULL)
-      {
-        at_status_t retUrc;
-        do
-        {
-          /* get URC response buffer */
-          retUrc = ATParser_get_urc(&at_context[athandle], p_rsp_buf);
-          if ((retUrc == ATSTATUS_OK) || (retUrc == ATSTATUS_OK_PENDING_URC))
-          {
-            /* call the URC callback */
-            (* register_URC_callback[athandle])(p_rsp_buf);
-          }
-        } while (retUrc == ATSTATUS_OK_PENDING_URC);
-      }
-      else
-      {
-        TRACE_ERR("No valid callback to forward URC")
-      }
-    }
-#endif /* RTOS_USED == 1 */
 
     /* exit loop if action_rsp = ATACTION_RSP_ERROR */
-  } while ((action_rsp == ATACTION_RSP_INTERMEDIATE) ||
-           (action_rsp == ATACTION_RSP_IGNORED) ||
-           (action_rsp == ATACTION_RSP_URC_FORWARDED) ||
-           (action_rsp == ATACTION_RSP_URC_IGNORED));
+  } while (action_rsp == ATACTION_RSP_IGNORED);
 
   return (action_rsp);
 }
 
-static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_id, at_buf_t *p_rsp_buf)
+static at_status_t process_AT_transaction(at_msg_t msg_in_id, at_buf_t *p_rsp_buf)
 {
-#if (RTOS_USED == 1)
   UNUSED(p_rsp_buf);
-#endif /* RTOS_USED == 1 */
 
   /* static variables (do not use stack) */
   static AT_CHAR_t build_atcmd[ATCMD_MAX_CMD_SIZE] = {0};
@@ -839,6 +609,9 @@ static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_
   /* reset at cmd buffer */
   (void) memset((void *) build_atcmd, 0, ATCMD_MAX_CMD_SIZE);
 
+  /* clear all flags*/
+  at_context.action_flags = ATACTION_RSP_NO_ACTION;
+
   do
   {
     another_cmd_to_send = 0U; /* default value: this is the last command (will be changed if this is not the case) */
@@ -847,10 +620,17 @@ static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_
     build_atcmd_size = 0U;
 
     /* Get command to send */
-    action_send = ATParser_get_ATcmd(&at_context[athandle],
+#if (USE_PARSING_MUTEX == 1)
+    (void)rtosalMutexAcquire(ATCore_ParsingMutexHandle, RTOSAL_WAIT_FOREVER);
+#endif /* USE_PARSING_MUTEX == 1 */
+    action_send = ATParser_get_ATcmd(&at_context,
                                      (uint8_t *)&build_atcmd[0],
                                      (uint16_t)(sizeof(AT_CHAR_t) * ATCMD_MAX_CMD_SIZE),
                                      &build_atcmd_size, &at_cmd_timeout);
+#if (USE_PARSING_MUTEX == 1)
+    (void)rtosalMutexRelease(ATCore_ParsingMutexHandle);
+#endif /* USE_PARSING_MUTEX == 1 */
+
     if ((action_send & ATACTION_SEND_ERROR) != 0U)
     {
       TRACE_DBG("AT_sendcmd error: get at command")
@@ -865,7 +645,7 @@ static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_
         /* Before to send a command, check if current mode is DATA mode
         *  (exception if request is to suspend data mode)
         */
-        if ((at_context[athandle].in_data_mode == AT_TRUE) && (msg_in_id != (at_msg_t) SID_CS_DATA_SUSPEND))
+        if ((at_context.in_data_mode == AT_TRUE) && (msg_in_id != (at_msg_t) SID_CS_DATA_SUSPEND))
         {
           /* impossible to send a CMD during data mode */
           TRACE_ERR("DATA ongoing, can not send a command")
@@ -874,7 +654,7 @@ static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_
         }
         else
         {
-          retval = sendToIPC(athandle, (uint8_t *)&build_atcmd[0], build_atcmd_size);
+          retval = sendToIPC((uint8_t *)&build_atcmd[0], build_atcmd_size);
           if (retval != ATSTATUS_OK)
           {
             TRACE_ERR("AT_sendcmd error: send to ipc")
@@ -890,10 +670,10 @@ static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_
         if (((action_send & ATACTION_SEND_WAIT_MANDATORY_RSP) != 0U) ||
             ((action_send & ATACTION_SEND_TEMPO) != 0U))
         {
-          action_rsp = process_answer(athandle, action_send, at_cmd_timeout);
+          action_rsp = process_answer(action_send, at_cmd_timeout);
           if (action_rsp == ATACTION_RSP_FRC_CONTINUE)
           {
-            /* this is no the last command */
+            /* this is not the last command */
             another_cmd_to_send = 1U;
           }
         }
@@ -906,7 +686,7 @@ static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_
       }
     }
 
-    /* check if an error occured */
+    /* check if an error occurred */
     if (retval == ATSTATUS_ERROR)
     {
       another_cmd_to_send = 0U;
@@ -914,14 +694,11 @@ static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_
 
   } while (another_cmd_to_send == 1U);
 
-#if (RTOS_USED == 1)
   /* clear all flags*/
-  at_context[athandle].action_flags = ATACTION_RSP_NO_ACTION;
-#endif /* RTOS_USED == 1 */
-
+  at_context.action_flags = ATACTION_RSP_NO_ACTION;
   TRACE_DBG("action_rsp value = %d", action_rsp)
 
-  /* check if an error occured during the answer processing */
+  /* check if an error occurred during the answer processing */
   if (action_rsp == ATACTION_RSP_ERROR)
   {
     LOG_ERROR(14, ERROR_WARNING);
@@ -931,14 +708,12 @@ static at_status_t process_AT_transaction(at_handle_t athandle, at_msg_t msg_in_
   return (retval);
 }
 
-
-static at_status_t sendToIPC(at_handle_t athandle,
-                             uint8_t *cmdBuf, uint16_t cmdSize)
+static at_status_t sendToIPC(uint8_t *cmdBuf, uint16_t cmdSize)
 {
   at_status_t retval;
 
   /* Send AT command */
-  if (IPC_send(at_context[athandle].ipc_handle, cmdBuf, cmdSize) == IPC_ERROR)
+  if (IPC_send(at_context.ipc_handle, cmdBuf, cmdSize) == IPC_ERROR)
   {
     TRACE_ERR(" IPC send error")
     LOG_ERROR(15, ERROR_WARNING);
@@ -946,9 +721,8 @@ static at_status_t sendToIPC(at_handle_t athandle,
   }
   else
   {
-#if (RTOS_USED == 1)
-    (void) osSemaphoreWait(at_context[athandle].s_SendConfirm_SemaphoreId, 5000U);
-    if (at_context[athandle].dataSent == AT_TRUE)
+    (void) rtosalSemaphoreAcquire(at_context.s_SendConfirm_SemaphoreId, 5000U);
+    if (at_context.dataSent == AT_TRUE)
     {
       retval = ATSTATUS_OK;
     }
@@ -956,30 +730,19 @@ static at_status_t sendToIPC(at_handle_t athandle,
     {
       retval = ATSTATUS_ERROR;
     }
-#else
-    /* waiting TX confirmation, done by callback from IPC */
-    while (at_context[athandle].dataSent == AT_FALSE)
-    {
-    }
-    at_context[athandle].dataSent = AT_FALSE;
-    retval = ATSTATUS_OK;
-#endif /* RTOS_USED == 1 */
   }
 
   return (retval);
 }
 
-static at_status_t waitFromIPC(at_handle_t athandle,
-                               uint32_t tickstart, uint32_t cmdTimeout, IPC_RxMessage_t *p_msg)
+static at_status_t waitFromIPC(uint32_t tickstart, uint32_t cmdTimeout, IPC_RxMessage_t *p_msg)
 {
-#if (RTOS_USED == 1)
   UNUSED(p_msg);
-#endif /* RTOS_USED == 1 */
 
   at_status_t retval;
 
   /* wait for complete message */
-  retval = waitOnMsgUntilTimeout(athandle, tickstart, cmdTimeout);
+  retval = waitOnMsgUntilTimeout(tickstart, cmdTimeout);
   if (retval != ATSTATUS_OK)
   {
     if (cmdTimeout != 0U)
@@ -988,27 +751,10 @@ static at_status_t waitFromIPC(at_handle_t athandle,
     }
   }
 
-#if (RTOS_USED == 0)
-  /* retrieve response */
-  if (IPC_receive(at_context[athandle].ipc_handle, p_msg) == IPC_ERROR)
-  {
-    TRACE_ERR("IPC receive error")
-    LOG_ERROR(16, ERROR_WARNING);
-    retval = ATSTATUS_ERROR;
-  }
-  else
-  {
-    /* one message has been read */
-    IRQ_DISABLE();
-    MsgReceived[athandle]--;
-    IRQ_ENABLE();
-  }
-#endif /* RTOS_USED == 0 */
-
   return (retval);
 }
 
-static at_action_rsp_t analyze_action_result(at_handle_t athandle, at_action_rsp_t val)
+static at_action_rsp_t analyze_action_result(at_action_rsp_t val)
 {
   at_action_rsp_t action;
 
@@ -1024,13 +770,13 @@ static at_action_rsp_t analyze_action_result(at_handle_t athandle, at_action_rsp
   if (data_mode == AT_TRUE)
   {
     /* DATA MODE has been activated */
-    if (at_context[athandle].in_data_mode == AT_FALSE)
+    if (at_context.in_data_mode == AT_FALSE)
     {
-      IPC_Handle_t *h_other_ipc = IPC_get_other_channel(at_context[athandle].ipc_handle);
+      IPC_Handle_t *h_other_ipc = IPC_get_other_channel(at_context.ipc_handle);
       if (h_other_ipc != NULL)
       {
         (void) IPC_select(h_other_ipc);
-        at_context[athandle].in_data_mode = AT_TRUE;
+        at_context.in_data_mode = AT_TRUE;
         TRACE_INFO("<<< DATA MODE SELECTED >>>")
       }
       else
@@ -1042,11 +788,10 @@ static at_action_rsp_t analyze_action_result(at_handle_t athandle, at_action_rsp
   }
   else
   {
-    /* COMMAND MODE is active
-    */
-    if (at_context[athandle].in_data_mode == AT_TRUE)
+    /* COMMAND MODE is active */
+    if (at_context.in_data_mode == AT_TRUE)
     {
-      at_context[athandle].in_data_mode = AT_FALSE;
+      at_context.in_data_mode = AT_FALSE;
 
       TRACE_INFO("<<< COMMAND MODE SELECTED >>>")
     }
@@ -1066,7 +811,6 @@ static void IRQ_ENABLE(void)
   __enable_irq();
 }
 
-#if (RTOS_USED == 1)
 at_status_t atcore_task_start(osPriority taskPrio, uint16_t stackSize)
 {
   at_status_t retval;
@@ -1084,8 +828,8 @@ at_status_t atcore_task_start(osPriority taskPrio, uint16_t stackSize)
   else
   {
     /* semaphores creation */
-    osSemaphoreDef(ATCORE_SEM_WAIT_ANSWER);
-    s_WaitAnswer_SemaphoreId = osSemaphoreCreate(osSemaphore(ATCORE_SEM_WAIT_ANSWER), ATCORE_SEM_WAIT_ANSWER_COUNT);
+    s_WaitAnswer_SemaphoreId = rtosalSemaphoreNew((const rtosal_char_t *) "ATCORE_SEM_WAIT_ANSWER",
+                                                  ATCORE_SEM_WAIT_ANSWER_COUNT);
     if (s_WaitAnswer_SemaphoreId == NULL)
     {
       TRACE_ERR("s_WaitAnswer_SemaphoreId creation error")
@@ -1095,15 +839,18 @@ at_status_t atcore_task_start(osPriority taskPrio, uint16_t stackSize)
     else
     {
       /* init semaphore */
-      (void) osSemaphoreWait(s_WaitAnswer_SemaphoreId, 15000U);
+      (void) rtosalSemaphoreAcquire(s_WaitAnswer_SemaphoreId, 15000U);
 
       /* queues creation */
-      osMessageQDef(IPC_MSG_RCV, MSG_IPC_RECEIVED_SIZE, uint16_t); /* Define message queue */
-      q_msg_IPC_received_Id = osMessageCreate(osMessageQ(IPC_MSG_RCV), NULL); /* create message queue */
+      q_msg_IPC_received_Id = rtosalMessageQueueNew((const rtosal_char_t *) "IPC_MSG_RCV",
+                                                    MSG_IPC_RECEIVED_SIZE); /* create message queue */
 
       /* start driver thread */
-      osThreadDef(atcoreTask, ATCoreTaskBody, taskPrio, 0, stackSize);
-      atcoreTaskId = osThreadCreate(osThread(atcoreTask), NULL);
+      atcoreTaskId = rtosalThreadNew((const rtosal_char_t *)"AtCore",
+                                     (os_pthread) ATCoreTaskBody,
+                                     taskPrio,
+                                     (uint32_t)stackSize,
+                                     NULL);
       if (atcoreTaskId == NULL)
       {
         TRACE_ERR("atcoreTaskId creation error")
@@ -1113,9 +860,6 @@ at_status_t atcore_task_start(osPriority taskPrio, uint16_t stackSize)
       else
       {
         retval = ATSTATUS_OK;
-#if (USE_STACK_ANALYSIS == 1)
-        (void) stackAnalysis_addStackSizeByHandle(atcoreTaskId, stackSize);
-#endif /* USE_STACK_ANALYSIS == 1 */
       }
     }
   }
@@ -1123,35 +867,14 @@ at_status_t atcore_task_start(osPriority taskPrio, uint16_t stackSize)
   return (retval);
 }
 
-static at_status_t findMsgReceivedHandle(at_handle_t *athandle)
-{
-  at_status_t retval = ATSTATUS_ERROR;
-  bool leave_loop = false;
-  at_handle_t i = 0;
-
-  do
-  {
-    if (MsgReceived[i] != 0U)
-    {
-      *athandle = (at_handle_t) i;
-      retval = ATSTATUS_OK;
-      leave_loop = true;
-    }
-    i++;
-  } while ((leave_loop == false) && (i < ATCORE_MAX_HANDLES));
-
-  return (retval);
-}
-
-static void ATCoreTaskBody(void const *argument)
+static void ATCoreTaskBody(void *argument)
 {
   UNUSED(argument);
 
   at_status_t retUrc;
-  at_handle_t athandle;
-  at_status_t ret;
   at_action_rsp_t action;
-  osEvent event;
+  rtosalStatus status;
+  uint32_t msg = 0;
 
   static at_buf_t urc_buf[ATCMD_MAX_BUF_SIZE]; /* buffer size not optimized yet */
 
@@ -1161,52 +884,54 @@ static void ATCoreTaskBody(void const *argument)
   for (;;)
   {
     /* waiting IPC message received event (message) */
-    event = osMessageGet(q_msg_IPC_received_Id, RTOS_WAIT_FOREVER);
-    if (event.status == osEventMessage)
+    status = rtosalMessageQueueGet(q_msg_IPC_received_Id,
+                                   (uint32_t *)&msg, (uint32_t) RTOSAL_WAIT_FOREVER);
+    if ((status == osEventMessage) || (status == osOK))
     {
-      TRACE_DBG("<ATCore TASK> - received msg event= 0x%lx", event.value.v)
-
-      if (event.value.v == (SIG_IPC_MSG))
+      if (msg == (SIG_IPC_MSG))
       {
-        /* a message has been received from IPC, retrieve its handle */
-        ret = findMsgReceivedHandle(&athandle);
-        if (ret != ATSTATUS_OK)
-        {
-          /* skip this loop iteration */
-          continue;
-        }
-
         /* retrieve message from IPC */
-        if (IPC_receive(&ipcHandleTab[athandle], &msgFromIPC[athandle]) == IPC_ERROR)
+        if (IPC_receive(&ipcHandleTab, &msgFromIPC) == IPC_ERROR)
         {
-          TRACE_ERR("IPC receive error")
-          ATParser_abort_request(&at_context[athandle]);
+          TRACE_DBG("IPC receive error")
+          ATParser_abort_request(&at_context);
           TRACE_DBG("**** Sema Released on error 1 *****")
-          (void) osSemaphoreRelease(s_WaitAnswer_SemaphoreId);
+          (void) rtosalSemaphoreRelease(s_WaitAnswer_SemaphoreId);
           /* skip this loop iteration */
           continue;
         }
 
         /* one message has been read */
         IRQ_DISABLE();
-        MsgReceived[athandle]--;
+        MsgReceived--;
         IRQ_ENABLE();
 
         /* Parse the response */
-        action = ATParser_parse_rsp(&at_context[athandle], &msgFromIPC[athandle]);
+#if (USE_PARSING_MUTEX == 1)
+        (void)rtosalMutexAcquire(ATCore_ParsingMutexHandle, RTOSAL_WAIT_FOREVER);
+#endif /* USE_PARSING_MUTEX == 1 */
+        action = ATParser_parse_rsp(&at_context, &msgFromIPC);
+#if (USE_PARSING_MUTEX == 1)
+        (void)rtosalMutexRelease(ATCore_ParsingMutexHandle);
+#endif /* USE_PARSING_MUTEX == 1 */
 
         /* analyze the response (check data mode flag) */
-        action = analyze_action_result(athandle, action);
+        action = analyze_action_result(action);
 
-        /* add this action to action flags */
-        at_context[athandle].action_flags |= action;
-        TRACE_DBG("add action 0x%x (flags=0x%x)", action, at_context[athandle].action_flags)
+        /* add this action to action flags only if this kind of action will be treated later */
+        if ((action == ATACTION_RSP_FRC_END)
+            || (action == ATACTION_RSP_FRC_CONTINUE)
+            || (action == ATACTION_RSP_ERROR))
+        {
+          at_context.action_flags |= action;
+          TRACE_DBG("add action 0x%x (flags=0x%x)", action, at_context.action_flags)
+        }
         if (action == ATACTION_RSP_ERROR)
         {
           TRACE_ERR("AT_sendcmd error")
-          ATParser_abort_request(&at_context[athandle]);
+          ATParser_abort_request(&at_context);
           TRACE_DBG("**** Sema Released on error 2 *****")
-          (void) osSemaphoreRelease(s_WaitAnswer_SemaphoreId);
+          (void) rtosalSemaphoreRelease(s_WaitAnswer_SemaphoreId);
           continue;
         }
 
@@ -1214,17 +939,17 @@ static void ATCoreTaskBody(void const *argument)
         if (action == ATACTION_RSP_URC_FORWARDED)
         {
           /* notify user with callback */
-          if (register_URC_callback[athandle] != NULL)
+          if (register_URC_callback != NULL)
           {
             /* get URC response buffer */
             do
             {
               (void) memset((void *) urc_buf, 0, ATCMD_MAX_BUF_SIZE);
-              retUrc = ATParser_get_urc(&at_context[athandle], urc_buf);
+              retUrc = ATParser_get_urc(&at_context, urc_buf);
               if ((retUrc == ATSTATUS_OK) || (retUrc == ATSTATUS_OK_PENDING_URC))
               {
                 /* call the URC callback */
-                (* register_URC_callback[athandle])(urc_buf);
+                (* register_URC_callback)(urc_buf);
               }
             } while (retUrc == ATSTATUS_OK_PENDING_URC);
           }
@@ -1234,47 +959,41 @@ static void ATCoreTaskBody(void const *argument)
                  (action == ATACTION_RSP_ERROR))
         {
           TRACE_DBG("**** Sema released *****")
-          (void) osSemaphoreRelease(s_WaitAnswer_SemaphoreId);
+          (void) rtosalSemaphoreRelease(s_WaitAnswer_SemaphoreId);
         }
         else
         {
           /* nothing to do */
         }
-
       }
-      else if (event.value.v == (SIG_INTERNAL_EVENT_MODEM))
+      else if (msg == (SIG_INTERNAL_EVENT_MODEM))
       {
         /* An internal event has been received (ie not coming from IPC: could be an interrupt from modem,...)
          * Do not call IPC_receive in this case
          */
-        TRACE_INFO("!!! an internal event has been received !!!")
-        athandle = find_deviceType_ATHandle(DEVTYPE_MODEM_CELLULAR);
-        if (athandle != AT_HANDLE_INVALID)
+        TRACE_DBG("!!! an internal event has been received !!!")
+        if (register_URC_callback != NULL)
         {
-          if (register_URC_callback[athandle] != NULL)
+          do
           {
-            do
+            (void) memset((void *) urc_buf, 0, ATCMD_MAX_BUF_SIZE);
+            retUrc = ATParser_get_urc(&at_context, urc_buf);
+            if ((retUrc == ATSTATUS_OK) || (retUrc == ATSTATUS_OK_PENDING_URC))
             {
-              (void) memset((void *) urc_buf, 0, ATCMD_MAX_BUF_SIZE);
-              retUrc = ATParser_get_urc(&at_context[athandle], urc_buf);
-              if ((retUrc == ATSTATUS_OK) || (retUrc == ATSTATUS_OK_PENDING_URC))
-              {
-                /* call the URC callback */
-                (* register_URC_callback[athandle])(urc_buf);
-              }
-            } while (retUrc == ATSTATUS_OK_PENDING_URC);
-          }
+              /* call the URC callback */
+              (* register_URC_callback)(urc_buf);
+            }
+          } while (retUrc == ATSTATUS_OK_PENDING_URC);
         }
       }
       else
       {
         /* should not happen */
-        TRACE_INFO("an unexpected event has been received !!!")
+        __NOP();
       }
     }
   }
 }
-#endif /* RTOS_USED == 1 */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

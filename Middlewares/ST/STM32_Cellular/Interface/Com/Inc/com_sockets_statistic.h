@@ -29,12 +29,12 @@ extern "C" {
 #include "plf_config.h"
 
 /* Exported constants --------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Constants
-  * @{
-  */
+/* None */
 
-/**
-  * @}
+
+/* Exported types ------------------------------------------------------------*/
+/** @addtogroup COM_SOCKETS_Types
+  * @{
   */
 
 /* Internal usage only: use by com_sockets_ip_modem to update statistics */
@@ -50,38 +50,19 @@ typedef enum
   COM_SOCKET_STAT_RCV_NOK,
   COM_SOCKET_STAT_CLS_OK,
   COM_SOCKET_STAT_CLS_NOK,
-#if (USE_DATACACHE == 1)
   COM_SOCKET_STAT_NWK_UP,
   COM_SOCKET_STAT_NWK_DWN
-#endif /* USE_DATACACHE == 1 */
 } com_sockets_stat_update_t;
-
-/* Exported types ------------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Types
-  * @{
-  */
 
 /**
   * @}
   */
 
 /* External variables --------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
 /** @addtogroup COM_SOCKETS_Functions_Other

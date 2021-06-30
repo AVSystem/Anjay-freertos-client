@@ -94,7 +94,7 @@ void csint_modem_reset_update_socket_state(void)
         break;
 
       case SOCKETSTATE_CONNECTED:
-        /* modem reset occured, context no more valid
+        /* modem reset occurred, context no more valid
         *  waiting for a close from client
         */
         cs_ctxt_sockets_info[cpt].state = SOCKETSTATE_ALLOC_BUT_INVALID;

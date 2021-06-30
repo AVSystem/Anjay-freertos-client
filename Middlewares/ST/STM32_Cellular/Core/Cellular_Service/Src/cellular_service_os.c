@@ -2,7 +2,7 @@
   ******************************************************************************
   * @file    cellular_service_os.c
   * @author  MCD Application Team
-  * @brief   This file defines functions for Cellular Service OS dependance
+  * @brief   This file defines functions for Cellular Service OS dependence
   ******************************************************************************
   * @attention
   *
@@ -18,7 +18,7 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
-#include "cmsis_os_misrac2012.h"
+#include "rtosal.h"
 #include "error_handler.h"
 #include "cellular_service_task.h"
 #include "cellular_service_os.h"
@@ -41,7 +41,7 @@ static osMutexId CellularServiceGeneralMutexHandle;
 /* Functions Definition ------------------------------------------------------*/
 /**
   * @brief  Read the actual signal quality seen by Modem .
-  * @note   Call CS_get_signal_quality with mutex acces protection
+  * @note   Call CS_get_signal_quality with mutex access protection
   * @param  same parameters as the CS_get_signal_quality function
   * @retval CS_Status_t
   */
@@ -49,18 +49,18 @@ CS_Status_t osCS_get_signal_quality(CS_SignalQuality_t *p_sig_qual)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
   result = CS_get_signal_quality(p_sig_qual);
 
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
 
 /**
   * @brief  Allocate a socket among of the free sockets (maximum 6 sockets)
-  * @note   Call CDS_socket_create with mutex acces protection
+  * @note   Call CDS_socket_create with mutex access protection
   * @param  same parameters as the CDS_socket_create function
   * @retval Socket handle which references allocated socket
   */
@@ -70,18 +70,18 @@ socket_handle_t osCDS_socket_create(CS_IPaddrType_t addr_type,
 {
   socket_handle_t socket_handle;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
   socket_handle = CDS_socket_create(addr_type,
                                     protocol,
                                     cid);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (socket_handle);
 }
 
 /**
-  * @brief  Set the callbacks to use when datas are received or sent.
+  * @brief  Set the callbacks to use when data are received or sent.
   * @note   This function has to be called before to use a socket.
   * @note   Call CDS_socket_set_callbacks with mutex access protection
   * @param  same parameters as the CDS_socket_set_callbacks function
@@ -94,14 +94,14 @@ CS_Status_t osCDS_socket_set_callbacks(socket_handle_t sockHandle,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
   result = CDS_socket_set_callbacks(sockHandle,
                                     data_ready_cb,
                                     data_sent_cb,
                                     remote_close_cb);
 
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -122,14 +122,14 @@ CS_Status_t osCDS_socket_set_option(socket_handle_t sockHandle,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
   result = CDS_socket_set_option(sockHandle,
                                  opt_level,
                                  opt_name,
                                  p_opt_val);
 
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -149,11 +149,11 @@ CS_Status_t osCDS_socket_get_option(void)
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
-    (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
     result = CDS_socket_get_option();
 
-    (void)osMutexRelease(CellularServiceMutexHandle);
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
   }
 
   return (result);
@@ -173,12 +173,12 @@ CS_Status_t osCDS_socket_bind(socket_handle_t sockHandle,
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
-    (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
     result = CDS_socket_bind(sockHandle,
                              local_port);
 
-    (void)osMutexRelease(CellularServiceMutexHandle);
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
   }
 
   return (result);
@@ -201,14 +201,14 @@ CS_Status_t osCDS_socket_connect(socket_handle_t sockHandle,
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
-    (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
     result = CDS_socket_connect(sockHandle,
                                 addr_type,
                                 p_ip_addr_value,
                                 remote_port);
 
-    (void)osMutexRelease(CellularServiceMutexHandle);
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
   }
 
   return (result);
@@ -216,7 +216,7 @@ CS_Status_t osCDS_socket_connect(socket_handle_t sockHandle,
 
 /**
   * @brief  Listen to clients (for socket server mode).
-  * @note   Function not implemeted yet
+  * @note   Function not implemented yet
   * @note   Call CDS_socket_listen with mutex access protection
   * @param  same parameters as the CDS_socket_listen function
   * @retval CS_Status_t
@@ -227,11 +227,11 @@ CS_Status_t osCDS_socket_listen(socket_handle_t sockHandle)
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
-    (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
     result = CDS_socket_listen(sockHandle);
 
-    (void)osMutexRelease(CellularServiceMutexHandle);
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
   }
 
   return (result);
@@ -239,7 +239,7 @@ CS_Status_t osCDS_socket_listen(socket_handle_t sockHandle)
 
 /**
   * @brief  Send data over a socket to a remote server.
-  * @note   This function is blocking until the data is transfered or when the
+  * @note   This function is blocking until the data is transferred or when the
   *         timeout to wait for transmission expires.
   * @note   Call CDS_socket_send with mutex access protection
   * @param  same parameters as the CDS_socket_send function
@@ -253,13 +253,13 @@ CS_Status_t osCDS_socket_send(socket_handle_t sockHandle,
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
-    (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
     result = CDS_socket_send(sockHandle,
                              p_buf,
                              length);
 
-    (void)osMutexRelease(CellularServiceMutexHandle);
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
   }
 
   return (result);
@@ -281,13 +281,13 @@ int32_t osCDS_socket_receive(socket_handle_t sockHandle,
   result = 0;
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
-    (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
     result = CDS_socket_receive(sockHandle,
                                 p_buf,
                                 max_buf_length);
 
-    (void)osMutexRelease(CellularServiceMutexHandle);
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
   }
 
   return (result);
@@ -295,7 +295,7 @@ int32_t osCDS_socket_receive(socket_handle_t sockHandle,
 
 /**
   * @brief  Send data over a socket to a remote server.
-  * @note   This function is blocking until the data is transfered or when the
+  * @note   This function is blocking until the data is transferred or when the
   *         timeout to wait for transmission expires.
   * @note   Call CDS_socket_sendto with mutex access protection
   * @param  same parameters as the CDS_socket_sendto function
@@ -313,7 +313,7 @@ CS_Status_t osCDS_socket_sendto(socket_handle_t sockHandle,
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
-    (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
     result = CDS_socket_sendto(sockHandle,
                                p_buf,
@@ -322,7 +322,7 @@ CS_Status_t osCDS_socket_sendto(socket_handle_t sockHandle,
                                p_ip_addr_value,
                                remote_port);
 
-    (void)osMutexRelease(CellularServiceMutexHandle);
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
   }
 
   return (result);
@@ -347,7 +347,7 @@ int32_t osCDS_socket_receivefrom(socket_handle_t sockHandle,
   result = 0;
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
-    (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
     result = CDS_socket_receivefrom(sockHandle,
                                     p_buf,
@@ -356,7 +356,7 @@ int32_t osCDS_socket_receivefrom(socket_handle_t sockHandle,
                                     p_ip_addr_value,
                                     p_remote_port);
 
-    (void)osMutexRelease(CellularServiceMutexHandle);
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
   }
 
   return (result);
@@ -374,12 +374,12 @@ CS_Status_t osCDS_socket_close(socket_handle_t sockHandle,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
   result = CDS_socket_close(sockHandle,
                             force);
 
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -396,12 +396,12 @@ CS_Status_t osCDS_socket_cnx_status(socket_handle_t sockHandle,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
 
   result = CDS_socket_cnx_status(sockHandle,
                                  infos);
 
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -419,16 +419,14 @@ CS_Bool_t osCDS_cellular_service_init(void)
   result = CELLULAR_TRUE;
   if (CellularServiceInitialized == CELLULAR_FALSE)
   {
-    osMutexDef(osCellularServiceMutex);
-    CellularServiceMutexHandle = osMutexCreate(osMutex(osCellularServiceMutex));
+    CellularServiceMutexHandle = rtosalMutexNew(NULL);
     if (CellularServiceMutexHandle == NULL)
     {
       result = CELLULAR_FALSE;
       /* Platform is reset */
       ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
     }
-    osMutexDef(osCellularServiceGeneralMutex);
-    CellularServiceGeneralMutexHandle = osMutexCreate(osMutex(osCellularServiceGeneralMutex));
+    CellularServiceGeneralMutexHandle = rtosalMutexNew(NULL);
     if (CellularServiceGeneralMutexHandle == NULL)
     {
       result = CELLULAR_FALSE;
@@ -460,9 +458,9 @@ CS_Status_t osCDS_get_net_status(CS_RegistrationStatus_t *p_reg_status)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_get_net_status(p_reg_status);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -477,9 +475,9 @@ CS_Status_t osCDS_get_device_info(CS_DeviceInfo_t *p_devinfo)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_get_device_info(p_devinfo);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -496,9 +494,9 @@ CS_Status_t osCDS_subscribe_net_event(CS_UrcEvent_t event, cellular_urc_callback
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_subscribe_net_event(event,  urc_callback);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -515,9 +513,9 @@ CS_Status_t osCDS_subscribe_modem_event(CS_ModemEvent_t events_mask, cellular_mo
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_subscribe_modem_event(events_mask, modem_evt_cb);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -530,12 +528,18 @@ CS_Status_t osCDS_subscribe_modem_event(CS_ModemEvent_t events_mask, cellular_mo
   */
 CS_Status_t osCDS_power_on(void)
 {
-  CS_Status_t result;
+  CS_Status_t result = CELLULAR_OK;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
-  result = CS_power_on();
-  (void)osMutexRelease(CellularServiceMutexHandle);
-
+  if (cst_context.modem_on == false)
+  {
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
+    result = CS_power_on();
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
+    if (result == CELLULAR_OK)
+    {
+      cst_context.modem_on = true;
+    }
+  }
   return (result);
 }
 
@@ -547,12 +551,18 @@ CS_Status_t osCDS_power_on(void)
   */
 CS_Status_t osCDS_power_off(void)
 {
-  CS_Status_t result;
+  CS_Status_t result = CELLULAR_OK;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
-  result = CS_power_off();
-  (void)osMutexRelease(CellularServiceMutexHandle);
-
+  if (cst_context.modem_on == true)
+  {
+    (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
+    result = CS_power_off();
+    (void)rtosalMutexRelease(CellularServiceMutexHandle);
+    if (result == CELLULAR_OK)
+    {
+      cst_context.modem_on = false;
+    }
+  }
   return (result);
 }
 
@@ -566,9 +576,9 @@ CS_Status_t osCDS_reset(CS_Reset_t rst_type)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_reset(rst_type);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -586,9 +596,9 @@ CS_Status_t osCDS_init_modem(CS_ModemInit_t init,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_init_modem(init,  reset, pin_code);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -600,7 +610,7 @@ CS_Status_t osCDS_init_modem(CS_ModemInit_t init,
   */
 void osCCS_get_wait_cs_resource(void)
 {
-  (void)osMutexWait(CellularServiceGeneralMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceGeneralMutexHandle, RTOSAL_WAIT_FOREVER);
 }
 
 /**
@@ -610,12 +620,12 @@ void osCCS_get_wait_cs_resource(void)
   */
 void osCCS_get_release_cs_resource(void)
 {
-  (void)osMutexRelease(CellularServiceGeneralMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceGeneralMutexHandle);
 }
 
 /**
   * @brief  Request the Modem to register to the Cellular Network.
-  * @note   This function is used to select the operator. It returns a detailled
+  * @note   This function is used to select the operator. It returns a detailed
   *         network registration status.
   * @note   Call CS_register_net with mutex access protection
   * @param  same parameters as the CS_register_net function
@@ -626,9 +636,25 @@ CS_Status_t osCDS_register_net(CS_OperatorSelector_t *p_operator,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_register_net(p_operator, p_reg_status);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
+
+  return (result);
+}
+
+/**
+  * @brief  Request detach from packet domain.
+  * @param  none.
+  * @retval CS_Status_t
+  */
+CS_Status_t osCS_detach_PS_domain(void)
+{
+  CS_Status_t result;
+
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
+  result = CS_detach_PS_domain();
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -643,9 +669,9 @@ CS_Status_t osCDS_get_attach_status(CS_PSattach_t *p_attach)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_get_attach_status(p_attach);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -661,9 +687,9 @@ CS_Status_t osCDS_attach_PS_domain(void)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_attach_PS_domain();
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -681,9 +707,9 @@ CS_Status_t osCDS_define_pdn(CS_PDN_conf_id_t cid,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_define_pdn(cid, apn, pdn_conf);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -692,7 +718,7 @@ CS_Status_t osCDS_define_pdn(CS_PDN_conf_id_t cid,
   * @brief  Register to event notifications related to internet connection.
   * @note   This function is used to register to an event related to a PDN
   *         Only explicit config id (CS_PDN_USER_CONFIG_1 to CS_PDN_USER_CONFIG_5) are
-  *         suppported and CS_PDN_PREDEF_CONFIG
+  *         supported and CS_PDN_PREDEF_CONFIG
   * @note   Call CS_register_pdn_event with mutex access protection
   * @param  same parameters as the CS_register_pdn_event function
   * @retval CS_Status_t
@@ -702,9 +728,9 @@ CS_Status_t osCDS_register_pdn_event(CS_PDN_conf_id_t cid,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_register_pdn_event(cid,  pdn_event_callback);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -720,9 +746,9 @@ CS_Status_t osCDS_set_default_pdn(CS_PDN_conf_id_t cid)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_set_default_pdn(cid);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -739,9 +765,9 @@ CS_Status_t osCDS_activate_pdn(CS_PDN_conf_id_t cid)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_activate_pdn(cid);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -757,9 +783,9 @@ CS_Status_t osCDS_suspend_data(void)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_suspend_data();
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -774,9 +800,9 @@ CS_Status_t osCDS_resume_data(void)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_resume_data();
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -784,7 +810,7 @@ CS_Status_t osCDS_resume_data(void)
 
 /**
   * @brief  DNS request
-  * @note   Get IP address of the specifed hostname
+  * @note   Get IP address of the specified hostname
   * @note   Call CS_dns_request with mutex access protection
   * @param  same parameters as the CS_dns_request function
   * @retval CS_Status_t
@@ -795,9 +821,9 @@ CS_Status_t osCDS_dns_request(CS_PDN_conf_id_t cid,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_dns_request(cid, dns_req, dns_resp);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -816,9 +842,9 @@ CS_Status_t osCDS_ping(CS_PDN_conf_id_t cid,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CDS_ping(cid, ping_params, cs_ping_rsp_cb);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -836,9 +862,9 @@ CS_Status_t osCDS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result =  CS_direct_cmd(direct_cmd_tx, direct_cmd_callback);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -855,9 +881,9 @@ CS_Status_t osCDS_get_dev_IP_address(CS_PDN_conf_id_t cid,
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_get_dev_IP_address(cid, ip_addr_type, p_ip_addr_value);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -874,9 +900,9 @@ CS_Status_t osCS_sim_select(CS_SimSlot_t simSelected)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_sim_select(simSelected);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -893,9 +919,9 @@ int32_t osCS_sim_generic_access(CS_sim_generic_access_t *sim_generic_access)
 {
   int32_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_sim_generic_access(sim_generic_access);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -911,13 +937,14 @@ int32_t osCS_sim_generic_access(CS_sim_generic_access_t *sim_generic_access)
   * @param  power_config Pointer to the structure describing the power parameters
   * @retval CS_Status_t
   */
-CS_Status_t osCS_InitPowerConfig(CS_init_power_config_t *p_power_config)
+CS_Status_t osCS_InitPowerConfig(CS_init_power_config_t *p_power_config,
+                                 cellular_power_status_callback_t power_status_callback)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
-  result = CS_InitPowerConfig(p_power_config);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
+  result = CS_InitPowerConfig(p_power_config, power_status_callback);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -932,9 +959,9 @@ CS_Status_t osCS_PowerWakeup(CS_wakeup_origin_t wakeup_origin)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_PowerWakeup(wakeup_origin);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -950,9 +977,9 @@ CS_Status_t osCS_SleepCancel(void)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_SleepCancel();
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -967,9 +994,9 @@ CS_Status_t osCS_SleepRequest(void)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_SleepRequest();
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -984,9 +1011,9 @@ CS_Status_t osCS_SleepComplete(void)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_SleepComplete();
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }
@@ -1001,9 +1028,9 @@ CS_Status_t osCS_SetPowerConfig(CS_set_power_config_t *p_power_config)
 {
   CS_Status_t result;
 
-  (void)osMutexWait(CellularServiceMutexHandle, RTOS_WAIT_FOREVER);
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
   result = CS_SetPowerConfig(p_power_config);
-  (void)osMutexRelease(CellularServiceMutexHandle);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
 }

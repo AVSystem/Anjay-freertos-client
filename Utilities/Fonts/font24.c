@@ -2,11 +2,11 @@
   ******************************************************************************
   * @file    font24.c
   * @author  MCD Application Team
-  * @brief   This file provides text font24 for STM32 board's LCD driver.
+  * @brief   This file provides text font24 for STM32xx-EVAL's LCD driver. 
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2014 STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -36,30 +36,6 @@
   * @brief      This file provides text font24 for STM32xx-EVAL's LCD driver.
   * @{
   */  
-
-/** @defgroup FONTS_Private_Types
-  * @{
-  */ 
-/**
-  * @}
-  */ 
-
-
-/** @defgroup FONTS_Private_Defines
-  * @{
-  */
-/**
-  * @}
-  */ 
-
-
-/** @defgroup FONTS_Private_Macros
-  * @{
-  */
-/**
-  * @}
-  */ 
-  
 
 /** @defgroup FONTS_Private_Variables
   * @{
@@ -2546,23 +2522,6 @@ sFONT Font24 = {
 /**
   * @}
   */ 
-
-
-/** @defgroup FONTS_Private_Function_Prototypes
-  * @{
-  */ 
-/**
-  * @}
-  */ 
-
-
-/** @defgroup FONTS_Private_Functions
-  * @{
-  */
-    
-/**
-  * @}
-  */
   
 /**
   * @}

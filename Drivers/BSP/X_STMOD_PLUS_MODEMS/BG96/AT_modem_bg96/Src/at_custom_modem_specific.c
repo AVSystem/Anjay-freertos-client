@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) YYYY STMicroelectronics.
+  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics
   * All rights reserved.</center></h2>
   *
   * This software component is licensed by ST under BSD 3-Clause license,
@@ -38,6 +38,7 @@
 #include "at_custom_modem_socket.h"
 #include "at_datapack.h"
 #include "at_util.h"
+#include "sysctrl_specific.h"
 #include "cellular_runtime_standard.h"
 #include "cellular_runtime_custom.h"
 #include "plf_config.h"
@@ -74,11 +75,23 @@
 #define PRINT_ERR(...)  __NOP(); /* Nothing to do */
 #endif /* USE_TRACE_ATCUSTOM_SPECIFIC */
 
-
 /* Private defines -----------------------------------------------------------*/
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+/* add a pre-step */
+#define CHECK_STEP(stepval) ((p_atp_ctxt->step) == ((stepval)+1U))
+#define CHECK_STEP_EXCEEDS(stepval) (p_atp_ctxt->step >= ((stepval)+1U))
+#define CHECK_STEP_BETWEEN(low_step, high_step) ((p_atp_ctxt->step >= ((low_step)+1U)) &&\
+                                                 (p_atp_ctxt->step <= ((high_step)+1U)))
+#else
+#define CHECK_STEP(stepval) (p_atp_ctxt->step == stepval)
+#define CHECK_STEP_EXCEEDS(stepval) (p_atp_ctxt->step >= stepval)
+#define CHECK_STEP_BETWEEN(low_step, high_step) ((p_atp_ctxt->step >= low_step) && (p_atp_ctxt->step <= high_step))
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
+
 /* ###########################  START CUSTOMIZATION PART  ########################### */
 #define BG96_DEFAULT_TIMEOUT  ((uint32_t)15000U)
 #define BG96_RDY_TIMEOUT      ((uint32_t)30000U)
+#define BG96_APP_RDY_TIMEOUT  ((uint32_t)10000U)
 #define BG96_SIMREADY_TIMEOUT ((uint32_t)3000U)
 #define BG96_ESCAPE_TIMEOUT   ((uint32_t)1000U)  /* maximum time allowed to receive a response to an Escape command */
 #define BG96_COPS_TIMEOUT     ((uint32_t)180000U) /* 180 sec */
@@ -94,6 +107,8 @@
 #define BG96_QNWINFO_TIMEOUT  ((uint32_t)1000U) /* 1000ms */
 #define BG96_QIDNSGIP_TIMEOUT ((uint32_t)60000U) /* 60 sec */
 #define BG96_QPING_TIMEOUT    ((uint32_t)150000U) /* 150 sec */
+#define BG96_CPSMS_TIMEOUT    ((uint32_t)60000)
+#define BG96_CEDRX_TIMEOUT    ((uint32_t)60000)
 
 #define BG96_MODEM_SYNCHRO_AT_MAX_RETRIES ((uint8_t)30U)
 #define BG96_MAX_SIM_STATUS_RETRIES       ((uint8_t)20U) /* maximum number of AT+QINISTAT retries to wait SIM ready
@@ -125,6 +140,12 @@ bg96_shared_variables_t bg96_shared =
   .QIOPEN_current_socket_connected = 0U,
   .QICGSP_config_command           = AT_TRUE,
   .bg96_sim_status_retries         = 0U,
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  .pdn_already_active              = false,
+#endif /* USE_SOCKETS_TYPE */
+  .host_lp_state                   = HOST_LP_STATE_IDLE,
+  .modem_lp_state                  = MDM_LP_STATE_IDLE,
+  .modem_resume_from_PSM           = false,
 };
 
 /* Private variables ---------------------------------------------------------*/
@@ -153,6 +174,15 @@ static void display_decoded_CatNB1_bands(uint32_t CatNB1_bands_MsbPart, uint32_t
 static void display_user_friendly_mode_and_bands_config(void);
 static uint8_t display_if_active_band(ATCustom_BG96_QCFGscanseq_t scanseq,
                                       uint8_t rank, uint8_t catM1_on, uint8_t catNB1_on, uint8_t gsm_on);
+
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+static at_bool_t init_bg96_low_power(atcustom_modem_context_t *p_modem_ctxt);
+static at_bool_t set_bg96_low_power(atcustom_modem_context_t *p_modem_ctxt);
+static void low_power_event(ATCustom_BG96_LP_event_t event);
+static bool is_modem_in_PSM_state(void);
+static bool is_waiting_modem_wakeup(void);
+
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
 
 /* ###########################  END CUSTOMIZATION PART  ########################### */
 
@@ -186,7 +216,7 @@ void ATCustom_BG96_init(atparser_context_t *p_atp_ctxt)
     {CMD_AT_CMEE,        "+CMEE",        BG96_DEFAULT_TIMEOUT,  fCmdBuild_CMEE,       fRspAnalyze_None},
     {CMD_AT_CPIN,        "+CPIN",        BG96_DEFAULT_TIMEOUT,  fCmdBuild_CPIN,       fRspAnalyze_CPIN_BG96},
     {CMD_AT_CFUN,        "+CFUN",        BG96_DEFAULT_TIMEOUT,  fCmdBuild_CFUN,       fRspAnalyze_CFUN_BG96},
-    {CMD_AT_COPS,        "+COPS",        BG96_COPS_TIMEOUT,     fCmdBuild_COPS,       fRspAnalyze_COPS},
+    {CMD_AT_COPS,        "+COPS",        BG96_COPS_TIMEOUT,     fCmdBuild_COPS_BG96,  fRspAnalyze_COPS_BG96},
     {CMD_AT_CNUM,        "+CNUM",        BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,   fRspAnalyze_CNUM},
     {CMD_AT_CGATT,       "+CGATT",       BG96_CGATT_TIMEOUT,    fCmdBuild_CGATT,      fRspAnalyze_CGATT},
     {CMD_AT_CGPADDR,     "+CGPADDR",     BG96_DEFAULT_TIMEOUT,  fCmdBuild_CGPADDR,    fRspAnalyze_CGPADDR},
@@ -230,13 +260,17 @@ void ATCustom_BG96_init(atparser_context_t *p_atp_ctxt)
     {CMD_AT_QINISTAT,     "+QINISTAT",   BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams, fRspAnalyze_QINISTAT_BG96},
     {CMD_AT_QCSQ,         "+QCSQ",       BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams, fRspAnalyze_QCSQ_BG96},
     {CMD_AT_QUSIM,       "+QUSIM",       BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,   fRspAnalyze_None},
-    {CMD_AT_CPSMS,       "+CPSMS",       BG96_DEFAULT_TIMEOUT,  fCmdBuild_CPSMS,  fRspAnalyze_CPSMS},
-    {CMD_AT_CEDRXS,      "+CEDRXS",      BG96_DEFAULT_TIMEOUT,  fCmdBuild_CEDRXS, fRspAnalyze_CEDRXS},
-    {CMD_AT_CEDRXP,      "+CEDRXP",      BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,   fRspAnalyze_CEDRXP},
-    {CMD_AT_CEDRXRDP,    "+CEDRXRDP",    BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,   fRspAnalyze_CEDRXRDP},
+    {CMD_AT_CPSMS,       "+CPSMS",       BG96_CPSMS_TIMEOUT,    fCmdBuild_CPSMS,  fRspAnalyze_CPSMS},
+    {CMD_AT_CEDRXS,      "+CEDRXS",      BG96_CEDRX_TIMEOUT,    fCmdBuild_CEDRXS, fRspAnalyze_CEDRXS},
+    {CMD_AT_CEDRXP,      "+CEDRXP",      BG96_CEDRX_TIMEOUT,    fCmdBuild_NoParams,   fRspAnalyze_CEDRXP},
+    {CMD_AT_CEDRXRDP,    "+CEDRXRDP",    BG96_CEDRX_TIMEOUT,    fCmdBuild_NoParams,   fRspAnalyze_CEDRXRDP},
     {CMD_AT_QNWINFO,     "+QNWINFO",     BG96_QNWINFO_TIMEOUT,  fCmdBuild_NoParams, fRspAnalyze_None},
     {CMD_AT_QENG,        "+QENG",        BG96_DEFAULT_TIMEOUT,  fCmdBuild_QENG_BG96, fRspAnalyze_None},
     {CMD_AT_QGMR,        "+QGMR",        BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams, fRspAnalyze_QGMR_BG96},
+    {CMD_AT_QPSMS,       "+QPSMS",       BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams, fRspAnalyze_None},
+    {CMD_AT_QPSMCFG,     "+QPSMCFG",     BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams, fRspAnalyze_None},
+    {CMD_AT_QPSMEXTCFG,  "+QPSMEXTCFG",  BG96_DEFAULT_TIMEOUT,  fCmdBuild_QPSMEXTCFG, fRspAnalyze_None},
+    {CMD_AT_QURCCFG,     "+QURCCFG",     BG96_DEFAULT_TIMEOUT,  fCmdBuild_QURCCFG_BG96, fRspAnalyze_None},
 
     /* MODEM SPECIFIC COMMANDS USED FOR SOCKET MODE */
     {CMD_AT_QIACT,       "+QIACT",       BG96_QIACT_TIMEOUT,    fCmdBuild_QIACT_BG96,   fRspAnalyze_QIACT_BG96},
@@ -252,7 +286,10 @@ void ATCustom_BG96_init(atparser_context_t *p_atp_ctxt)
     {CMD_AT_WAIT_EVENT,     "",          BG96_DEFAULT_TIMEOUT,        fCmdBuild_NoParams,   fRspAnalyze_None},
     {CMD_AT_BOOT_EVENT,     "",          BG96_RDY_TIMEOUT,            fCmdBuild_NoParams,   fRspAnalyze_None},
     {CMD_AT_RDY_EVENT,      "RDY",       BG96_RDY_TIMEOUT,            fCmdBuild_NoParams,   fRspAnalyze_None},
-    {CMD_AT_POWERED_DOWN_EVENT, "POWERED DOWN",       BG96_RDY_TIMEOUT, fCmdBuild_NoParams,   fRspAnalyze_None},
+    {CMD_AT_APP_RDY_EVENT,  "APP RDY",   BG96_APP_RDY_TIMEOUT,        fCmdBuild_NoParams,   fRspAnalyze_None},
+    {CMD_AT_POWERED_DOWN_EVENT,     "POWERED DOWN", BG96_RDY_TIMEOUT, fCmdBuild_NoParams,   fRspAnalyze_None},
+    {CMD_AT_PSM_POWER_DOWN_EVENT, "PSM POWER DOWN", BG96_RDY_TIMEOUT, fCmdBuild_NoParams,   fRspAnalyze_None},
+    {CMD_AT_QPSMTIMER_EVENT, "+QPSMTIMER", BG96_RDY_TIMEOUT, fCmdBuild_NoParams,   fRspAnalyze_QPSMTIMER_BG96},
   };
 #define SIZE_ATCMD_BG96_LUT ((uint16_t) (sizeof (ATCMD_BG96_LUT) / sizeof (atcustom_LUT_t)))
 
@@ -356,7 +393,7 @@ uint8_t ATCustom_BG96_checkEndOfMsgCallback(uint8_t rxChar)
       if ((AT_CHAR_t)('\r') == rxChar)
       {
         /* second <CR> detected, we have received data header
-        *  now waiting for <LF>, then start to receive socket datas
+        *  now waiting for <LF>, then start to receive socket data
         *  Verify that size received in header is the expected one
         */
         uint16_t size_from_header = SocketHeaderRX_getSize();
@@ -376,8 +413,8 @@ uint8_t ATCustom_BG96_checkEndOfMsgCallback(uint8_t rxChar)
       else if (rxChar == (AT_CHAR_t)(','))
       {
         /* receiving data field separator in header: +QIRD: 4,"10.7.76.34",7678
-        *  data size field has been receied, now ignore all chars until <CR><LF>
-        *  additonal fields (remote IP address and port) will be analyzed later
+        *  data size field has been received, now ignore all chars until <CR><LF>
+        *  additional fields (remote IP address and port) will be analyzed later
         */
         SocketHeaderDataRx_Cpt_Complete = 1U;
       }
@@ -506,10 +543,47 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   * Determine and prepare the next command to send for this SID
   */
 
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+  /* BG96 specific
+   * BG96 modem enters in PSM autonomously and suspends its uart.
+   * If the HOST has not required LowPower state, AT-Custom will wake-up the modem.
+   * If an HOST request is received durint this wake-up time, suspend the request until we
+   * receive the "APP READY" event from the modem.
+  */
+  if (p_atp_ctxt->step == 0U)
+  {
+    if ((is_modem_in_PSM_state() == true) && (is_waiting_modem_wakeup() == true))
+    {
+      PRINT_INFO("WARNING !!! modem is in PSM state and can not answer")
+
+      /* waiting for RDY indication from modem */
+      atcm_program_WAIT_EVENT(p_atp_ctxt, BG96_APP_RDY_TIMEOUT, INTERMEDIATE_CMD);
+    }
+    else
+    {
+      /* check if modem is resuming from PSM. In this case, disable echo */
+      if (bg96_shared.modem_resume_from_PSM)
+      {
+        /* disable echo */
+        BG96_ctxt.CMD_ctxt.command_echo = AT_FALSE;
+        atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATE, INTERMEDIATE_CMD);
+        bg96_shared.modem_resume_from_PSM = false;
+      }
+      else
+      {
+        /* nothing to do, skip the command */
+        atcm_program_SKIP_CMD(p_atp_ctxt);
+      }
+    }
+
+    goto proceed_ATCustom_BG96_buildCmd;
+  }
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
+
   /* ###########################  START CUSTOMIZATION PART  ########################### */
   if (curSID == (at_msg_t) SID_CS_CHECK_CNX)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT, FINAL_CMD);
     }
@@ -521,7 +595,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_MODEM_CONFIG)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT, FINAL_CMD);
     }
@@ -549,7 +623,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         * POWER_ON and RESET first steps
         * try to establish the communiction with the modem by sending "AT" commands
         ****************************************************************************/
-      if (p_atp_ctxt->step == 0U)
+      if CHECK_STEP((0U))
       {
         /* reset modem specific variables */
         reset_variables_bg96();
@@ -566,7 +640,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         /* force requested flow control */
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_IFC, INTERMEDIATE_CMD);
       }
-      else if ((p_atp_ctxt->step >= 1U) && (p_atp_ctxt->step < BG96_MODEM_SYNCHRO_AT_MAX_RETRIES))
+      else if (CHECK_STEP_BETWEEN((1U), (BG96_MODEM_SYNCHRO_AT_MAX_RETRIES - 1U)))
       {
         /* start a loop to wait for modem : send AT commands */
         if (BG96_ctxt.persist.modem_at_ready == AT_FALSE)
@@ -588,7 +662,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
           atcm_program_SKIP_CMD(p_atp_ctxt);
         }
       }
-      else if (p_atp_ctxt->step == BG96_MODEM_SYNCHRO_AT_MAX_RETRIES)
+      else if CHECK_STEP((BG96_MODEM_SYNCHRO_AT_MAX_RETRIES))
       {
         /* if we fall here and the modem is not ready, we have a communication problem */
         if (BG96_ctxt.persist.modem_at_ready == AT_FALSE)
@@ -607,73 +681,80 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         * common power ON/RESET sequence starts here
         * when communication with modem has been successfully established
         ********************************************************************/
-      else if (p_atp_ctxt->step == common_start_sequence_step)
+      else if CHECK_STEP((common_start_sequence_step))
       {
         /* force flow control */
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_IFC, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 1U))
+      else if CHECK_STEP((common_start_sequence_step + 1U))
       {
         /* disable echo */
         BG96_ctxt.CMD_ctxt.command_echo = AT_FALSE;
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATE, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 2U))
+      else if CHECK_STEP((common_start_sequence_step + 2U))
       {
-        /* request detailled error report */
+        /* request detailed error report */
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CMEE, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 3U))
+      else if CHECK_STEP((common_start_sequence_step + 3U))
       {
         /* enable full response format */
         BG96_ctxt.CMD_ctxt.dce_full_resp_format = AT_TRUE;
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATV, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 4U))
+      else if CHECK_STEP((common_start_sequence_step + 4U))
       {
         /* deactivate DTR */
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_AND_D, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 5U))
+      else if CHECK_STEP((common_start_sequence_step + 5U))
       {
         /* Read FW revision */
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CGMR, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 6U))
+      else if CHECK_STEP((common_start_sequence_step + 6U))
       {
         /* power on with AT+CFUN=0 */
         BG96_ctxt.CMD_ctxt.cfun_value = 0U;
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CFUN, INTERMEDIATE_CMD);
       }
+      else if CHECK_STEP((common_start_sequence_step + 7U))
+      {
+        /* force to disable PSM in case modem was switched off with PSM enabled */
+        BG96_ctxt.SID_ctxt.set_power_config.psm_present = CELLULAR_TRUE;
+        BG96_ctxt.SID_ctxt.set_power_config.psm_mode = PSM_MODE_DISABLE;
+        atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
+      }
       /* ----- start specific power ON sequence here ----
         * BG96_AT_Commands_Manual_V2.0
         */
-      /* Check bands paramaters */
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 7U))
+      /* Check bands parameters */
+      else if CHECK_STEP((common_start_sequence_step + 8U))
       {
         bg96_shared.QCFG_command_write = AT_FALSE;
         bg96_shared.QCFG_command_param = QCFG_band;
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QCFG, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 8U))
+      else if CHECK_STEP((common_start_sequence_step + 9U))
       {
         bg96_shared.QCFG_command_write = AT_FALSE;
         bg96_shared.QCFG_command_param = QCFG_iotopmode;
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QCFG, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 9U))
+      else if CHECK_STEP((common_start_sequence_step + 10U))
       {
         bg96_shared.QCFG_command_write = AT_FALSE;
         bg96_shared.QCFG_command_param = QCFG_nwscanseq;
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QCFG, INTERMEDIATE_CMD);
       }
-      else if (p_atp_ctxt->step == (common_start_sequence_step + 10U))
+      else if CHECK_STEP((common_start_sequence_step + 11U))
       {
         bg96_shared.QCFG_command_write = AT_FALSE;
         bg96_shared.QCFG_command_param = QCFG_nwscanmode;
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QCFG, FINAL_CMD);
       }
-      else if (p_atp_ctxt->step >= (common_start_sequence_step + 11U))
+      else if CHECK_STEP_EXCEEDS((common_start_sequence_step + 12U))
       {
         /* error, invalid step */
         retval = ATSTATUS_ERROR;
@@ -686,12 +767,13 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_POWER_OFF)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
-      /* software power off for this modem
-        * hardware power off will just reset modem GPIOs
+      /* since Quectel BG96 Hardware Design V1.4
+        * Power Off sequence is done using GPIO
+        * The write command CMD_AT_QPOWD is no more used.
         */
-      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QPOWD, FINAL_CMD);
+      atcm_program_NO_MORE_CMD(p_atp_ctxt);
     }
     else
     {
@@ -701,18 +783,18 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_INIT_MODEM)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* CFUN parameters here are coming from user settings in CS_init_modem() */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CFUN, INTERMEDIATE_CMD);
       bg96_shared.bg96_sim_status_retries = 0U;
       bg96_shared.QINISTAT_error = AT_FALSE;
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       if (BG96_ctxt.SID_ctxt.modem_init.init == CS_CMI_MINI)
       {
-        /* minimum functionnality selected, no SIM access => leave now */
+        /* minimum functionality selected, no SIM access => leave now */
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
       else
@@ -723,7 +805,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
       /* reset SIM ready status, we will check it later */
       BG96_ctxt.persist.modem_sim_ready  = AT_FALSE;
     }
-    else if (p_atp_ctxt->step == 2U)
+    else if CHECK_STEP((2U))
     {
       if (bg96_shared.bg96_sim_status_retries > BG96_MAX_SIM_STATUS_RETRIES)
       {
@@ -763,7 +845,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         }
       }
     }
-    else if (p_atp_ctxt->step == 3U)
+    else if CHECK_STEP((3U))
     {
       if (BG96_ctxt.persist.modem_sim_ready == AT_FALSE)
       {
@@ -790,14 +872,14 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         PRINT_INFO("SIM is ready, unlock sequence")
       }
     }
-    else if (p_atp_ctxt->step == 4U)
+    else if CHECK_STEP((4U))
     {
       /* reset bg96_sim_status_retries */
       bg96_shared.bg96_sim_status_retries = 0U;
       /* check is CPIN is requested */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CPIN, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 5U)
+    else if CHECK_STEP((5U))
     {
       if (BG96_ctxt.persist.sim_pin_code_ready == AT_FALSE)
       {
@@ -821,7 +903,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         atcm_program_SKIP_CMD(p_atp_ctxt);
       }
     }
-    else if (p_atp_ctxt->step == 6U)
+    else if CHECK_STEP((6U))
     {
       /* check PDP context parameters */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CGDCONT, FINAL_CMD);
@@ -834,7 +916,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_GET_DEVICE_INFO)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       switch (BG96_ctxt.SID_ctxt.device_info->field_requested)
       {
@@ -851,6 +933,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
           break;
 
         case CS_DIF_SN_PRESENT:
+          BG96_ctxt.CMD_ctxt.cgsn_write_cmd_param = CGSN_SN;
           atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CGSN, FINAL_CMD);
           break;
 
@@ -885,20 +968,21 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_GET_SIGNAL_QUALITY)
   {
-    if (p_atp_ctxt->step == 0U)
+
+    if CHECK_STEP((0U))
     {
       /* get signal strength */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CSQ, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       /* get signal strength */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_QCSQ, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 2U)
+    else if CHECK_STEP((2U))
     {
 #if (BG96_OPTION_NETWORK_INFO == 1)
-      /* NB: cmd answer is optionnal ie no error will be raised if no answer received from modem
+      /* NB: cmd answer is optional ie no error will be raised if no answer received from modem
         *  indeed, if requested here, it's just a bonus and should not generate an error
         */
       atcm_program_AT_CMD_ANSWER_OPTIONAL(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_QNWINFO,
@@ -907,7 +991,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
       atcm_program_SKIP_CMD(p_atp_ctxt);
 #endif /* BG96_OPTION_NETWORK_INFO */
     }
-    else if (p_atp_ctxt->step == 3U)
+    else if CHECK_STEP((3U))
     {
 #if (BG96_OPTION_ENGINEERING_MODE == 1)
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QENG, FINAL_CMD);
@@ -923,7 +1007,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_GET_ATTACHSTATUS)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CGATT, FINAL_CMD);
     }
@@ -935,14 +1019,14 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_REGISTER_NET)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* read registration status */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_COPS, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
-#if 0
+#if 0 /* check actual registration status */
       /* check if actual registration status is the expected one */
       CS_OperatorSelector_t *operatorSelect = &(BG96_ctxt.SID_ctxt.write_operator_infos);
       if (BG96_ctxt.SID_ctxt.read_operator_infos.mode != operatorSelect->mode)
@@ -960,17 +1044,17 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_COPS, INTERMEDIATE_CMD);
 #endif /* 0 */
     }
-    else if (p_atp_ctxt->step == 2U)
+    else if CHECK_STEP((2U))
     {
       /* read registration status */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEREG, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 3U)
+    else if CHECK_STEP((3U))
     {
       /* read registration status */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CREG, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 4U)
+    else if CHECK_STEP((4U))
     {
       /* read registration status */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CGREG, FINAL_CMD);
@@ -983,22 +1067,22 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_GET_NETSTATUS)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* read registration status */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEREG, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       /* read registration status */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CREG, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 2U)
+    else if CHECK_STEP((2U))
     {
       /* read registration status */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CGREG, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 3U)
+    else if CHECK_STEP((3U))
     {
       /* read registration status */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_COPS, FINAL_CMD);
@@ -1011,7 +1095,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_SUSBCRIBE_NET_EVENT)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       CS_UrcEvent_t urcEvent = BG96_ctxt.SID_ctxt.urcEvent;
 
@@ -1027,7 +1111,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         /* if signal quality URC not yet suscbribe */
         if (BG96_ctxt.persist.urc_subscript_signalQuality == CELLULAR_FALSE)
         {
-          /* set event as suscribed */
+          /* set event as subscribed */
           BG96_ctxt.persist.urc_subscript_signalQuality = CELLULAR_TRUE;
 
           /* request the URC we want */
@@ -1053,7 +1137,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_UNSUSBCRIBE_NET_EVENT)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       CS_UrcEvent_t urcEvent = BG96_ctxt.SID_ctxt.urcEvent;
 
@@ -1094,11 +1178,11 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_REGISTER_PDN_EVENT)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       if (BG96_ctxt.persist.urc_subscript_pdn_event == CELLULAR_FALSE)
       {
-        /* set event as suscribed */
+        /* set event as subscribed */
         BG96_ctxt.persist.urc_subscript_pdn_event = CELLULAR_TRUE;
 
         /* request PDN events */
@@ -1117,7 +1201,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_DEREGISTER_PDN_EVENT)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       if (BG96_ctxt.persist.urc_subscript_pdn_event == CELLULAR_TRUE)
       {
@@ -1140,7 +1224,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_ATTACH_PS_DOMAIN)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       BG96_ctxt.CMD_ctxt.cgatt_write_cmd_param = CGATT_ATTACHED;
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGATT, FINAL_CMD);
@@ -1153,7 +1237,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_DETACH_PS_DOMAIN)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       BG96_ctxt.CMD_ctxt.cgatt_write_cmd_param = CGATT_DETACHED;
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGATT, FINAL_CMD);
@@ -1168,13 +1252,13 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   {
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
     /* SOCKET MODE */
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* ckeck PDN state */
       bg96_shared.pdn_already_active = AT_FALSE;
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_QIACT, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       /* PDN activation */
       if (bg96_shared.pdn_already_active == AT_TRUE)
@@ -1189,7 +1273,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QIACT, INTERMEDIATE_CMD);
       }
     }
-    else if (p_atp_ctxt->step == 2U)
+    else if CHECK_STEP((2U))
     {
       /* ckeck PDN state */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_QIACT, FINAL_CMD);
@@ -1201,16 +1285,16 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
     }
 #else
     /* DATA MODE*/
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* get IP address */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGPADDR, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATX, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 2U)
+    else if CHECK_STEP((2U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATD, FINAL_CMD);
     }
@@ -1230,12 +1314,12 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   {
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
     /* SOCKET MODE */
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       bg96_shared.QICGSP_config_command = AT_TRUE;
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QICSGP, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       bg96_shared.QICGSP_config_command = AT_FALSE;
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QICSGP, FINAL_CMD);
@@ -1248,7 +1332,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
     }
 #else
     /* DATA MODE*/
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGDCONT, FINAL_CMD);
       /* add AT+CGAUTH for username and password if required */
@@ -1283,7 +1367,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   else if (curSID == (at_msg_t) SID_CS_DIAL_COMMAND)
   {
     /* SOCKET CONNECTION FOR COMMAND DATA MODE */
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* reserve a modem CID for this socket_handle */
       bg96_shared.QIOPEN_current_socket_connected = 0U;
@@ -1295,7 +1379,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
                  BG96_ctxt.persist.socket[sockHandle].socket_connId_value)
 
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       if (bg96_shared.QIOPEN_current_socket_connected == 0U)
       {
@@ -1311,7 +1395,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
     }
-    else  if (p_atp_ctxt->step == 2U)
+    else  if CHECK_STEP((2U))
     {
       if (bg96_shared.QIOPEN_current_socket_connected == 0U)
       {
@@ -1334,7 +1418,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
     }
-    else  if (p_atp_ctxt->step == 3U)
+    else  if CHECK_STEP((3U))
     {
       /* if we fall here, it means we have send CMD_AT_QICLOSE on previous step
         *  now inform cellular service that opening has failed => return an error
@@ -1352,7 +1436,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_SEND_DATA)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* Check data size to send */
       if (BG96_ctxt.SID_ctxt.socketSendData_struct.buffer_size > MODEM_MAX_SOCKET_TX_DATA_SIZE)
@@ -1369,7 +1453,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QISEND, INTERMEDIATE_CMD);
       }
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       /* waiting for socket prompt: "<CR><LF>> " */
       if (BG96_ctxt.socket_ctxt.socket_send_state == SocketSendState_Prompt_Received)
@@ -1384,7 +1468,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         atcm_program_WAIT_EVENT(p_atp_ctxt, BG96_SOCKET_PROMPT_TIMEOUT, INTERMEDIATE_CMD);
       }
     }
-    else if (p_atp_ctxt->step == 2U)
+    else if CHECK_STEP((2U))
     {
       /* socket prompt received, send DATA */
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_RAW_CMD, (CMD_ID_t) CMD_AT_QISEND_WRITE_DATA, FINAL_CMD);
@@ -1401,12 +1485,12 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   else if ((curSID == (at_msg_t) SID_CS_RECEIVE_DATA) ||
            (curSID == (at_msg_t) SID_CS_RECEIVE_DATA_FROM))
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       BG96_ctxt.socket_ctxt.socket_receive_state = SocketRcvState_RequestSize;
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QIRD, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       /* check that data size to receive is not null */
       if (BG96_ctxt.socket_ctxt.socket_rx_expected_buf_size != 0U)
@@ -1423,13 +1507,13 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
           BG96_ctxt.socket_ctxt.socket_rx_expected_buf_size = BG96_ctxt.socket_ctxt.socketReceivedata.max_buffer_size;
         }
 
-        /* receive datas */
+        /* receive data */
         BG96_ctxt.socket_ctxt.socket_receive_state = SocketRcvState_RequestData_Header;
         atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QIRD, FINAL_CMD);
       }
       else
       {
-        /* no datas to receive */
+        /* no data to receive */
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
     }
@@ -1441,7 +1525,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_SOCKET_CLOSE)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* is socket connected ?
         * due to BG96 socket connection mechanism (waiting URC QIOPEN), we can fall here but socket
@@ -1458,7 +1542,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       /* release the modem CID for this socket_handle */
       (void) atcm_socket_release_modem_cid(&BG96_ctxt, BG96_ctxt.socket_ctxt.socket_info->socket_handle);
@@ -1472,12 +1556,12 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_DATA_SUSPEND)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* wait for 1 second */
       atcm_program_TEMPO(p_atp_ctxt, 1000U, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       /* send escape sequence +++ (RAW command type)
         *  CONNECT expected before 1000 ms
@@ -1491,63 +1575,13 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
       retval = ATSTATUS_ERROR;
     }
   }
-  else if (curSID == (at_msg_t) SID_CS_INIT_POWER_CONFIG)
-  {
-    BG96_ctxt.persist.psm_requested = AT_FALSE;
-    /* TO BE CONFIRMED
-      * BG96 switch directly to low power mode when sending PSM/EDRX commands
-      * in this case, we should not send theses commands now
-      *
-      */
-
-    /* Low Power modes not implemented yet for BG96 */
-    retval = ATSTATUS_ERROR;
-  }
-  else if (curSID == (at_msg_t) SID_CS_SET_POWER_CONFIG)
-  {
-    /* TO BE CONFIRMED
-      * BG96 switch directly to low power mode when sending PSM/EDRX commands
-      * in this case, we should not send theses commands now
-      *
-      */
-
-    /* Low Power modes not implemented yet for BG96 */
-    retval = ATSTATUS_ERROR;
-  }
-  else if (curSID == (at_msg_t) SID_CS_SLEEP_COMPLETE)
-  {
-    /* Low Power modes not implemented yet for BG96 */
-    retval = ATSTATUS_ERROR;
-  }
-  else if (curSID == (at_msg_t) SID_CS_SLEEP_CANCEL)
-  {
-    /* Low Power modes not implemented yet for BG96 */
-    retval = ATSTATUS_ERROR;
-  }
-  else if (curSID == (at_msg_t) SID_CS_WAKEUP)
-  {
-    /* Low Power modes not implemented yet for BG96 */
-    retval = ATSTATUS_ERROR;
-  }
-  else if (curSID == (at_msg_t) SID_CS_SOCKET_CNX_STATUS)
-  {
-    if (p_atp_ctxt->step == 0U)
-    {
-      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QISTATE, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
   else if (curSID == (at_msg_t) SID_CS_DATA_RESUME)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATX, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATO, FINAL_CMD);
     }
@@ -1557,19 +1591,258 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
       retval = ATSTATUS_ERROR;
     }
   }
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+  else if (curSID == (at_msg_t) SID_CS_INIT_POWER_CONFIG)
+  {
+    if CHECK_STEP((0U))
+    {
+      /* Init parameters are available into SID_ctxt.init_power_config
+        * SID_ctxt.init_power_config is used to build AT+CPSMS and AT+CEDRX commands
+        * Build it from SID_ctxt.init_power_config and modem specificities
+        */
+      if (init_bg96_low_power(&BG96_ctxt) == AT_FALSE)
+      {
+        /* Low Power not enabled, stop here the SID */
+        atcm_program_NO_MORE_CMD(p_atp_ctxt);
+      }
+      else
+      {
+        /* Low Power enabled, continue to next step
+          * CEREG 4 not requested for BG96
+          */
+        atcm_program_SKIP_CMD(p_atp_ctxt);
+      }
+    }
+    else if CHECK_STEP((1U))
+    {
+      /* read EDRX params */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEDRXS, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((2U))
+    {
+      /* read PSM params */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((3U))
+    {
+      /* set EDRX params (default) */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CEDRXS, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((4U))
+    {
+      /* enable URC output */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QURCCFG, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((5U))
+    {
+      /* request for +QPSMTIMER urc */
+      bg96_shared.QCFG_command_write = AT_TRUE;
+      bg96_shared.QCFG_command_param = QCFG_urc_psm;
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QCFG, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((6U))
+    {
+      /* set PSM params (default) */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((7U))
+    {
+      /* configure advanced PSM parameters */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt,
+                          ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_QPSMEXTCFG, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((8U))
+    {
+      /* configure advanced PSM parameters */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt,
+                          ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QPSMEXTCFG, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((9U))
+    {
+      /* note: keep this as final command (previous command may be skipped if no valid PSM parameters) */
+      atcm_program_NO_MORE_CMD(p_atp_ctxt);
+    }
+    else
+    {
+      /* error, invalid step */
+      retval = ATSTATUS_ERROR;
+    }
+  }
+  else if (curSID == (at_msg_t) SID_CS_SET_POWER_CONFIG)
+  {
+    if CHECK_STEP((0U))
+    {
+      (void) set_bg96_low_power(&BG96_ctxt);
+      atcm_program_SKIP_CMD(p_atp_ctxt);
+    }
+    else if CHECK_STEP((1U))
+    {
+      /* set EDRX params (if available) */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CEDRXS, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((2U))
+    {
+      /* set PSM params (if available) */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((3U))
+    {
+      /* eDRX Read Dynamix Parameters */
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt,
+                          ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CEDRXRDP, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((4U))
+    {
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt,
+                          ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_QPSMS, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((5U))
+    {
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt,
+                          ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_QPSMCFG, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((6U))
+    {
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt,
+                          ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_QPSMEXTCFG, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((7U))
+    {
+      /* note: keep this as final command (previous command may be skipped if no valid PSM parameters) */
+      atcm_program_NO_MORE_CMD(p_atp_ctxt);
+    }
+    else
+    {
+      /* error, invalid step */
+      retval = ATSTATUS_ERROR;
+    }
+  }
+  else if (curSID == (at_msg_t) SID_CS_SLEEP_REQUEST)
+  {
+    if CHECK_STEP((0U))
+    {
+      /* update LP automaton states */
+      low_power_event(EVENT_LP_HOST_SLEEP_REQ);
+
+      /* Simulate modem ack to enter in low power state
+        * (UART is not deactivated yet)
+        * check if this event was susbcribed by upper layers
+        */
+      if (atcm_modem_event_received(&BG96_ctxt, CS_MDMEVENT_LP_ENTER) == AT_TRUE)
+      {
+        /* trigger an internal event to ATCORE (ie an event not received from IPC)
+          * to allow to report an URC to upper layers (URC event = enter in LP)
+          */
+        AT_internalEvent(DEVTYPE_MODEM_CELLULAR);
+      }
+      atcm_program_NO_MORE_CMD(p_atp_ctxt);
+    }
+    else
+    {
+      /* error, invalid step */
+      retval = ATSTATUS_ERROR;
+    }
+  }
+  else if (curSID == (at_msg_t) SID_CS_SLEEP_COMPLETE)
+  {
+    if CHECK_STEP((0U))
+    {
+      low_power_event(EVENT_LP_HOST_SLEEP_COMPLETE);
+      atcm_program_NO_MORE_CMD(p_atp_ctxt);
+    }
+    else
+    {
+      /* error, invalid step */
+      retval = ATSTATUS_ERROR;
+    }
+  }
+  else if (curSID == (at_msg_t) SID_CS_SLEEP_CANCEL)
+  {
+    if CHECK_STEP((0U))
+    {
+      low_power_event(EVENT_LP_HOST_SLEEP_CANCEL);
+      atcm_program_NO_MORE_CMD(p_atp_ctxt);
+    }
+    else
+    {
+      /* error, invalid step */
+      retval = ATSTATUS_ERROR;
+    }
+  }
+  else if (curSID == (at_msg_t) SID_CS_WAKEUP)
+  {
+    if CHECK_STEP((0U))
+    {
+      if (BG96_ctxt.SID_ctxt.wakeup_origin == HOST_WAKEUP)
+      {
+        low_power_event(EVENT_LP_HOST_WAKEUP_REQ);
+
+        if (is_modem_in_PSM_state() == true)
+        {
+          PRINT_INFO("this is a host wake up and modem is in PSM state")
+          /* a non null delay is used in case wake-up is called just after PSM POWER DOWN indication,
+            *  otherwise this wake up request is not taken into account by the modem
+            */
+          (void) SysCtrl_BG96_wakeup_from_PSM(1000U);
+          /* No AT command to send, wait RDY from modem in next step */
+          atcm_program_SKIP_CMD(p_atp_ctxt);
+        }
+        else
+        {
+          PRINT_INFO("this is a host wake up but modem is not in PSM state")
+          /* modem is not in PSM, no need to wait for wake-up confirmation */
+          atcm_program_NO_MORE_CMD(p_atp_ctxt);
+        }
+      }
+    }
+    else if CHECK_STEP((1U))
+    {
+      /* waiting for RDY indication from modem */
+      atcm_program_WAIT_EVENT(p_atp_ctxt, BG96_APP_RDY_TIMEOUT, INTERMEDIATE_CMD);
+
+    }
+    else if CHECK_STEP((2U))
+    {
+      /* disable echo */
+      BG96_ctxt.CMD_ctxt.command_echo = AT_FALSE;
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATE, INTERMEDIATE_CMD);
+    }
+    else if CHECK_STEP((3U))
+    {
+      atcm_program_NO_MORE_CMD(p_atp_ctxt);
+    }
+    else
+    {
+      /* error, invalid step */
+      retval = ATSTATUS_ERROR;
+    }
+  }
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
+  else if (curSID == (at_msg_t) SID_CS_SOCKET_CNX_STATUS)
+  {
+    if CHECK_STEP((0U))
+    {
+      atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QISTATE, FINAL_CMD);
+    }
+    else
+    {
+      /* error, invalid step */
+      retval = ATSTATUS_ERROR;
+    }
+  }
   else if (curSID == (at_msg_t) SID_CS_DNS_REQ)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QIDNSCFG, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 1U)
+    else if CHECK_STEP((1U))
     {
       /* initialize +QIURC "dnsgip" parameters */
       init_bg96_qiurc_dnsgip();
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QIDNSGIP, INTERMEDIATE_CMD);
     }
-    else if (p_atp_ctxt->step == 2U)
+    else if CHECK_STEP((2U))
     {
       /* do we have received a valid DNS response ? */
       if ((bg96_shared.QIURC_dnsgip_param.finished == AT_TRUE) && (bg96_shared.QIURC_dnsgip_param.error == 0U))
@@ -1579,7 +1852,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
       }
       else
       {
-        /* not yet, waiting for DNS informations */
+        /* not yet, waiting for DNS information */
         atcm_program_TEMPO(p_atp_ctxt, BG96_QIDNSGIP_TIMEOUT, FINAL_CMD);
       }
     }
@@ -1599,7 +1872,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_PING_IP_ADDRESS)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QPING, FINAL_CMD);
     }
@@ -1611,7 +1884,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_DIRECT_CMD)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_RAW_CMD, (CMD_ID_t) CMD_AT_DIRECT_CMD, FINAL_CMD);
       atcm_program_CMD_TIMEOUT(&BG96_ctxt, p_atp_ctxt, BG96_ctxt.SID_ctxt.direct_cmd_tx->cmd_timeout);
@@ -1624,7 +1897,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_SIM_SELECT)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       /* select the SIM slot */
       if (atcm_select_hw_simslot(BG96_ctxt.persist.sim_selected) != ATSTATUS_OK)
@@ -1641,7 +1914,7 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
   }
   else if (curSID == (at_msg_t) SID_CS_SIM_GENERIC_ACCESS)
   {
-    if (p_atp_ctxt->step == 0U)
+    if CHECK_STEP((0U))
     {
       atcm_program_AT_CMD(&BG96_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CSIM, FINAL_CMD);
     }
@@ -1658,6 +1931,10 @@ at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeo
     PRINT_ERR("Error, invalid command ID %d", curSID)
     retval = ATSTATUS_ERROR;
   }
+
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+proceed_ATCustom_BG96_buildCmd:
+#endif /* (ENABLE_BG96_LOW_POWER_MODE == 1U) */
 
   /* if no error, build the command to send */
   if (retval == ATSTATUS_OK)
@@ -1821,7 +2098,7 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
      * The command is decomposed in 2 lines:
      * The 1st part of the response is analyzed by atcm_searchCmdInLUT:
      *   +QIRD: 522<CR><LF>
-     * The 2nd part of the response, corresponding to the datas, falls here:
+     * The 2nd part of the response, corresponding to the data, falls here:
      *   HTTP/1.1 200 OK<CR><LF><CR><LF>Date: Wed, 21 Feb 2018 14:56:54 GMT<CR><LF><CR><LF>Serve...
      */
     if (retval == ATACTION_RSP_NO_ACTION)
@@ -1838,19 +2115,15 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
           break;
 
         case CMD_AT_QISTATE:
-          if (fRspAnalyze_QISTATE_BG96(p_at_ctxt, &BG96_ctxt, p_msg_in, element_infos) != ATACTION_RSP_ERROR)
-          {
-            /* received a valid intermediate answer */
-            retval = ATACTION_RSP_INTERMEDIATE;
-          }
+          (void) fRspAnalyze_QISTATE_BG96(p_at_ctxt, &BG96_ctxt, p_msg_in, element_infos);
+          /* received a valid intermediate answer */
+          retval = ATACTION_RSP_INTERMEDIATE;
           break;
 
         case CMD_AT_QGMR:
-          if (fRspAnalyze_QGMR_BG96(p_at_ctxt, &BG96_ctxt, p_msg_in, element_infos) != ATACTION_RSP_ERROR)
-          {
-            /* received a valid intermediate answer */
-            retval = ATACTION_RSP_INTERMEDIATE;
-          }
+          (void) fRspAnalyze_QGMR_BG96(p_at_ctxt, &BG96_ctxt, p_msg_in, element_infos);
+          /* received a valid intermediate answer */
+          retval = ATACTION_RSP_INTERMEDIATE;
           break;
 
         /* ###########################  END CUSTOMIZED PART  ########################### */
@@ -1961,6 +2234,15 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
           /* ignore the RDY event during POWER ON or RESET */
           retval = ATACTION_RSP_URC_IGNORED;
         }
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+        else  if (is_modem_in_PSM_state() == true)
+        {
+          /* ignore this event when modem is in PSM, we will act on APP RDY instead
+           * with APP RDY, all modem services should be ready
+           */
+          retval = ATACTION_RSP_URC_IGNORED;
+        }
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
         else
         {
           /* if event is received in other states, it's an unexpected modem reboot */
@@ -1976,6 +2258,27 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
         break;
       }
 
+      case CMD_AT_APP_RDY_EVENT:
+      {
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+        if (is_waiting_modem_wakeup() == true)
+        {
+          PRINT_INFO("APP RDY unlock event")
+          /* UNLOCK the WAIT EVENT */
+          retval = ATACTION_RSP_FRC_END;
+        }
+        else
+        {
+          retval = ATACTION_RSP_URC_IGNORED;
+        }
+        /* update LP automatons */
+        low_power_event(EVENT_LP_MDM_LEAVE_PSM);
+#else
+        retval = ATACTION_RSP_URC_IGNORED;
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
+        break;
+      }
+
       case CMD_AT_POWERED_DOWN_EVENT:
       {
         PRINT_DBG("MODEM POWERED DOWN EVENT DETECTED")
@@ -1987,6 +2290,14 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
         {
           retval = ATACTION_RSP_URC_IGNORED;
         }
+        break;
+      }
+
+      case CMD_AT_QPSMTIMER_EVENT:
+      {
+        PRINT_DBG("QPSMTIMER URC DETECTED")
+        /* will forward negotiated PSM timers value if new values detected */
+        retval = ATACTION_RSP_URC_FORWARDED;;
         break;
       }
 
@@ -2075,6 +2386,13 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
         retval = ATACTION_RSP_URC_FORWARDED;
         break;
 
+      case CMD_AT_PSM_POWER_DOWN_EVENT:
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+        low_power_event(EVENT_LP_MDM_ENTER_PSM);
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
+        retval =  ATACTION_RSP_IGNORED;
+        break;
+
       /* ###########################  END CUSTOMIZATION PART  ########################### */
 
       case CMD_AT:
@@ -2086,7 +2404,7 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
         break;
 
       case CMD_AT_ERROR:
-        /* ERROR does not contains parameters, so call the analyze function explicity
+        /* ERROR does not contains parameters, so call the analyze function explicitly
         *  otherwise it will not ne called
         */
         retval = fRspAnalyze_Error_BG96(p_at_ctxt, &BG96_ctxt, p_msg_in, element_infos);
@@ -2197,7 +2515,7 @@ at_status_t ATCustom_BG96_get_rsp(atparser_context_t *p_atp_ctxt, at_buf_t *p_rs
 
   /* ###########################  START CUSTOMIZATION PART  ########################### */
   /* prepare response for a SID
-  *  all specific behaviors for SID which are returning datas in rsp_buf have to be implemented here
+  *  all specific behaviors for SID which are returning data in rsp_buf have to be implemented here
   */
   switch (p_atp_ctxt->current_SID)
   {
@@ -2280,11 +2598,11 @@ at_status_t ATCustom_BG96_get_error(atparser_context_t *p_atp_ctxt, at_buf_t *p_
   at_status_t retval;
   PRINT_API("enter ATCustom_BG96_get_error()")
 
-  /* prepare response when an error occured - common part */
+  /* prepare response when an error occurred - common part */
   retval = atcm_modem_get_error(&BG96_ctxt, p_atp_ctxt, p_rsp_buf);
 
   /* ###########################  START CUSTOMIZATION PART  ########################### */
-  /*  prepare response when an error occured
+  /*  prepare response when an error occurred
   *  all specific behaviors for an error have to be implemented here
   */
 
@@ -2299,12 +2617,13 @@ at_status_t ATCustom_BG96_hw_event(sysctrl_device_type_t deviceType, at_hw_event
   UNUSED(hwEvent);
   UNUSED(gstate);
 
-  at_status_t retval = ATSTATUS_ERROR;
-  /* Do not add traces (called under interrupt if GPIO event) */
+  at_status_t retval = ATSTATUS_OK;
+  /* IMPORTANT: Do not add traces int this function of in functions called
+   * (this function called under interrupt if GPIO event)
+   */
 
   /* ###########################  START CUSTOMIZATION PART  ########################### */
-
-
+  /* NO GPIO EVENT FOR THIS MODEM IN PSM */
   /* ###########################  END CUSTOMIZATION PART  ########################### */
 
   return (retval);
@@ -2312,7 +2631,7 @@ at_status_t ATCustom_BG96_hw_event(sysctrl_device_type_t deviceType, at_hw_event
 
 /* Private function Definition -----------------------------------------------*/
 
-/* BG96 modem init fonction
+/* BG96 modem init function
 *  call common init function and then do actions specific to this modem
 */
 static void bg96_modem_init(atcustom_modem_context_t *p_modem_ctxt)
@@ -2325,7 +2644,7 @@ static void bg96_modem_init(atcustom_modem_context_t *p_modem_ctxt)
   /* modem specific actions if any */
 }
 
-/* BG96 modem reset fonction
+/* BG96 modem reset function
 *  call common reset function and then do actions specific to this modem
 */
 static void bg96_modem_reset(atcustom_modem_context_t *p_modem_ctxt)
@@ -2354,6 +2673,11 @@ static void reset_variables_bg96(void)
   bg96_shared.mode_and_bands_config.CatM1_bands_LsbPart = 0xFFFFFFFFU;
   bg96_shared.mode_and_bands_config.CatNB1_bands_MsbPart = 0xFFFFFFFFU;
   bg96_shared.mode_and_bands_config.CatNB1_bands_LsbPart = 0xFFFFFFFFU;
+
+  /* other values */
+  bg96_shared.host_lp_state = HOST_LP_STATE_IDLE;
+  bg96_shared.modem_lp_state = MDM_LP_STATE_IDLE;
+  bg96_shared.modem_resume_from_PSM = false;
 }
 
 static void init_bg96_qiurc_dnsgip(void)
@@ -2656,6 +2980,316 @@ static uint8_t display_if_active_band(ATCustom_BG96_QCFGscanseq_t scanseq,
 
   return (retval);
 }
+
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+/**
+  * @brief  Set initial PSM and DRX states.
+  *         Called in SID_CS_INIT_POWER_CONFIG
+  * @param  none
+  * @retval at_bool_t Indicates if low power is enabled.
+  */
+static at_bool_t init_bg96_low_power(atcustom_modem_context_t *p_modem_ctxt)
+{
+  at_bool_t lp_enabled;
+
+  if (p_modem_ctxt->SID_ctxt.init_power_config.low_power_enable == CELLULAR_TRUE)
+  {
+    /* this parameter is used in CGREG/CEREG to enable or not PSM urc.
+     * BG96 specific case: CEREG returns ERROR or UNKNOWN when CEREG=4 and CPSMS=0.
+     * To avoid this, never use CEREG=4.
+     */
+    p_modem_ctxt->persist.psm_urc_requested = AT_FALSE;
+
+    /* PSM and EDRX parameters: need to populate SID_ctxt.set_power_config which is the structure
+     * used to build PSM and EDRX AT commands.
+     * Provide psm and edrx default parameters.
+     *
+     * BG96 specific: always set psm_mode to PSM_MODE_DISABLE, will be set to enable only after a sleep request.
+     */
+    p_modem_ctxt->SID_ctxt.set_power_config.psm_present = CELLULAR_TRUE;
+    p_modem_ctxt->SID_ctxt.set_power_config.psm_mode = PSM_MODE_ENABLE;
+    (void) memcpy((void *) &p_modem_ctxt->SID_ctxt.set_power_config.psm,
+                  (void *) &p_modem_ctxt->SID_ctxt.init_power_config.psm,
+                  sizeof(CS_PSM_params_t));
+
+    p_modem_ctxt->SID_ctxt.set_power_config.edrx_present = CELLULAR_TRUE;
+    p_modem_ctxt->SID_ctxt.set_power_config.edrx_mode = EDRX_MODE_DISABLE;
+    (void) memcpy((void *) &p_modem_ctxt->SID_ctxt.set_power_config.edrx,
+                  (void *) &p_modem_ctxt->SID_ctxt.init_power_config.edrx,
+                  sizeof(CS_EDRX_params_t));
+
+    lp_enabled = AT_TRUE;
+  }
+  else
+  {
+    /* this parameter is used in CGREG/CEREG to enable or not PSM urc.  */
+    p_modem_ctxt->persist.psm_urc_requested = AT_FALSE;
+
+    /* do not send PSM and EDRX commands */
+    lp_enabled = AT_FALSE;
+  }
+
+  return (lp_enabled);
+}
+
+static at_bool_t set_bg96_low_power(atcustom_modem_context_t *p_modem_ctxt)
+{
+  at_bool_t lp_set_and_enabled;
+
+  if (p_modem_ctxt->SID_ctxt.set_power_config.psm_present == CELLULAR_TRUE)
+  {
+    /* the modem info structure SID_ctxt.set_power_config has been already updated */
+
+    /* PSM parameters are present */
+    if (p_modem_ctxt->SID_ctxt.set_power_config.psm_mode == PSM_MODE_ENABLE)
+    {
+      /* PSM is enabled */
+      p_modem_ctxt->persist.psm_urc_requested = AT_TRUE;
+      lp_set_and_enabled = AT_TRUE;
+    }
+    else
+    {
+      /* PSM is explicitly disabled */
+      p_modem_ctxt->persist.psm_urc_requested = AT_FALSE;
+      lp_set_and_enabled = AT_FALSE;
+
+      /* RESET T3412 and T3324 values reported to upper layer */
+      /* T3412, default value (0U means value not available) */
+      p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU = 0U;
+      /* T3324, default value (0U means value not available) */
+      p_modem_ctxt->persist.low_power_status.nwk_active_time = 0U;
+      p_modem_ctxt->persist.urc_avail_lp_status = AT_TRUE;
+    }
+  }
+  else
+  {
+    /* PSM parameters are not present */
+    lp_set_and_enabled = AT_FALSE;
+  }
+
+  return (lp_set_and_enabled);
+}
+
+static void low_power_event(ATCustom_BG96_LP_event_t event)
+{
+  uint8_t host_state_error = 1U;
+  uint8_t mdm_state_error = 1U;
+
+  /* ##### manage HOST LP state ##### */
+  if (bg96_shared.host_lp_state == HOST_LP_STATE_IDLE)
+  {
+    /* Host events */
+    if (event == EVENT_LP_HOST_SLEEP_REQ)
+    {
+      bg96_shared.host_lp_state = HOST_LP_STATE_LP_REQUIRED;
+      host_state_error = 0U;
+    }
+    /* Modem events */
+    else if (event == EVENT_LP_MDM_ENTER_PSM)
+    {
+      /* Host in not in Low Power state, force modem wake up */
+      PRINT_INFO("modem is in PSM state but Host is not, force wake up")
+      /* a non null delay is used when called just after PSM POWER DOWN indication,
+      *  otherwise this wake up request is not taken into account by the modem.
+      */
+      bg96_shared.host_lp_state = HOST_LP_STATE_WAKEUP_REQUIRED;
+      (void) SysCtrl_BG96_wakeup_from_PSM(1000U);
+      host_state_error = 0U;
+    }
+    else if (event == EVENT_LP_MDM_LEAVE_PSM)
+    {
+      /* host is already in idle state, no need to update host_lp_state */
+      host_state_error = 0U;
+    }
+    else if (event == EVENT_LP_MDM_WAKEUP_REQ)
+    {
+      /* not implemented yet
+       * is needed if UART is disabled by host (in case of STM32 low-power)
+       */
+    }
+    else
+    {
+      /* unexpected event in this state */
+    }
+  }
+  else if (bg96_shared.host_lp_state == HOST_LP_STATE_LP_REQUIRED)
+  {
+    /* Host events */
+    if (event == EVENT_LP_HOST_SLEEP_COMPLETE)
+    {
+      bg96_shared.host_lp_state = HOST_LP_STATE_LP_ONGOING;
+      host_state_error = 0U;
+    }
+    else if (event == EVENT_LP_HOST_SLEEP_CANCEL)
+    {
+      bg96_shared.host_lp_state = HOST_LP_STATE_IDLE;
+      host_state_error = 0U;
+    }
+    /* Modem events */
+    else if (event == EVENT_LP_MDM_ENTER_PSM)
+    {
+      /* Host has required Low Power state, do not force modem wake up */
+      PRINT_INFO("modem entered in PSM state")
+      host_state_error = 0U;
+    }
+    else if (event == EVENT_LP_MDM_LEAVE_PSM)
+    {
+      /* Crossing case.
+       * Modem has left PSM state (T3412 expiry) while host is requiring Low Power.
+       * Modem will returns automatically in PSM after T3324 expiry.
+       */
+      host_state_error = 0U;
+    }
+    else if (event == EVENT_LP_MDM_WAKEUP_REQ)
+    {
+      /* not implemented yet
+       * is needed if UART is disabled by host (in case of STM32 low-power)
+       */
+    }
+    else
+    {
+      /* unexpected event in this state */
+    }
+  }
+  else if (bg96_shared.host_lp_state == HOST_LP_STATE_LP_ONGOING)
+  {
+    /* Host events */
+    if (event == EVENT_LP_HOST_WAKEUP_REQ)
+    {
+      /* Host Wakeup request, check if modem is in PSM */
+      if (bg96_shared.modem_lp_state == MDM_LP_STATE_PSM)
+      {
+        /* waiting for modem leaving PSM confirmation */
+        bg96_shared.host_lp_state = HOST_LP_STATE_WAKEUP_REQUIRED;
+        host_state_error = 0U;
+      }
+      else
+      {
+        /* modem not in PSM, no need to wait for modem confirmation*/
+        bg96_shared.host_lp_state = HOST_LP_STATE_IDLE;
+        host_state_error = 0U;
+      }
+    }
+    /* Modem events */
+    else if (event == EVENT_LP_MDM_ENTER_PSM)
+    {
+      /* Modem enters PSM (T3324 expiry) */
+      host_state_error = 0U;
+    }
+    else if (event == EVENT_LP_MDM_LEAVE_PSM)
+    {
+      /* Modem has left PSM state while HOST is in Low Power state.
+       * Modem will returns in PSM after T3324 expiry.
+       */
+      host_state_error = 0U;
+    }
+    else if (event == EVENT_LP_MDM_WAKEUP_REQ)
+    {
+      /* not implemented yet
+       * is needed if UART is disabled by host (in case of STM32 low-power)
+       */
+    }
+    else
+    {
+      /* unexpected event in this state */
+    }
+  }
+  else if (bg96_shared.host_lp_state == HOST_LP_STATE_WAKEUP_REQUIRED)
+  {
+    /* Modem events */
+    if (event == EVENT_LP_MDM_LEAVE_PSM)
+    {
+      bg96_shared.host_lp_state = HOST_LP_STATE_IDLE;
+      host_state_error = 0U;
+    }
+    else
+    {
+      /* unexpected event in this state */
+    }
+  }
+  else /* state equal HOST_LP_STATE_ERROR or unexpected */
+  {
+    /* error or unexpected state  */
+    host_state_error = 2U;
+  }
+
+  /* ##### manage MODEM LP state ##### */
+  if (bg96_shared.modem_lp_state == MDM_LP_STATE_IDLE)
+  {
+    if (event == EVENT_LP_MDM_ENTER_PSM)
+    {
+      bg96_shared.modem_lp_state = MDM_LP_STATE_PSM;
+      mdm_state_error = 0U;
+    }
+    else
+    {
+      /* unexpected event in this state */
+    }
+  }
+  else if (bg96_shared.modem_lp_state == MDM_LP_STATE_PSM)
+  {
+    if (event == EVENT_LP_MDM_LEAVE_PSM)
+    {
+      bg96_shared.modem_resume_from_PSM = true;
+      bg96_shared.modem_lp_state = MDM_LP_STATE_IDLE;
+      mdm_state_error = 0U;
+    }
+    else
+    {
+      /* unexpected event in this state */
+    }
+  }
+  else /* state equal MDM_LP_STATE_ERROR or unexpected */
+  {
+    /* error or unexpected state  */
+    mdm_state_error = 2U;
+  }
+
+  /* --- report automaton status --- */
+  if (host_state_error == 0U)
+  {
+    PRINT_INFO("LP HOST AUTOMATON new state=%d ", bg96_shared.host_lp_state)
+  }
+  else if (host_state_error == 1U)
+  {
+    PRINT_INFO("LP HOST AUTOMATON ignore event %d in state %d", event, bg96_shared.host_lp_state)
+  }
+  else
+  {
+    PRINT_INFO("LP HOST AUTOMATON ERROR: unexpected state %d", bg96_shared.host_lp_state)
+  }
+
+  if (mdm_state_error == 0U)
+  {
+    PRINT_INFO("LP MODEM AUTOMATON new state=%d ", bg96_shared.modem_lp_state)
+  }
+  else if (mdm_state_error == 1U)
+  {
+    PRINT_INFO("LP MODEM AUTOMATON ignore event %d in state %d", event, bg96_shared.modem_lp_state)
+  }
+  else
+  {
+    PRINT_INFO("LP MODEM AUTOMATON ERROR: unexpected state %d", bg96_shared.modem_lp_state)
+  }
+  /* error codes: 1 for ignored event, 2 for unexpected state */
+  if ((mdm_state_error != 0U) && (host_state_error != 0U))
+  {
+    PRINT_INFO("LP AUTOMATONS WARNING ignored event %d (mdm_err=%d, host_err=%d)",
+               event, mdm_state_error, host_state_error)
+  }
+}
+
+static bool is_modem_in_PSM_state(void)
+{
+  return (bg96_shared.modem_lp_state == MDM_LP_STATE_PSM);
+}
+
+static bool is_waiting_modem_wakeup(void)
+{
+  return (bg96_shared.host_lp_state == HOST_LP_STATE_WAKEUP_REQUIRED);
+}
+
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

@@ -39,7 +39,7 @@ extern "C" {
 * - IPC_USE_UART: set to 1 is IPC uses UART (ONLY UART IS SUPPORTED ACTUALLY)
 * - IPC_USE_SPI: 0
 * - IPC_USE_I2C: 0
-* - DBG_IPC_RX_FIFO: set to 1 for additional debug informations
+* - DBG_IPC_RX_FIFO: set to 1 for additional debug information
 */
 
 /* Exported constants --------------------------------------------------------*/
@@ -177,6 +177,7 @@ struct IPC_Handle_Typedef_struct;
 
 typedef void (*IPC_RxCallbackTypeDef)(struct IPC_Handle_Typedef_struct *hipc);
 typedef void (*IPC_TxCallbackTypeDef)(struct IPC_Handle_Typedef_struct *hipc);
+typedef void (*IPC_ErrCallbackTypeDef)(struct IPC_Handle_Typedef_struct *hipc);
 typedef void (*IPC_RXFIFO_writeTypeDef)(struct IPC_Handle_Typedef_struct *hipc, uint8_t rxChar);
 typedef uint8_t (*IPC_CheckEndOfMsgCallbackTypeDef)(uint8_t rxChar);
 
@@ -190,9 +191,9 @@ typedef struct IPC_Handle_Typedef_struct
 #if (IPC_USE_STREAM_MODE == 1U)
   IPC_RxBuffer_t          RxBuffer;     /* RX Buffer for stream mode */
 #endif  /* IPC_USE_STREAM_MODE */
-  uint16_t                UartBusyFlag;
   IPC_RxCallbackTypeDef             RxClientCallback;
   IPC_TxCallbackTypeDef             TxClientCallback;
+  IPC_ErrCallbackTypeDef            ErrorCallback;
   IPC_CheckEndOfMsgCallbackTypeDef  CheckEndOfMsgCallback;
   IPC_RXFIFO_writeTypeDef           RxFifoWrite;
 
@@ -216,23 +217,24 @@ extern IPC_ClientDescription_t IPC_DevicesList[IPC_MAX_DEVICES];
 /* Exported macros -----------------------------------------------------------*/
 
 /* Exported functions ------------------------------------------------------- */
-IPC_Status_t IPC_init(IPC_Device_t device, IPC_Interface_t itf_type, void *hitf);
+IPC_Status_t IPC_init(IPC_Device_t device, IPC_Interface_t itf_type, void *const hitf);
 IPC_Status_t IPC_deinit(IPC_Device_t device);
-IPC_Status_t IPC_open(IPC_Handle_t     *hipc,
+IPC_Status_t IPC_open(IPC_Handle_t      *const hipc,
                       IPC_Device_t     device,
                       IPC_Mode_t       mode,
                       IPC_RxCallbackTypeDef pRxClientCallback,
                       IPC_TxCallbackTypeDef pTxClientCallback,
+                      IPC_ErrCallbackTypeDef pErrorClientCallback,
                       IPC_CheckEndOfMsgCallbackTypeDef pCheckEndOfMsg);
-IPC_Status_t IPC_close(IPC_Handle_t *hipc);
-IPC_Status_t IPC_select(IPC_Handle_t *hipc);
-IPC_Status_t IPC_reset(IPC_Handle_t *hipc);
-IPC_Status_t IPC_abort(IPC_Handle_t *hipc);
-IPC_Handle_t *IPC_get_other_channel(IPC_Handle_t *hipc);
-IPC_Status_t IPC_send(IPC_Handle_t *hipc, uint8_t *p_TxBuffer, uint16_t bufsize);
-IPC_Status_t IPC_receive(IPC_Handle_t *hipc, IPC_RxMessage_t *p_msg);
-IPC_Status_t IPC_streamReceive(IPC_Handle_t *hipc, uint8_t *p_buffer, int16_t *p_len);
-void IPC_DumpRXQueue(IPC_Handle_t *hipc, uint8_t readable);
+IPC_Status_t IPC_close(IPC_Handle_t *const hipc);
+IPC_Status_t IPC_select(IPC_Handle_t *const hipc);
+IPC_Status_t IPC_reset(IPC_Handle_t *const hipc);
+IPC_Status_t IPC_abort(IPC_Handle_t *const hipc);
+IPC_Handle_t *IPC_get_other_channel(IPC_Handle_t *const hipc);
+IPC_Status_t IPC_send(IPC_Handle_t *const hipc, uint8_t *p_TxBuffer, uint16_t bufsize);
+IPC_Status_t IPC_receive(IPC_Handle_t *const hipc, IPC_RxMessage_t *const p_msg);
+IPC_Status_t IPC_streamReceive(IPC_Handle_t *const hipc, uint8_t *const p_buffer, int16_t *const p_len);
+void IPC_DumpRXQueue(IPC_Handle_t *const hipc, uint8_t readable);
 
 #ifdef __cplusplus
 }

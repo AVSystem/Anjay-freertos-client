@@ -34,26 +34,27 @@ extern "C" {
 /* Exported macros -----------------------------------------------------------*/
 
 /* Exported functions ------------------------------------------------------- */
-IPC_Status_t IPC_UART_init(IPC_Device_t  device, UART_HandleTypeDef  *huart);
+IPC_Status_t IPC_UART_init(IPC_Device_t  device, UART_HandleTypeDef   *const huart);
 IPC_Status_t IPC_UART_deinit(IPC_Device_t  device);
-IPC_Status_t IPC_UART_open(IPC_Handle_t *hipc,
+IPC_Status_t IPC_UART_open(IPC_Handle_t *const hipc,
                            IPC_Device_t  device,
                            IPC_Mode_t    mode,
                            IPC_RxCallbackTypeDef pRxClientCallback,
                            IPC_TxCallbackTypeDef pTxClientCallback,
+                           IPC_ErrCallbackTypeDef pErrorClientCallback,
                            IPC_CheckEndOfMsgCallbackTypeDef pCheckEndOfMsg);
-IPC_Status_t IPC_UART_close(IPC_Handle_t *hipc);
-IPC_Status_t IPC_UART_select(IPC_Handle_t *hipc);
-IPC_Status_t IPC_UART_reset(IPC_Handle_t *hipc);
-IPC_Status_t IPC_UART_abort(IPC_Handle_t *hipc);
-IPC_Handle_t *IPC_UART_get_other_channel(const IPC_Handle_t *hipc);
-IPC_Status_t IPC_UART_send(IPC_Handle_t *hipc, uint8_t *p_TxBuffer, uint16_t bufsize);
-IPC_Status_t IPC_UART_receive(IPC_Handle_t *hipc, IPC_RxMessage_t *p_msg);
-IPC_Status_t IPC_UART_streamReceive(IPC_Handle_t *hipc,  uint8_t *p_buffer, int16_t *p_len);
-void IPC_UART_rearm_RX_IT(IPC_Handle_t *hipc);
+IPC_Status_t IPC_UART_close(IPC_Handle_t *const hipc);
+IPC_Status_t IPC_UART_select(IPC_Handle_t *const hipc);
+IPC_Status_t IPC_UART_reset(IPC_Handle_t *const hipc);
+IPC_Status_t IPC_UART_abort(IPC_Handle_t *const hipc);
+IPC_Handle_t *IPC_UART_get_other_channel(const IPC_Handle_t *const hipc);
+IPC_Status_t IPC_UART_send(IPC_Handle_t *const hipc, uint8_t *p_TxBuffer, uint16_t bufsize);
+IPC_Status_t IPC_UART_receive(IPC_Handle_t *const hipc, IPC_RxMessage_t *const p_msg);
+IPC_Status_t IPC_UART_streamReceive(IPC_Handle_t *const hipc,  uint8_t *const p_buffer, int16_t *const p_len);
+void IPC_UART_rearm_RX_IT(IPC_Handle_t *const hipc);
 
 #if (DBG_IPC_RX_FIFO == 1U)
-void IPC_UART_DumpRXQueue(const IPC_Handle_t *hipc, uint8_t readable);
+void IPC_UART_DumpRXQueue(const IPC_Handle_t *const hipc, uint8_t readable);
 #endif /* DBG_IPC_RX_FIFO */
 
 void IPC_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle);

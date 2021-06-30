@@ -19,7 +19,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "com_sockets_err_compat.h"
-#include "plf_config.h"
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
 

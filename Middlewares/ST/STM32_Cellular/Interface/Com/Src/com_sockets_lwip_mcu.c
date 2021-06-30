@@ -19,13 +19,12 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "com_sockets_lwip_mcu.h"
-#include "plf_config.h"
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
-#include "error_handler.h"
-#include "cmsis_os_misrac2012.h"
+#include "rtosal.h"
 
 #include "com_sockets_net_compat.h"
+#include "com_trace.h"
 
 /* LwIP is a Third Party so MISRAC messages linked to it are ignored */
 /*cstat -MISRAC2012-* */
@@ -39,33 +38,6 @@
 /*cstat +MISRAC2012-* */
 
 /* Private defines -----------------------------------------------------------*/
-#if (USE_TRACE_COM_SOCKETS == 1U)
-#if (USE_PRINTF == 0U)
-#include "trace_interface.h"
-#define PRINT_INFO(format, args...) \
-  TRACE_PRINT(DBG_CHAN_COMLIB, DBL_LVL_P0, "ComLib: " format "\n\r", ## args)
-#define PRINT_DBG(format, args...)  \
-  TRACE_PRINT(DBG_CHAN_COMLIB, DBL_LVL_P1, "ComLib: " format "\n\r", ## args)
-#define PRINT_ERR(format, args...)  \
-  TRACE_PRINT(DBG_CHAN_COMLIB, DBL_LVL_ERR, "ComLib ERROR: " format "\n\r", ## args)
-
-#else /* USE_PRINTF == 1 */
-#include <stdio.h>
-#define PRINT_INFO(format, args...)  \
-  (void)printf("ComLib: " format "\n\r", ## args);
-#define PRINT_DBG(format, args...)   \
-  (void)printf("ComLib: " format "\n\r", ## args);
-#define PRINT_ERR(format, args...)   \
-  (void)printf("ComLib ERROR: " format "\n\r", ## args);
-
-#endif /* USE_PRINTF == 0U */
-
-#else /* USE_TRACE_COM_SOCKETS == 0U */
-#define PRINT_INFO(...)  __NOP(); /* Nothing to do */
-#define PRINT_DBG(...)   __NOP(); /* Nothing to do */
-#define PRINT_ERR(...)   __NOP(); /* Nothing to do */
-#endif /* USE_TRACE_COM_SOCKETS == 1U */
-
 #if (USE_COM_PING == 1)
 #define COM_PING_DATA_SIZE          32U
 #define COM_PING_ID             0x1234U
@@ -124,8 +96,7 @@ int32_t com_socket_lwip_mcu(int32_t family, int32_t type, int32_t protocol)
 int32_t com_setsockopt_lwip_mcu(int32_t sock, int32_t level, int32_t optname,
                                 const void *optval, int32_t optlen)
 {
-  return lwip_setsockopt(sock, level, optname,
-                         optval, optlen);
+  return lwip_setsockopt(sock, level, optname, optval, optlen);
 }
 
 
@@ -143,8 +114,7 @@ int32_t com_setsockopt_lwip_mcu(int32_t sock, int32_t level, int32_t optname,
 int32_t com_getsockopt_lwip_mcu(int32_t sock, int32_t level, int32_t optname,
                                 void *optval, int32_t *optlen)
 {
-  return lwip_getsockopt(sock, level, optname,
-                         optval, optlen);
+  return lwip_getsockopt(sock, level, optname, optval, optlen);
 }
 
 
@@ -160,8 +130,7 @@ int32_t com_getsockopt_lwip_mcu(int32_t sock, int32_t level, int32_t optname,
 int32_t com_bind_lwip_mcu(int32_t sock,
                           const com_sockaddr_t *addr, int32_t addrlen)
 {
-  return lwip_bind(sock,
-                   (const struct sockaddr *)addr, addrlen);
+  return lwip_bind(sock, (const struct sockaddr *)addr, addrlen);
 }
 
 
@@ -176,8 +145,7 @@ int32_t com_bind_lwip_mcu(int32_t sock,
 int32_t com_listen_lwip_mcu(int32_t sock,
                             int32_t backlog)
 {
-  return lwip_listen(sock,
-                     backlog);
+  return lwip_listen(sock, backlog);
 }
 
 
@@ -193,8 +161,7 @@ int32_t com_listen_lwip_mcu(int32_t sock,
 int32_t com_accept_lwip_mcu(int32_t sock,
                             com_sockaddr_t *addr, int32_t *addrlen)
 {
-  return lwip_accept(sock,
-                     (struct sockaddr *)addr, addrlen);
+  return lwip_accept(sock, (struct sockaddr *)addr, addrlen);
 }
 
 
@@ -210,8 +177,7 @@ int32_t com_accept_lwip_mcu(int32_t sock,
 int32_t com_connect_lwip_mcu(int32_t sock,
                              const com_sockaddr_t *addr, int32_t addrlen)
 {
-  return lwip_connect(sock,
-                      (const struct sockaddr *)addr, addrlen);
+  return lwip_connect(sock, (const struct sockaddr *)addr, addrlen);
 }
 
 
@@ -229,9 +195,7 @@ int32_t com_send_lwip_mcu(int32_t sock,
                           const com_char_t *buf, int32_t len,
                           int32_t flags)
 {
-  return lwip_send(sock,
-                   buf, (size_t)len,
-                   flags);
+  return lwip_send(sock, buf, (size_t)len, flags);
 }
 
 
@@ -252,10 +216,7 @@ int32_t com_sendto_lwip_mcu(int32_t sock,
                             int32_t flags,
                             const com_sockaddr_t *to, int32_t tolen)
 {
-  return lwip_sendto(sock,
-                     buf, (size_t)len,
-                     flags,
-                     (const struct sockaddr *)to, tolen);
+  return lwip_sendto(sock, buf, (size_t)len, flags, (const struct sockaddr *)to, tolen);
 }
 
 
@@ -273,9 +234,7 @@ int32_t com_recv_lwip_mcu(int32_t sock,
                           com_char_t *buf, int32_t len,
                           int32_t flags)
 {
-  return lwip_recv(sock,
-                   buf, (size_t)len,
-                   flags);
+  return lwip_recv(sock, buf, (size_t)len, flags);
 }
 
 
@@ -296,10 +255,7 @@ int32_t com_recvfrom_lwip_mcu(int32_t sock,
                               int32_t flags,
                               com_sockaddr_t *from, int32_t *fromlen)
 {
-  return lwip_recvfrom(sock,
-                       buf, (size_t)len,
-                       flags,
-                       (struct sockaddr *)from, fromlen);
+  return lwip_recvfrom(sock, buf, (size_t)len, flags, (struct sockaddr *)from, fromlen);
 }
 
 
@@ -330,17 +286,25 @@ int32_t com_gethostbyname_lwip_mcu(const com_char_t *name,
                                    com_sockaddr_t   *addr)
 {
   int32_t result;
-  com_ip_addr_t ip_addr;
 
-  result = netconn_gethostbyname((const COM_SOCKETS_IP_CHAR_t *)name, &ip_addr);
-  if (result == 0)
+  result = (int32_t)ERR_ARG;
+
+  if (addr != NULL) /* parameter name is checked by netconn_gethostbyname() */
   {
-    (void)memset(addr, 0, sizeof(com_sockaddr_t));
-    addr->sa_family = (uint8_t)COM_AF_INET;
-    addr->sa_len    = (uint8_t)sizeof(com_sockaddr_in_t);
-    /* Set sin_port is done by memset */
-    /* ((com_sockaddr_in_t *)addr)->sin_port = 0U; */
-    ((com_sockaddr_in_t *)addr)->sin_addr.s_addr = ip_addr.addr;
+    com_ip_addr_t ip_addr;
+
+    result = netconn_gethostbyname((const COM_SOCKETS_IP_CHAR_t *)name, &ip_addr);
+
+    if (result == 0)
+    {
+      /* Format output addr parameter */
+      (void)memset(addr, 0, sizeof(com_sockaddr_t));
+      addr->sa_family = (uint8_t)COM_AF_INET;
+      addr->sa_len    = (uint8_t)sizeof(com_sockaddr_in_t);
+      /* Set sin_port is done by memset */
+      /* ((com_sockaddr_in_t *)addr)->sin_port = 0U; */
+      ((com_sockaddr_in_t *)addr)->sin_addr.s_addr = ip_addr.addr;
+    }
   }
 
   return result;
@@ -359,8 +323,7 @@ int32_t com_gethostbyname_lwip_mcu(const com_char_t *name,
 int32_t com_getpeername_lwip_mcu(int32_t sock,
                                  com_sockaddr_t *name, int32_t *namelen)
 {
-  return lwip_getpeername(sock,
-                          (struct sockaddr *)name, namelen);
+  return lwip_getpeername(sock, (struct sockaddr *)name, namelen);
 }
 
 
@@ -376,8 +339,7 @@ int32_t com_getpeername_lwip_mcu(int32_t sock,
 int32_t com_getsockname_lwip_mcu(int32_t sock,
                                  com_sockaddr_t *name, int32_t *namelen)
 {
-  return lwip_getsockname(sock,
-                          (struct sockaddr *)name, namelen);
+  return lwip_getsockname(sock, (struct sockaddr *)name, namelen);
 }
 
 
@@ -395,10 +357,10 @@ int32_t com_ping_lwip_mcu(void)
   int32_t result;
 
   /* Only one Ping session at a time */
-  if (osMutexWait(ComPingMutexHandle, COM_PING_MUTEX_TIMEOUT)
-      == osOK)
+  if (rtosalMutexAcquire(ComPingMutexHandle, COM_PING_MUTEX_TIMEOUT) == osOK)
   {
     result = com_socket_lwip_mcu(COM_AF_INET, COM_SOCK_RAW, COM_IPPROTO_ICMP);
+    /* Possible to reset ping_seqno to 0 because only one Ping at a time */
     ping_seqno = 0U;
   }
   else
@@ -482,7 +444,7 @@ int32_t com_ping_process_lwip_mcu(int32_t ping,
         if (result == (int32_t)ping_size)
         {
           PRINT_DBG("ping request send")
-          /* Send is OK, wait reponse from remote */
+          /* Send is OK, wait response from remote */
           (void)memset((void *)&from, 0, sizeof(from));
           fromlen = (int32_t)sizeof(from);
           result = com_recvfrom_lwip_mcu(ping,
@@ -553,7 +515,7 @@ int32_t com_closeping_lwip_mcu(int32_t ping)
   result = com_closesocket_lwip_mcu(ping);
   if (result == (int32_t)ERR_OK)
   {
-    (void)osMutexRelease(ComPingMutexHandle);
+    (void)rtosalMutexRelease(ComPingMutexHandle);
     ping_seqno = 0U;
   }
 
@@ -583,61 +545,48 @@ bool com_init_lwip_mcu(void)
   /* No way to know if tcp_init is ok or not */
   tcpip_init(NULL, NULL);
 
-#if (USE_STACK_ANALYSIS == 1)
-  (void)stackAnalysis_addStackSizeByHandle(TCPIP_THREAD_NAME,
-                                           USED_TCPIP_THREAD_STACK_SIZE);
-#endif /* USE_STACK_ANALYSIS == 1 */
-
 #if (USE_COM_PING == 1)
-  ping_snd   = NULL;
-  ping_rcv   = NULL;
+  /* Initialization Ping variables */
   ping_seqno = 0U;
+  /* ping_snd always initialize with mem_malloc() call */
+  ping_rcv = NULL;
+  ComPingMutexHandle = NULL;
 
-  ping_snd = (struct icmp_echo_hdr *)mem_malloc((mem_size_t)(sizeof(struct icmp_echo_hdr)
-                                                             + COM_PING_DATA_SIZE));
-  if (ping_snd == NULL)
+  /* Allocation Ping send buffer - if error ping_snd is set to NULL by mem_malloc() */
+  ping_snd = (struct icmp_echo_hdr *)mem_malloc((mem_size_t)(sizeof(struct icmp_echo_hdr) + COM_PING_DATA_SIZE));
+
+  /* No need to continue memory allocation in case of error */
+  if (ping_snd != NULL)
   {
-    result = false;
-    ERROR_Handler(DBG_CHAN_COMLIB, 1, ERROR_FATAL);
-  }
-  else
-  {
+    /* Allocation Ping receive buffer  - if error ping_rcv is set to NULL by mem_malloc() */
     ping_rcv = (uint8_t *)mem_malloc((mem_size_t)COM_PING_RSP_LEN_MAX);
 
-    if (ping_rcv == NULL)
+    if (ping_rcv != NULL)
     {
-      result = false;
-      ERROR_Handler(DBG_CHAN_COMLIB, 2, ERROR_FATAL);
-    }
-    else
-    {
-      osMutexDef(ComPingMutex);
-      ComPingMutexHandle = osMutexCreate(osMutex(ComPingMutex));
-      if (ComPingMutexHandle == NULL)
-      {
-        result = false;
-        ERROR_Handler(DBG_CHAN_COMLIB, 3, ERROR_FATAL);
-      }
-    }
-    if (result == false)
-    {
-      if (ping_snd != NULL)
-      {
-        mem_free(ping_snd);
-        ping_snd = NULL;
-      }
-      if (ping_rcv != NULL)
-      {
-        mem_free(ping_rcv);
-        ping_rcv = NULL;
-      }
-      if (ComPingMutexHandle != NULL)
-      {
-        (void)osMutexDelete(ComPingMutexHandle);
-        ComPingMutexHandle = NULL;
-      }
+      /* Create Mutex to protect Ping session */
+      ComPingMutexHandle = rtosalMutexNew(NULL);
     }
   }
+
+  /* Is Ping initialization completely ok ? */
+  if (ComPingMutexHandle == NULL)
+  {
+    /* Something goes wrong during Ping initialization - Clean memory */
+    result = false;
+
+    /* Clean-up memory */
+    if (ping_snd != NULL) /* to avoid an error debug trace in LwIP */
+    {
+      mem_free(ping_snd);
+      ping_snd = NULL; /* to ensure correct variable value in com */
+    }
+    if (ping_rcv != NULL) /* to avoid an error debug trace in LwIP */
+    {
+      mem_free(ping_rcv); /* to ensure correct variable value in com */
+      ping_rcv = NULL;
+    }
+  }
+  /* else result already set to true */
 #endif /* USE_COM_PING == 1 */
 
   return result;

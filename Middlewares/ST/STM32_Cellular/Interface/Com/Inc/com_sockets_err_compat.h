@@ -38,13 +38,7 @@ extern "C" {
 #include "com_err.h"
 
 /* Exported constants --------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Constants
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported types ------------------------------------------------------------*/
 /** @addtogroup COM_SOCKETS_Types
@@ -69,7 +63,7 @@ typedef com_err_t com_sockets_err_t; /*!< Definitions for error constants */
 #define COM_SOCKETS_ERR_NONAME         COM_ERR_NONAME       /*!< Host Name not existing     */
 /* Added value */
 #define COM_SOCKETS_ERR_NONETWORK      COM_ERR_NONETWORK    /*!< No network to proceed      */
-#define COM_SOCKETS_ERR_UNSUPPORTED    COM_ERR_UNSUPPORTED  /*!< Unsupported functionnality */
+#define COM_SOCKETS_ERR_UNSUPPORTED    COM_ERR_UNSUPPORTED  /*!< Unsupported functionality  */
 #define COM_SOCKETS_ERR_STATE          COM_ERR_STATE        /*!< Connect rqt but Socket is already connected
                                                                  Send/Recv rqt but Socket is not connected
                                                                  ... */
@@ -82,22 +76,10 @@ typedef com_err_t com_sockets_err_t; /*!< Definitions for error constants */
   */
 
 /* External variables --------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
-/** @addtogroup COM_SOCKETS_Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
 /** @addtogroup COM_SOCKETS_Functions_Other

@@ -1,4 +1,8 @@
-Debug/*
-Release/*
-.settings/*
+**/.settings/*
+**/Debug/*
+**/Release/*
 *.launch
+.vscode/
+Projects/*/.cproject
+Projects/*/.mxproject
+Projects/*/.project

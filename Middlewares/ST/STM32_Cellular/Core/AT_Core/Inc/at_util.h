@@ -44,6 +44,12 @@ void     ATutil_convertStringToUpperCase(uint8_t *p_string, uint16_t size);
 uint8_t  ATutil_isNegative(const uint8_t *p_string, uint16_t size);
 uint8_t  ATutil_convert_uint8_to_binary_string(uint32_t value, uint8_t nbBits, uint8_t sizeStr, uint8_t *binStr);
 uint16_t ATutil_remove_quotes(const uint8_t *p_Src, uint16_t srcSize, uint8_t *p_Dst, uint16_t dstSize);
+uint16_t ATutil_extract_str_from_quotes(const uint8_t *p_Src, uint16_t srcSize, uint8_t *p_Dst, uint16_t dstSize);
+
+uint32_t ATutil_extract_hex_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size);
+uint32_t ATutil_extract_bin_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size);
+uint32_t ATutil_convert_T3412_to_seconds(uint32_t encoded_value);
+uint32_t ATutil_convert_T3324_to_seconds(uint32_t encoded_value);
 
 #ifdef __cplusplus
 }

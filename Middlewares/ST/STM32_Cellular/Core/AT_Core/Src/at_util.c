@@ -19,6 +19,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
+#include <stdbool.h>
 #include "at_util.h"
 #include "plf_config.h"
 
@@ -26,6 +27,8 @@
 /* Private defines -----------------------------------------------------------*/
 #define MAX_32BITS_STRING_SIZE (8U)  /* = max string size for a 32bits value (FFFF.FFFF) */
 #define MAX_64BITS_STRING_SIZE (16U) /* = max string size for a 64bits value (FFFF.FFFF.FFFF.FFFF) */
+
+#define MAX_PARAM_SIZE ((uint16_t)32U) /* max size of string */
 /* Private macros ------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 /* Global variables ----------------------------------------------------------*/
@@ -286,7 +289,7 @@ void ATutil_convertStringToUpperCase(uint8_t *p_string, uint16_t size)
   * @param  nbBits number of bits to compute.
   * @param  sizeStr size of result string (should be equal or greater than nbBits + 1).
   * @param  binStr ptr to the result string.
-  * @retval 0 if no error, 1 if an error occured.
+  * @retval 0 if no error, 1 if an error occurred.
   */
 uint8_t ATutil_convert_uint8_to_binary_string(uint32_t value, uint8_t nbBits, uint8_t sizeStr, uint8_t *binStr)
 {
@@ -342,6 +345,179 @@ uint16_t ATutil_remove_quotes(const uint8_t *p_Src, uint16_t srcSize, uint8_t *p
   }
 
   return (dest_idx);
+}
+
+/**
+  * @brief  Extract a string between 2 quotes (remove what is before and after the quotes)
+  * @note   if no valid string is found (something between 2 quotes), size returned is null
+  * @param  p_Src ptr to source buffer (string with quotes)
+  * @param  srcSize of p_Src buffer
+  * @param  p_Dst ptr to Destination Buffer (string without quotes)
+  * @param  dstSize of p_Dst buffer
+  * @retval size of destination string (util part).
+  */
+uint16_t ATutil_extract_str_from_quotes(const uint8_t *p_Src, uint16_t srcSize, uint8_t *p_Dst, uint16_t dstSize)
+{
+  uint16_t src_idx;
+  uint16_t dest_idx = 0U;
+  bool copy_char = false;
+  uint8_t count_quotes = 0U;
+
+  /* reset p_Dst buffer */
+  (void) memset((void *)p_Dst, 0, dstSize);
+
+  /* parse p_Src */
+  for (src_idx = 0;
+       ((src_idx < srcSize) && (dest_idx < dstSize) && (count_quotes <= 1U));
+       src_idx++)
+  {
+    if (p_Src[src_idx] == 0x22U)
+    {
+      /* quote found */
+      count_quotes++;
+      if (count_quotes == 1U)
+      {
+        copy_char = true;
+      }
+      else
+      {
+        copy_char = false;
+      }
+    }
+    /* check copy_char only is this is not a quote */
+    else if (copy_char)
+    {
+      /* write to p_Dst*/
+      p_Dst[dest_idx] = p_Src[src_idx];
+      dest_idx++;
+    }
+    else
+    {
+      /* nothing to do (MISRA) */
+      __NOP();
+    }
+  }
+
+  /* if final quote was not found: returns string found length is null (not valid) */
+  if (count_quotes != 2U)
+  {
+
+    dest_idx = 0U;
+  }
+
+  return (dest_idx);
+}
+
+/*
+ * Extract the value of an hexadecimal parameter from a string
+ */
+uint32_t ATutil_extract_hex_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size)
+{
+  uint32_t converted_value;
+  if (str_size <= MAX_PARAM_SIZE)
+  {
+    uint8_t tmp_array[MAX_PARAM_SIZE] = {0};
+    uint16_t real_size;
+    real_size = ATutil_remove_quotes(p_str, str_size, &tmp_array[0], param_size);
+    converted_value = ATutil_convertHexaStringToInt32(&tmp_array[0], real_size);
+  }
+  else
+  {
+    converted_value = 0U;
+  }
+  return (converted_value);
+}
+
+/*
+ * Extract the value of an binary parameter from a string
+ */
+uint32_t ATutil_extract_bin_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size)
+{
+  uint32_t converted_value;
+  if (str_size <= MAX_PARAM_SIZE)
+  {
+    uint8_t tmp_array[MAX_PARAM_SIZE] = {0};
+    uint16_t real_size;
+    real_size = ATutil_remove_quotes(p_str, str_size, &tmp_array[0], param_size);
+    converted_value = ATutil_convertBinStringToInt32(&tmp_array[0], real_size);
+  }
+  else
+  {
+    converted_value = 0U;
+  }
+  return (converted_value);
+}
+
+/**
+  * @brief  Convert PSM timer T3412 (periodic TAU) to seconds
+  * @note   value received in CEREG
+  * @param  encoded_value Timer value encoded as per 3GPP TS 27.007 and 24.008
+  * @retval decoded value in seconds (returns 0 if no valid value decoded)
+  */
+uint32_t ATutil_convert_T3412_to_seconds(uint32_t encoded_value)
+{
+  /* cf Fig. 10.5.147a of TS 24.008 / Table 10.5.163a of TS 24.008 */
+  static const uint32_t AT_T3412_UNIT_COEFF[8] =
+  {
+    ((uint32_t)600U),     /* 0 : 10 min = 600 sec */
+    ((uint32_t)3600U),    /* 1 : 1 hr = 3600 sec */
+    ((uint32_t)36000U),   /* 2 : 10 hrs = 36000 sec */
+    ((uint32_t)2U),       /* 3 : 2 sec */
+    ((uint32_t)30U),      /* 4 : 30 sec */
+    ((uint32_t)60U),      /* 5 : 1 min = 60 sec */
+    ((uint32_t)1152000U), /* 6 : 320 hrs = sec */
+    ((uint32_t)0U)        /* 7 : timer deactivated */
+  };
+
+  uint32_t decode_value;
+
+  /* Bits 1 to 5 represent timer value
+   * Bits 6 to 8 represent timer unit
+   *
+   * unit part is encoded on 3 bits and will always be < 8 (ie the size of AT_T3412_UNIT_COEFF)
+   */
+  uint32_t unit_part = (0x000000E0U & encoded_value) >> 5;
+  uint32_t value_part = (0x0000001FU & encoded_value);
+
+  decode_value = value_part * AT_T3412_UNIT_COEFF[unit_part];
+
+  return (decode_value);
+}
+
+/**
+  * @brief  Convert PSM timer T3324 (active time) to seconds
+  * @note   value received in CEREG
+  * @param  encoded_value Timer value encoded as per 3GPP TS 27.007 and 24.008
+  * @retval decoded value in seconds (returns 0 if no valid value decoded)
+  */
+uint32_t ATutil_convert_T3324_to_seconds(uint32_t encoded_value)
+{
+  /* cf  Fig. 10.5.147 of TS 24.008 / Table 10.5.163 of TS 24.008
+   * and Fig. 10.5.146 of TS 24.008 / Table 10.5.172 of TS 24.008
+   */
+  static const uint32_t AT_T3324_UNIT_COEFF[8] =
+  {
+    ((uint32_t)2U),       /* 0 : 2 sec */
+    ((uint32_t)60U),      /* 1 : 1 min = 60 sec */
+    ((uint32_t)36000U),   /* 2 : 10 hrs = 36000 sec */
+    ((uint32_t)0U),       /* invalid value */
+    ((uint32_t)0U),       /* invalid value */
+    ((uint32_t)0U),       /* invalid value */
+    ((uint32_t)0U),       /* invalid value */
+    ((uint32_t)0U)        /* 7 : timer deactivated */
+  };
+
+  uint32_t decode_value;
+  /* Bits 1 to 5 represent timer value
+   * Bits 6 to 8 represent timer unit
+   *
+   * unit part is encoded on 3 bits and will always be < 8 (ie the size of AT_T3412_UNIT_COEFF)
+   */
+  uint32_t unit_part = (0x000000E0U & encoded_value) >> 5;
+  uint32_t value_part = (0x0000001FU & encoded_value);
+  decode_value = value_part * AT_T3324_UNIT_COEFF[unit_part];
+
+  return (decode_value);
 }
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

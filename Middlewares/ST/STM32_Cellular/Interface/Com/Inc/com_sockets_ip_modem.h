@@ -28,6 +28,8 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 
+#include "plf_config.h"
+
 #include "com_common.h"
 #include "com_sockets_addr_compat.h"
 

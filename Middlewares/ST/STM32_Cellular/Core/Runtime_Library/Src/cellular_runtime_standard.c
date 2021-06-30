@@ -57,7 +57,7 @@ uint8_t *crs_itoa(int32_t num, uint8_t *str, uint32_t base)
   isNegative = false;
   i = 0U;
 
-  /* Handle 0 explicitely, otherwise empty string is printed for 0 */
+  /* Handle 0 explicitly, otherwise empty string is printed for 0 */
   if (num_tmp == 0)
   {
     str[i] = (uint8_t)'0';
@@ -172,7 +172,7 @@ int32_t crs_atoi(const uint8_t *string)
 
   if (sign != 0)
   {
-    /* negative number => set the oposite */
+    /* negative number => set the opposite */
     result = -result;
   }
   return result;
@@ -232,9 +232,9 @@ int32_t crs_atoi_hex(const uint8_t *string)
 
 
 /**
-  * @brief  get lenght of a string
-  * @param  string  string to get lenght
-  * @retval string lenght (0 is no '\0' found in the string
+  * @brief  get length of a string
+  * @param  string  string to get length
+  * @retval string length (0 is no '\0' found in the string
   */
 uint32_t crs_strlen(const uint8_t *string)
 {

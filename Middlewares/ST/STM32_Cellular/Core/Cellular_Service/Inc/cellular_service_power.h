@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "cmsis_os_misrac2012.h"
+#include "rtosal.h"
 #include "cellular_service.h"
 #include "dc_common.h"
 #if (USE_LOW_POWER == 1)
@@ -34,6 +34,14 @@ extern "C" {
 /* Exported constants --------------------------------------------------------*/
 
 /* Exported types ------------------------------------------------------------*/
+
+typedef enum
+{
+  CSP_LOW_POWER_DISABLED        = 0,     /*!< Low power not enabled          */
+  CSP_LOW_POWER_INACTIVE        = 1,     /*!< Low power not active           */
+  CSP_LOW_POWER_ON_GOING        = 2,     /*!< Low power activation requested */
+  CSP_LOW_POWER_ACTIVE          = 3      /*!< Low power active                */
+} CSP_PowerState_t;
 
 /* External variables --------------------------------------------------------*/
 
@@ -44,6 +52,7 @@ extern "C" {
 
 CS_Status_t CSP_DataIdle(void);
 CS_Status_t CSP_DataWakeup(CS_wakeup_origin_t wakeup_origin);
+CS_Status_t CSP_CSIdle(void);
 
 void CSP_SleepComplete(void);
 void CSP_DataIdleManagment(void);
@@ -51,7 +60,10 @@ void CSP_SetPowerConfig(void);
 void CSP_Init(void);
 void CSP_Start(void);
 void CSP_WakeupComplete(void);
+void CSP_ResetPowerStatus(void);
 void CSP_InitPowerConfig(void);
+CSP_PowerState_t CSP_GetTargetPowerState(void);
+void CSP_StopTimeout(void);
 
 #endif  /* (USE_LOW_POWER == 1) */
 

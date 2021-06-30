@@ -2,7 +2,7 @@
   ******************************************************************************
   * @file    at_datapack.c
   * @author  MCD Application Team
-  * @brief   This file provides code for packing/unpacking datas
+  * @brief   This file provides code for packing/unpacking data
   ******************************************************************************
   * @attention
   *
@@ -100,7 +100,7 @@ DataPack_Status_t DATAPACK_writePtr(uint8_t *p_buf, uint16_t msgtype, void *p_da
     p_buf[2] = (uint8_t)(size >> 8);
     p_buf[3] = (uint8_t)(size & 0x00FFU);
 
-    /* write header: content type (pointer of datas) */
+    /* write header: content type (pointer of data) */
     p_buf[4] = DATASTRUCT_POINTER_TYPE;
 
     /* write pointer on user data structure */
@@ -150,7 +150,7 @@ DataPack_Status_t DATAPACK_writeStruct(uint8_t *p_buf, uint16_t msgtype, uint16_
     p_buf[2] = (uint8_t)(size >> 8);
     p_buf[3] = (uint8_t)(size & 0x00FFU);
 
-    /* write header: content type (pointer of datas) */
+    /* write header: content type (pointer of data) */
     p_buf[4] = DATASTRUCT_CONTENT_TYPE;
 
     /* transmit structure content */
@@ -171,7 +171,7 @@ DataPack_Status_t DATAPACK_writeStruct(uint8_t *p_buf, uint16_t msgtype, uint16_
   *
   * @param  p_buf Handle on packed data buffer
   * @param  msgtype
-  * @param  p_data Adress of pointer to user data strucutre
+  * @param  p_data Address of pointer to user data structure
   * @retval DataPack_Status_t
   */
 DataPack_Status_t DATAPACK_readPtr(uint8_t *p_buf, uint16_t msgtype, void **p_data)

@@ -22,17 +22,20 @@
 #include <stdbool.h>
 
 #include "plf_config.h"
+
 #if (USE_CMD_CONSOLE == 1)
 #include "dc_common.h"
 
+#include "cellular_control_api.h"
+
+#include "cellular_service_datacache.h"
 #include "cellular_service_os.h"
+#include "cellular_service_utils.h"
 #include "cellular_service_task.h"
 #include "cellular_service_cmd.h"
 #include "error_handler.h"
-#include "cellular_datacache.h"
 #include "cellular_runtime_custom.h"
 #include "cellular_service_config.h"
-
 
 #if defined(USE_MODEM_BG96)
 /* MODEM BG96 */
@@ -46,7 +49,7 @@
 #define CST_CMD_MODEM_BG96           (0)
 #define CST_CMD_MODEM_TYPE1SC        (1)
 #define CST_CMD_USE_MODEM_CELL_GM01Q (0)
-#elif defined(HWREF_B_CELL_GM01Q)
+#elif defined(USE_MODEM_GM01Q)
 /* MODEM GM01Q */
 #define CST_CMD_USE_MODEM_CONFIG     (1)
 #define CST_CMD_MODEM_BG96           (0)
@@ -67,13 +70,22 @@
 #include "cmd.h"
 
 /* Private defines -----------------------------------------------------------*/
-#define CST_ATCMD_SIZE_MAX      100U     /* AT CMD lenght max              */
+#define CST_MAX_STR_LEN         45U      /* Max len of string when converting constant integer to explicit string */
+
+#define CST_ATCMD_SIZE_MAX      100U     /* AT CMD length max              */
 #define CST_CMS_PARAM_MAX        13U     /* number max of cmd param        */
-#define CST_AT_TIMEOUT         5000U     /* defaut AT cmd response timeout */
+#define CST_AT_TIMEOUT         5000U     /* default AT cmd response timeout */
 
 
 #if (CST_CMD_MODEM_BG96 == 1)
-/*  BG96 Modem constant definition */
+/* BG96 Modem constant definition */
+
+/* To display scanmode config value */
+/* Has to be consistent with the array CST_ScanmodeName_p */
+#define CST_DISP_SCANMODE_AUTO 0U
+#define CST_DISP_SCANMODE_GSM 1U
+#define CST_DISP_SCANMODE_LTE 2U
+
 /* Number of bands */
 #define CST_CMD_MAX_BAND        16U
 #define CST_CMD_GSM_BAND_NUMBER  6U
@@ -134,7 +146,6 @@ typedef struct
 } CST_seq_descr_t;
 
 /* Private variables ---------------------------------------------------------*/
-
 /* Global variables ----------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
 
@@ -191,6 +202,123 @@ static void  CST_CMD_display_bitmap_name_sequans(void);
 /* Private function Definition -----------------------------------------------*/
 
 /**
+  * @brief  Copy a text string to a destination string, and truncate text if destination string size is too short.
+  * @param[in] text - the input text (usually hard coded text)
+  * @param[out] str - The result string containing text truncated to str max size
+  * @retval -
+  */
+static void CST_setTextToStr(const uint8_t *text, uint8_t *const str)
+{
+  uint8_t size;
+
+  /* get size of hard coded text */
+  size = (uint8_t)crs_strlen(text);
+  /* if size greater than length of str, then truncate text size */
+  if (size > (CST_MAX_STR_LEN - 1U))
+  {
+    /* set size to max possible length : max len minus '\0' */
+    size = CST_MAX_STR_LEN - 1U;
+  }
+  /* copy text to str according to possible length */
+  (void)memcpy(str, text, size);
+  /* end copied string with a '\0' */
+  str[size] = 0U;
+}
+
+/**
+  * @brief  Converts integer state to an explicit human readable string
+  * @param[in] state - the integer representing the state to convert to string
+  * @param[out] str  - The result string
+  * @retval -
+  */
+static void CST_getModemStateStr(uint8_t state, uint8_t *const str)
+{
+  /* Modem state list  */
+  switch (state)
+  {
+    case CA_MODEM_STATE_POWERED_ON:
+      CST_setTextToStr((uint8_t *)"Modem powered on", str);
+      break;
+    case CA_MODEM_STATE_SIM_CONNECTED:
+      CST_setTextToStr((uint8_t *)"Modem started and SIM is connected", str);
+      break;
+    case CA_MODEM_NETWORK_SEARCHING:
+      CST_setTextToStr((uint8_t *)"Modem is searching network", str);
+      break;
+    case CA_MODEM_NETWORK_REGISTERED:
+      CST_setTextToStr((uint8_t *)"Modem registered on network", str);
+      break;
+    case CA_MODEM_STATE_DATAREADY:
+      CST_setTextToStr((uint8_t *)"Modem started and data is ready", str);
+      break;
+    case CA_MODEM_IN_FLIGHTMODE:
+      CST_setTextToStr((uint8_t *)"Modem in flight mode", str);
+      break;
+    case CA_MODEM_REBOOTING:
+      CST_setTextToStr((uint8_t *)"Modem is rebooting", str);
+      break;
+    case CA_MODEM_FOTA_INPROGRESS:
+      CST_setTextToStr((uint8_t *)"Modem is in FOTA update", str);
+      break;
+    case CA_MODEM_POWER_OFF:
+      CST_setTextToStr((uint8_t *)"Modem not started / power off", str);
+      break;
+    default:
+      /* Nothing to do */
+      __NOP();
+      break;
+  };
+}
+
+/**
+  * @brief  Converts integer sim mode to an explicit human readable string
+  * @param[in] state - the integer representing the sim mode to convert to string
+  * @param[out] str  - The result string
+  * @retval -
+  */
+static void CST_getSimModeStr(uint8_t state, uint8_t *const str)
+{
+  /* Modem state list  */
+  switch (state)
+  {
+    case CA_SIM_READY:
+      CST_setTextToStr((uint8_t *)"SIM initialized and ready", str);
+      break;
+    case CA_SIM_STATUS_UNKNOWN:
+      CST_setTextToStr((uint8_t *)"SIM status is not yet known", str);
+      break;
+    case CA_SIM_CONNECTION_ONGOING:
+      CST_setTextToStr((uint8_t *)"SIM connection ongoing", str);
+      break;
+    case CA_SIM_PIN_OR_PUK_LOCKED:
+      CST_setTextToStr((uint8_t *)"SIM locked with PIN or PUK", str);
+      break;
+    case CA_SIM_INCORRECT_PIN:
+      CST_setTextToStr((uint8_t *)"SIM with an incorrect PIN password provided", str);
+      break;
+    case CA_SIM_BUSY:
+      CST_setTextToStr((uint8_t *)"Sim busy - too many busy rsp during init", str);
+      break;
+    case CA_SIM_ERROR:
+      CST_setTextToStr((uint8_t *)"SIM error - too many error rsp during init", str);
+      break;
+    case CA_SIM_NOT_INSERTED:
+      CST_setTextToStr((uint8_t *)"Did not try any access to that sim", str);
+      break;
+    case CA_SIM_NOT_USED:
+      CST_setTextToStr((uint8_t *)"Did not try any access to that sim slot", str);
+      break;
+    case CA_SIM_NOT_IMPLEMENTED:
+      CST_setTextToStr((uint8_t *)"Not implemented on this hardware", str);
+      break;
+    default:
+      /* Nothing to do */
+      __NOP();
+      break;
+  };
+}
+
+/**
   * @brief  Help command management
   * @param  -
   * @retval -
@@ -202,13 +330,20 @@ static void CST_HelpCmd(void)
   PRINT_FORCE("%s state   (Displays the cellular and SIM state)", CST_cmd_label)
   PRINT_FORCE("%s config  (Displays the cellular configuration used)", CST_cmd_label)
   PRINT_FORCE("%s info    (Displays modem information)", CST_cmd_label)
-  PRINT_FORCE("%s targetstate [off|sim|full] (set modem state)", CST_cmd_label)
+  PRINT_FORCE("%s targetstate [off|sim|full|modem] (set modem state)", CST_cmd_label)
   PRINT_FORCE("%s polling [on|off]  (enable/disable periodical modem polling)", CST_cmd_label)
   PRINT_FORCE("%s cmd  (switch to command mode)", CST_cmd_label)
   PRINT_FORCE("%s data  (switch to data mode)", CST_cmd_label)
-  PRINT_FORCE("%s apnconf [<apn> [<cid> [<username> <password>]]]]  (update apn configuration of active sim slot)",
+  PRINT_FORCE("%s apn [on|off] (use APN ON or OFF for active sim slot)", CST_cmd_label)
+  PRINT_FORCE("%s apnconf [<apn> [<cid> [<username> <password>]]]  (update apn configuration of active sim slot)",
               CST_cmd_label)
+  PRINT_FORCE("%s apnuser [on|off] (set apn user define for active sim slot)", CST_cmd_label)
+  PRINT_FORCE("%s apnempty (Set APN to an empty string)", CST_cmd_label)
   PRINT_FORCE("%s power [on|off]  (modem switch ON or OFF)", CST_cmd_label)
+  PRINT_FORCE("%s operator  (operator selection)", CST_cmd_label)
+  PRINT_FORCE("%s techno off", CST_cmd_label)
+  PRINT_FORCE("%s techno on [0 (GSM)|1 (GSM_COMPACT)|2 (UTRAN)|3(GSM EDGE)|4 (UTRAN HSDPA)|5 (UTRAN HSUPA)|\
+                             6 (UTRAN HSDPA HSUPA)|7(E UTRAN)|8 (EC GSM IOT)|9 (E_UTRAN_NBS1)]", CST_cmd_label)
 }
 
 /**
@@ -218,27 +353,19 @@ static void CST_HelpCmd(void)
   */
 static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
 {
-  static dc_apn_config_t apn_config;
-
-  /* SIM state list */
-  static uint8_t *CST_SimModeName_p[] =
-  {
-    ((uint8_t *)"OK"),
-    ((uint8_t *)"NOT IMPLEMENTED"),
-    ((uint8_t *)"SIM BUSY"),
-    ((uint8_t *)"SIM NOT INSERTED"),
-    ((uint8_t *)"SIM PIN OR PUK LOCKED"),
-    ((uint8_t *)"SIM INCORRECT PASSWORD"),
-    ((uint8_t *)"SIM ERROR"),
-    ((uint8_t *)"SIM NOT USED"),
-    ((uint8_t *)"SIM CONNECTION ON GOING")
-  };
-
   /* activated or not string */
   static uint8_t *CST_ActivateName_p[] =
   {
     (uint8_t *)"Not active",
     (uint8_t *)"Active"
+  };
+
+  /* Sim slot type list */
+  static uint8_t *CST_SimSlotName_p[3] =
+  {
+    ((uint8_t *)"REMOVABLE SLOT"),
+    ((uint8_t *)"EXTERNAL MODEM SLOT"),
+    ((uint8_t *)"EXTERNAL MODEM SLOT")
   };
 
   /* Modem target state list  */
@@ -247,15 +374,45 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
     ((uint8_t *)"OFF"),
     ((uint8_t *)"SIM_ONLY"),
     ((uint8_t *)"FULL"),
+    ((uint8_t *)"MODEM_ONLY"),
   };
 
-  /* Modem state list  */
-  static uint8_t *CST_ModemStateName_p[] =
+
+  /* To convert "network reg mode" integer code to a string human readable */
+  static const uint8_t *CST_networkRegModeToString_p[4] =
   {
-    ((uint8_t *)"OFF"),
-    ((uint8_t *)"POWERED_ON"),
-    ((uint8_t *)"SIM_CONNECTED"),
-    ((uint8_t *)"DATA_ON"),
+    ((uint8_t *)"Auto"),
+    ((uint8_t *)"Manual"),
+    ((uint8_t *)"Deregister"),
+    ((uint8_t *)"Manual then auto")
+  };
+  /* To convert "operator name format" integer code to a string human readable */
+  static const uint8_t *CST_operatorNameFormatToString_p[10] =
+  {
+    ((uint8_t *)"Long"),
+    ((uint8_t *)"Short"),
+    ((uint8_t *)"Numeric"),
+    ((uint8_t *)""),
+    ((uint8_t *)""),
+    ((uint8_t *)""),
+    ((uint8_t *)""),
+    ((uint8_t *)""),
+    ((uint8_t *)""),
+    ((uint8_t *)"Not present")
+  };
+  /* To convert "access techno" integer code to a string human readable */
+  static const uint8_t *CST_accessTechnoToString_p[10] =
+  {
+    ((uint8_t *)"GSM"),
+    ((uint8_t *)"GSM compact"),
+    ((uint8_t *)"UTRAN"),
+    ((uint8_t *)"GSM edge"),
+    ((uint8_t *)"UTRAN HSDPA"),
+    ((uint8_t *)"UTRAN HSUPA"),
+    ((uint8_t *)"UTRAN HSDPA HSUPA"),
+    ((uint8_t *)"E-UTRAN"),
+    ((uint8_t *)"EC GSM IOT"),
+    ((uint8_t *)"E UTRAN NBS1")
   };
 
   static dc_cellular_info_t      cst_cmd_cellular_info;
@@ -268,6 +425,12 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
   uint8_t   *cmd_p;
   uint32_t  i;
   uint32_t  size;
+  uint8_t   tmpConversion;
+  uint8_t   myString[CST_MAX_STR_LEN];
+
+  cellular_info_t p_my_cellular_info;
+  cellular_signal_info_t p_my_signal_info;
+  cellular_sim_info_t p_my_sim_info;
 
   cmd_status_t cmd_status ;
   cmd_status = CMD_OK;
@@ -300,11 +463,13 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
         /* no argument: displays help */
         CST_HelpCmd();
       }
+      /* -- help ---------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0],  "help",  crs_strlen(argv_p[0])) == 0)
       {
         /* help command: displays help */
         CST_HelpCmd();
       }
+      /* -- pooling ------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0], "polling", crs_strlen(argv_p[0])) == 0)
       {
         /* 'cst polling ...' command */
@@ -332,6 +497,7 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
           PRINT_FORCE("%s polling enable", CST_cmd_label)
         }
       }
+      /* -- targetstate --------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0], "targetstate", crs_strlen(argv_p[0])) == 0)
       {
         /* 'cst targetstate ...' command */
@@ -340,23 +506,33 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
           /* new mode mtarget state requested */
           if (memcmp((CRC_CHAR_t *)argv_p[1], "off", crs_strlen(argv_p[1])) == 0)
           {
-            /* 'cst targetstate off' command: modem stops requested */
-            target_state.rt_state     = DC_SERVICE_ON;
-            target_state.target_state = DC_TARGET_STATE_OFF;
-            (void)dc_com_write(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state));
+            /* API call to stop the modem. cmd acts as an application, so, use the API */
+            (void)cellular_modem_stop();
+            /* update target_state value that may have been modified in cellular_modem_stop */
+            (void)dc_com_read(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state));
           }
           else if (memcmp((CRC_CHAR_t *)argv_p[1], "sim", crs_strlen(argv_p[1])) == 0)
           {
-            /* 'cst targetstate sim' command: new modem state requested: modem manages sim but not data transfert */
+            /* 'cst targetstate sim' command: new modem state requested: modem manages sim but not data transfer */
             target_state.rt_state     = DC_SERVICE_ON;
             target_state.target_state = DC_TARGET_STATE_SIM_ONLY;
+            target_state.callback = true;
             (void)dc_com_write(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state));
           }
           else if (memcmp((CRC_CHAR_t *)argv_p[1], "full", crs_strlen(argv_p[1])) == 0)
           {
-            /* 'cst targetstate full' command:  new modem state requested: modem manages full data transfert */
+            /* API call to start and attach the modem. cmd acts as an application, so, use the API */
+            (void)cellular_connect();
+            /* update target_state value that may have been modified in cellular_modem_start_and_connect */
+            (void)dc_com_read(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state));
+
+          }
+          else if (memcmp((CRC_CHAR_t *)argv_p[1], "modem", crs_strlen(argv_p[1])) == 0)
+          {
+            /* 'cst targetstate modem only' command:  new modem state requested: modem manages full data transfer */
             target_state.rt_state     = DC_SERVICE_ON;
-            target_state.target_state = DC_TARGET_STATE_FULL;
+            target_state.target_state = DC_TARGET_STATE_MODEM_ONLY;
+            target_state.callback = true;
             (void)dc_com_write(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state));
           }
           else
@@ -366,6 +542,48 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
           PRINT_FORCE("New modem target state   : %s", CST_TargetStateName_p[target_state.target_state])
         }
       }
+      /* -- apn ----------------------------------------------------------------------------------------------------- */
+      /* command apn [on|off] */
+      else if (memcmp((CRC_CHAR_t *)argv_p[0], "apn", crs_strlen(argv_p[0])) == 0)
+      {
+        if (argc == 2U)
+        {
+          if (memcmp((CRC_CHAR_t *)argv_p[1], "off", crs_strlen(argv_p[1])) == 0)
+          {
+            /* disable use of APN */
+            (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params,
+                              sizeof(cst_cellular_params));
+            cst_cellular_params.sim_slot[cst_context.sim_slot_index].apnSendToModem =
+              (cellular_apn_send_to_modem_t)CA_APN_NOT_SEND_TO_MODEM;
+            /* write new information to datacache */
+            (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params,
+                               sizeof(cst_cellular_params));
+          }
+          if (memcmp((CRC_CHAR_t *)argv_p[1], "on", crs_strlen(argv_p[1])) == 0)
+          {
+            /* enables use of APN */
+            (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params,
+                              sizeof(cst_cellular_params));
+            cst_cellular_params.sim_slot[cst_context.sim_slot_index].apnSendToModem =
+              (cellular_apn_send_to_modem_t)CA_APN_SEND_TO_MODEM;
+            /* write new information to datacache */
+            (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params,
+                               sizeof(cst_cellular_params));
+          }
+        }
+
+        /* displays cst polling state */
+        if (cst_cellular_params.sim_slot[cst_context.sim_slot_index].apnSendToModem ==
+            (cellular_apn_send_to_modem_t)CA_APN_SEND_TO_MODEM)
+        {
+          PRINT_FORCE("%s apn set to on", CST_cmd_label)
+        }
+        else
+        {
+          PRINT_FORCE("%s apn set to off", CST_cmd_label)
+        }
+      }
+      /* -- apnconf ------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0], "apnconf", crs_strlen(argv_p[0])) == 0)
       {
         /* cst apnconf ...:  sets new apn configuration */
@@ -375,32 +593,18 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
                           sizeof(cst_cmd_cellular_params));
         (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_cmd_sim_info, sizeof(cst_cmd_sim_info));
 
-        apn_config.cid             = cst_cmd_cellular_params.sim_slot[cst_cmd_sim_info.index_slot].cid;
-
-        size =  crs_strlen(cst_cmd_cellular_params.sim_slot[cst_cmd_sim_info.index_slot].apn) + 1U;
-        if (size <= DC_MAX_SIZE_APN)
-        {
-          (void)memcpy(apn_config.apn, cst_cmd_cellular_params.sim_slot[cst_cmd_sim_info.index_slot].apn, size);
-        }
-        else
-        {
-          /* Error: APN string too long */
-          PRINT_FORCE("APN to long")
-          cmd_status = CMD_SYNTAX_ERROR;
-        }
-
-        /* no username by defaut */
-        apn_config.username[0] = 0U;
-        apn_config.password[0] = 0U;
+        /* no username by default */
+        cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].username[0] = 0U;
+        cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].password[0] = 0U;
 
         if (argc >= 5U)
         {
           /* new password */
           size =  crs_strlen(argv_p[4]) + 1U;
           /* to avoid string overflow */
-          if (size <= DC_CST_PASSWORD_SIZE)
+          if (size <= CA_PASSWORD_SIZE_MAX)
           {
-            (void)memcpy(apn_config.password, argv_p[4], size);
+            (void)memcpy(cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].password, argv_p[4], size);
           }
           else
           {
@@ -415,9 +619,9 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
           /* new username */
           size =  crs_strlen(argv_p[3]) + 1U;
           /* to avoid string overflow */
-          if (size <= DC_CST_USERNAME_SIZE)
+          if (size <= CA_USERNAME_SIZE_MAX)
           {
-            (void)memcpy(apn_config.username, argv_p[3], size);
+            (void)memcpy(cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].username, argv_p[3], size);
           }
           else
           {
@@ -429,7 +633,7 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
         if (argc >= 3U)
         {
           /* new cid */
-          apn_config.cid = (uint8_t)crs_atoi(argv_p[2]);
+          cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].cid = (uint8_t)crs_atoi(argv_p[2]);
         }
 
         if (argc >= 2U)
@@ -437,9 +641,10 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
           /* new apn */
           size =  crs_strlen(argv_p[1]) + 1U;
           /* to avoid string overflow */
-          if (size <= DC_MAX_SIZE_APN)
+          if (size <= CA_APN_SIZE_MAX)
           {
-            (void)memcpy(apn_config.apn, argv_p[1], size);
+            (void)memcpy(cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].apn, argv_p[1], size);
+            cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].apnChanged = true;
           }
           else
           {
@@ -450,18 +655,81 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
 
         if (cmd_status == CMD_OK)
         {
-          apn_config.rt_state = DC_SERVICE_ON;
-          (void)dc_com_write(&dc_com_db, DC_CELLULAR_APN_CONFIG, (void *)&apn_config, sizeof(apn_config));
+          (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cmd_cellular_params,
+                             sizeof(cst_cmd_cellular_params));
+
 
           /* display the updated config */
-          PRINT_FORCE("APN configuration vualues for the sim slot (%s):",
+          PRINT_FORCE("APN configuration values for the sim slot (%s):",
                       CST_SimSlotName_p[cst_cmd_sim_info.active_slot])
-          PRINT_FORCE("APN                : %s", apn_config.apn)
-          PRINT_FORCE("CID                : %d", apn_config.cid)
-          PRINT_FORCE("username           : %s", apn_config.username)
-          PRINT_FORCE("password           : %s", apn_config.password)
+          PRINT_FORCE("APN                : %s", cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].apn)
+          PRINT_FORCE("CID                : %d", cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].cid)
+          PRINT_FORCE("username           : %s", cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].username)
+          PRINT_FORCE("password           : %s", cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].password)
         }
       }
+      /* -- apnuser ------------------------------------------------------------------------------------------------- */
+      /* command apnuser
+       [on|off] */
+      else if (memcmp((CRC_CHAR_t *)argv_p[0], "apnuser", crs_strlen(argv_p[0])) == 0)
+      {
+        if (argc == 2U)
+        {
+          if (memcmp((CRC_CHAR_t *)argv_p[1], "off", crs_strlen(argv_p[1])) == 0)
+          {
+            /* disable use of APN */
+            (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params,
+                              sizeof(cst_cellular_params));
+            cst_cellular_params.sim_slot[cst_context.sim_slot_index].apnPresent = false;
+            /* write new information to datacache */
+            (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params,
+                               sizeof(cst_cellular_params));
+          }
+          if (memcmp((CRC_CHAR_t *)argv_p[1], "on", crs_strlen(argv_p[1])) == 0)
+          {
+            /* enables use of APN */
+            (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params,
+                              sizeof(cst_cellular_params));
+            cst_cellular_params.sim_slot[cst_context.sim_slot_index].apnPresent = true;
+            /* write new information to datacache */
+            (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params,
+                               sizeof(cst_cellular_params));
+          }
+        }
+
+        /* displays cst apn user defined */
+        if (cst_cellular_params.sim_slot[cst_context.sim_slot_index].apnPresent == true)
+        {
+          PRINT_FORCE("%s apn user set to on", CST_cmd_label)
+        }
+        else
+        {
+          PRINT_FORCE("%s apn user set to off", CST_cmd_label)
+        }
+      }
+      /* -- apnempty ------------------------------------------------------------------------------------------------ */
+      else if (memcmp((CRC_CHAR_t *)argv_p[0], "apnempty", crs_strlen(argv_p[0])) == 0)
+      {
+        /* Set APN to empty string */
+        (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cmd_cellular_params,
+                          sizeof(cst_cmd_cellular_params));
+        (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_cmd_sim_info, sizeof(cst_cmd_sim_info));
+
+        cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].apn[0] = 0U;
+        cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].apnChanged = true;
+        /* display the updated config */
+        PRINT_FORCE("APN configuration values for the sim slot (%s):",
+                    CST_SimSlotName_p[cst_cmd_sim_info.active_slot])
+        PRINT_FORCE("APN                : %s", cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].apn)
+        PRINT_FORCE("CID                : %d", cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].cid)
+        PRINT_FORCE("username           : %s", cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].username)
+        PRINT_FORCE("password           : %s", cst_cmd_cellular_params.sim_slot[cst_context.sim_slot_index].password)
+
+        /* write new information to datacache */
+        (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cmd_cellular_params,
+                           sizeof(cst_cmd_cellular_params));
+      }
+      /* -- state --------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0],
                       "state",
                       crs_strlen(argv_p[0]))
@@ -470,33 +738,31 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
         /* 'cst state' command: displays cellular service state */
         PRINT_FORCE("Cellular Service Task State")
 
-        /* reads SIM info in Data Cache */
-        (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_cmd_sim_info, sizeof(cst_cmd_sim_info));
+        /* Get SIM info from cellular API */
+        cellular_get_sim_info(&p_my_sim_info);
         /* reads configuration in Data Cache */
         (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cmd_cellular_params,
                           sizeof(cst_cmd_cellular_params));
         PRINT_FORCE("Current State  : %s", CST_StateName[CST_get_state()])
 
-        PRINT_FORCE("Sim Selected   : %s", CST_SimSlotName_p[cst_cmd_sim_info.active_slot])
-
-        PRINT_FORCE("Sim %s         : %s", CST_SimSlotName_p[cst_cmd_cellular_params.sim_slot[0].sim_slot_type],
-                    CST_SimModeName_p[cst_cmd_sim_info.sim_status[0]])
-        PRINT_FORCE("Sim %s         : %s", CST_SimSlotName_p[cst_cmd_cellular_params.sim_slot[1].sim_slot_type],
-                    CST_SimModeName_p[cst_cmd_sim_info.sim_status[1]])
-        PRINT_FORCE("Sim %s         : %s", CST_SimSlotName_p[cst_cmd_cellular_params.sim_slot[2].sim_slot_type],
-                    CST_SimModeName_p[cst_cmd_sim_info.sim_status[2]])
-
+        PRINT_FORCE("Sim Selected   : %s", CST_SimSlotName_p[p_my_sim_info.sim_slot_type[p_my_sim_info.sim_index]])
+        for (i = 0; i < PLF_CELLULAR_SIM_SLOT_NB; i++)
+        {
+          CST_getSimModeStr((uint8_t)p_my_sim_info.sim_status[i], myString);
+          PRINT_FORCE("Sim %s : %s", CST_SimSlotName_p[p_my_sim_info.sim_slot_type[i]], myString)
+        }
         if (cst_cmd_cellular_params.nfmc_active != 0U)
         {
           /* NFMC feature active. Displays the temporisation list */
           (void)dc_com_read(&dc_com_db, DC_CELLULAR_NFMC_INFO, (void *)&cst_cmd_nfmc_info, sizeof(cst_cmd_nfmc_info));
-          for (i = 0U; i < DC_NFMC_TEMPO_NB ; i++)
+          for (i = 0U; i < CA_NFMC_VALUES_MAX_NB ; i++)
           {
             PRINT_FORCE("nfmc tempo %ld   : %ld", i + 1U, cst_cmd_nfmc_info.tempo[i])
           }
         }
       }
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
+      /* -- data ---------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0],
                       "data",
                       crs_strlen(argv_p[0]))
@@ -507,13 +773,14 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
         cs_status = osCDS_resume_data();
         if (cs_status != CELLULAR_OK)
         {
-          PRINT_FORCE("Swith to data state FAIL")
+          PRINT_FORCE("Switch to data state FAIL")
         }
         else
         {
-          PRINT_FORCE("Swith to data state OK")
+          PRINT_FORCE("Switch to data state OK")
         }
       }
+      /* -- cmd ----------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0],
                       "cmd",
                       crs_strlen(argv_p[0]))
@@ -524,14 +791,15 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
         cs_status = osCDS_suspend_data();
         if (cs_status != CELLULAR_OK)
         {
-          PRINT_FORCE("Swith to cmd state FAIL")
+          PRINT_FORCE("Switch to cmd state FAIL")
         }
         else
         {
-          PRINT_FORCE("Swith to cmd state OK")
+          PRINT_FORCE("Switch to cmd state OK")
         }
       }
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
+      /* -- valid --------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0],
                       "valid",
                       crs_strlen(argv_p[0]))
@@ -542,39 +810,48 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
                    crs_strlen(argv_p[1]))
             == 0)
         {
-          /* 'cst valid netstate'  automatical tests */
+          /* 'cst valid netstate'  automatic tests */
 
           /* reads configuration in Data Cache */
           TRACE_VALID("@valid@:cst:netstate:%s\n\r", CST_StateName[CST_get_state()])
         }
 
       }
+      /* -- info ---------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0],
                       "info",
                       crs_strlen(argv_p[0])) == 0)
       {
         /* 'cst state' command: displays cellular service info supplied by modem */
 
-        /* reads cellular info in Data Cache */
+        /* reads cellular info from cellular API */
+        cellular_get_cellular_info(&p_my_cellular_info);
+        /* reads signal info from cellular API */
+        cellular_get_signal_info(&p_my_signal_info);
+        /* reads more cellular info from Data Cache */
         (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cmd_cellular_info, sizeof(cst_cmd_cellular_info));
 
         /* reads SIM info in Data Cache */
         (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_cmd_sim_info, sizeof(cst_cmd_sim_info));
         PRINT_FORCE("Cellular Service Infos ")
-        PRINT_FORCE("Modem state      : %d (%s)", cst_cmd_cellular_info.modem_state,
-                    CST_ModemStateName_p[cst_cmd_cellular_info.modem_state])
-        PRINT_FORCE("Signal Quality   : %d", cst_cmd_cellular_info.cs_signal_level)
-        PRINT_FORCE("Signal level(dBm): %ld", cst_cmd_cellular_info.cs_signal_level_db)
+        CST_getModemStateStr((uint8_t)p_my_cellular_info.modem_state, myString);
+        PRINT_FORCE("Modem state          : %d (%s)", p_my_cellular_info.modem_state, myString)
+        PRINT_FORCE("Signal Quality       : %d", p_my_signal_info.signal_strength.raw_value)
+        PRINT_FORCE("Signal level(dBm)    : %ld", p_my_signal_info.signal_strength.db_value)
 
-        PRINT_FORCE("Operator name   : %s", cst_cmd_cellular_info.mno_name)
-        PRINT_FORCE("IMEI            : %s", cst_cmd_cellular_info.imei)
-        PRINT_FORCE("Manuf name      : %s", cst_cmd_cellular_info.manufacturer_name)
-        PRINT_FORCE("Model           : %s", cst_cmd_cellular_info.model)
-        PRINT_FORCE("Revision        : %s", cst_cmd_cellular_info.revision)
-        PRINT_FORCE("Serial Number   : %s", cst_cmd_cellular_info.serial_number)
-        PRINT_FORCE("ICCID           : %s", cst_cmd_cellular_info.iccid)
-        PRINT_FORCE("IMSI            : %s", cst_cmd_sim_info.imsi)
+        PRINT_FORCE("Operator name        : %s", cst_cmd_cellular_info.mno_name)
+        PRINT_FORCE("IMEI                 : %s", p_my_cellular_info.imei.value)
+        PRINT_FORCE("Manuf name           : %s", p_my_cellular_info.identity.manufacturer_id.value)
+        PRINT_FORCE("Model                : %s", p_my_cellular_info.identity.model_id.value)
+        PRINT_FORCE("Revision             : %s", p_my_cellular_info.identity.revision_id.value)
+        PRINT_FORCE("Serial Number        : %s", p_my_cellular_info.identity.serial_number_id.value)
+        PRINT_FORCE("ICCID                : %s", cst_cmd_cellular_info.iccid)
+        PRINT_FORCE("IMSI                 : %s", cst_cmd_sim_info.imsi)
+        PRINT_FORCE("Network register mode: %d (%s)", p_my_signal_info.access_techno,
+                    CST_accessTechnoToString_p[p_my_signal_info.access_techno]);
+
       }
+      /* -- config -------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0],
                       "config",
                       crs_strlen(argv_p[0]))
@@ -587,27 +864,51 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
         for (i = 0 ; i < cst_cmd_cellular_params.sim_slot_nb ; i++)
         {
           /* displays configuration for each sim stop defined */
-          PRINT_FORCE("Sim Slot           : %ld (%s)", i,
+          PRINT_FORCE("Sim Slot             : %ld (%s)", i,
                       CST_SimSlotName_p[cst_cmd_cellular_params.sim_slot[i].sim_slot_type])
-          PRINT_FORCE("APN                : \"%s\"", cst_cmd_cellular_params.sim_slot[i].apn)
-          PRINT_FORCE("CID                : %d", cst_cmd_cellular_params.sim_slot[i].cid)
-          PRINT_FORCE("username           : %s", cst_cmd_cellular_params.sim_slot[i].username)
-          PRINT_FORCE("password           : %s", cst_cmd_cellular_params.sim_slot[i].password)
+          PRINT_FORCE("APN                  : \"%s\"", cst_cmd_cellular_params.sim_slot[i].apn)
+          PRINT_FORCE("CID                  : %d", cst_cmd_cellular_params.sim_slot[i].cid)
+          PRINT_FORCE("username             : %s", cst_cmd_cellular_params.sim_slot[i].username)
+          PRINT_FORCE("password             : %s", cst_cmd_cellular_params.sim_slot[i].password)
         }
 
-        PRINT_FORCE("Target state       : %s", CST_TargetStateName_p[cst_cmd_cellular_params.target_state])
-        PRINT_FORCE("Attachment timeout : %ld ms", cst_cmd_cellular_params.attachment_timeout)
+        PRINT_FORCE("Target state         : %s", CST_TargetStateName_p[cst_cmd_cellular_params.target_state])
+        PRINT_FORCE("Attachment timeout   : %ld ms", cst_cmd_cellular_params.attachment_timeout)
 
-        PRINT_FORCE("nfmc mode          : %s", CST_ActivateName_p[cst_cmd_cellular_params.nfmc_active])
+        PRINT_FORCE("nfmc mode            : %s", CST_ActivateName_p[cst_cmd_cellular_params.nfmc_active])
         if (cst_cmd_cellular_params.nfmc_active != 0U)
         {
-          /* NFMC featurs active: displays list of temporisation values*/
-          for (i = 0U; i < DC_NFMC_TEMPO_NB ; i++)
+          /* NFMC feature active: displays list of temporisation values*/
+          for (i = 0U; i < CA_NFMC_VALUES_MAX_NB ; i++)
           {
             PRINT_FORCE("nfmc value %ld       : %ld", i + 1U, cst_cmd_cellular_params.nfmc_value[i])
           }
         }
+        PRINT_FORCE("Network register mode: %d = %s", cst_cmd_cellular_params.operator_selector.network_reg_mode,
+                    CST_networkRegModeToString_p[cst_cmd_cellular_params.operator_selector.network_reg_mode]);
+        if (cst_cmd_cellular_params.operator_selector.network_reg_mode != CA_NTW_REGISTRATION_AUTO)
+        {
+          PRINT_FORCE("Operator name format: %d (%s)",
+                      cst_cmd_cellular_params.operator_selector.operator_name_format,
+                      CST_operatorNameFormatToString_p[cst_cmd_cellular_params.operator_selector.operator_name_format]);
+          PRINT_FORCE("Operator name: %s\n\r", cst_cmd_cellular_params.operator_selector.operator_name);
+        }
+        /* Access techno present or not */
+        if (cst_cmd_cellular_params.operator_selector.access_techno_present == CA_ACT_PRESENT)
+        {
+          PRINT_FORCE("Access techno present: Present");
+        }
+        else
+        {
+          PRINT_FORCE("Access techno present: Not present");
+        }
+        if (cst_cmd_cellular_params.operator_selector.access_techno_present != CA_ACT_NOT_PRESENT)
+        {
+          PRINT_FORCE("Network register mode: %d (%s)", cst_cmd_cellular_params.operator_selector.access_techno,
+                      CST_accessTechnoToString_p[cst_cmd_cellular_params.operator_selector.access_techno]);
+        }
       }
+      /* -- power --------------------------------------------------------------------------------------------------- */
       else if (memcmp((CRC_CHAR_t *)argv_p[0], "power", crs_strlen(argv_p[0])) == 0)
       {
         /* 'cst power ...' command */
@@ -628,7 +929,7 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
           {
             /* power off the modem */
             PRINT_FORCE("modem power OFF")
-            if (osCDS_power_off() != CELLULAR_OK)
+            if (CST_modem_power_off() != CELLULAR_OK)
             {
               /* AT command processing failed */
               PRINT_FORCE("command fail\n\r")
@@ -639,6 +940,56 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
           {
             /* nothing to do */
           }
+        }
+      }
+      /* -- techno -------------------------------------------------------------------------------------------------- */
+      else if (memcmp((CRC_CHAR_t *)argv_p[0], "techno", crs_strlen(argv_p[0])) == 0)
+      {
+        /* 'cst techno ...' command */
+        if (argc == 3U)
+        {
+          /* get data from data cache */
+          (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cmd_cellular_params,
+                            sizeof(cst_cmd_cellular_params));
+
+          tmpConversion = (uint8_t)crs_atoi(argv_p[2]);
+          /* tmpConversion is unsigned, no need to test its value is greater or equal than zero */
+          if ((memcmp((CRC_CHAR_t *)argv_p[1], "on", crs_strlen(argv_p[1])) == 0) && (tmpConversion <= 9U))
+          {
+            /* Set access techno is present */
+            cst_cmd_cellular_params.operator_selector.access_techno_present = CA_ACT_PRESENT;
+            /* Set now the techno to use */
+            cst_cmd_cellular_params.operator_selector.access_techno =
+              cst_convert_access_techno((CS_AccessTechno_t)tmpConversion);
+            /* Save data to data cache */
+            (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cmd_cellular_params,
+                               sizeof(cst_cmd_cellular_params));
+          }
+          else
+          {
+            /* Bad cst command: displays help  */
+            cmd_status = CMD_SYNTAX_ERROR;
+            PRINT_FORCE("%s bad command. Usage:", cmd_p)
+            CST_HelpCmd();
+          }
+        }
+        else if (argc == 2U)
+        {
+          if (memcmp((CRC_CHAR_t *)argv_p[1], "off", crs_strlen(argv_p[1])) == 0)
+          {
+            /* Set access techno is not present : automatic mode use*/
+            cst_cmd_cellular_params.operator_selector.access_techno_present = CA_ACT_NOT_PRESENT;
+          }
+          /* Save data to data cache */
+          (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cmd_cellular_params,
+                             sizeof(cst_cmd_cellular_params));
+        }
+        else
+        {
+          /* Bad cst command: displays help  */
+          cmd_status = CMD_SYNTAX_ERROR;
+          PRINT_FORCE("%s bad command. Usage:", cmd_p)
+          CST_HelpCmd();
         }
       }
       else
@@ -663,7 +1014,7 @@ static cmd_status_t CST_cmd(uint8_t *cmd_line_p)
 
 #if ( CST_CMD_MODEM_BG96 == 1 )
 /*---------------------------------------------------------*/
-/* Specific command managmement for MODEM MONARCH and BG96 */
+/* Specific command management for MODEM MONARCH and BG96 */
 /*---------------------------------------------------------*/
 
 /**
@@ -769,7 +1120,7 @@ static void  CST_CMD_display_bitmap_name(uint32_t bitmap_MSB, uint32_t bitmap_LS
 #endif   /*  CST_CMD_MODEM_BG96 == 1 ) */
 
 #if (CST_CMD_MODEM_BG96 == 1)
-/* MODEM BG96 command managmement */
+/* MODEM BG96 command management */
 
 /**
   * @brief  displays the sequence name associated to the bitmap
@@ -855,7 +1206,8 @@ static void CST_ModemHelpCmd(void)
   */
 static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
 {
-  static uint32_t           cst_cmd_nwscanmode_default     = QCFGSCANMODE_AUTO;
+  static uint8_t            cst_cmd_nwscanmode_default     = QCFGSCANMODE_AUTO;
+  static uint8_t            cst_display_nwscanmode_default = CST_DISP_SCANMODE_AUTO;
   static uint32_t           cst_cmd_iotopmode_default      = QCFGIOTOPMODE_CATM1;
   static uint32_t           cst_cmd_gsmband_MSB_default    = 0;
   static uint32_t           cst_cmd_gsmband_LSB_default    = QCFGBANDGSM_ANY;
@@ -1031,8 +1383,8 @@ static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
         if (argc == 1U)
         {
           /* no argument: displays current config */
-          PRINT_FORCE("scanmode  : (mask=0x%08lx) %s", cst_cmd_nwscanmode_default,
-                      CST_ScanmodeName_p[cst_cmd_nwscanmode_default])
+          PRINT_FORCE("scanmode  : (mask=0x%08x) %s", cst_cmd_nwscanmode_default,
+                      CST_ScanmodeName_p[cst_display_nwscanmode_default])
           PRINT_FORCE("iotopmode : (mask=0x%08lx) %s", cst_cmd_iotopmode_default,
                       CST_IotopmodeName_p[cst_cmd_iotopmode_default])
           PRINT_FORCE("GSM bands : (mask=0x%lx%08lx)", cst_cmd_gsmband_MSB_default, cst_cmd_gsmband_LSB_default)
@@ -1059,7 +1411,8 @@ static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
                 == 0)
             {
               /* 'modem config nwscanmode AUTO' command: set AUTO in nwscanmode config */
-              cst_cmd_nwscanmode_default = QCFGSCANMODE_AUTO;
+              cst_cmd_nwscanmode_default = (uint8_t)QCFGSCANMODE_AUTO;
+              cst_display_nwscanmode_default = CST_DISP_SCANMODE_AUTO;
             }
             else if (memcmp((const CRC_CHAR_t *)argv_p[2],
                             "GSM",
@@ -1067,14 +1420,16 @@ static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
                      == 0)
             {
               /* 'modem config nwscanmode GSM' command */
-              cst_cmd_nwscanmode_default = QCFGSCANMODE_GSMONLY;
+              cst_cmd_nwscanmode_default = (uint8_t)QCFGSCANMODE_GSMONLY;
+              cst_display_nwscanmode_default = CST_DISP_SCANMODE_GSM;
             }
             else if (memcmp((const CRC_CHAR_t *)argv_p[2],
                             "LTE",
                             crs_strlen((uint8_t *)argv_p[2])) == 0)
             {
               /* 'modem config nwscanmode LTE' command */
-              cst_cmd_nwscanmode_default = QCFGSCANMODE_LTEONLY;
+              cst_cmd_nwscanmode_default = (uint8_t)QCFGSCANMODE_LTEONLY;
+              cst_display_nwscanmode_default = CST_DISP_SCANMODE_LTE;
             }
             else
             {
@@ -1086,7 +1441,7 @@ static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
           }
 
           /* display current nwscanmode */
-          PRINT_FORCE("scanmode: %s\n\r", CST_ScanmodeName_p[cst_cmd_nwscanmode_default])
+          PRINT_FORCE("scanmode: %s\n\r", CST_ScanmodeName_p[cst_display_nwscanmode_default])
         }
         else if (memcmp((const CRC_CHAR_t *)argv_p[1],
                         "iotopmode",
@@ -1282,7 +1637,7 @@ static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
         {
           /* 'modem config send' command: send condif to the modem */
           /* send scanseg set AT command  */
-          (void)sprintf((CRC_CHAR_t *)CST_CMD_Command, "AT+QCFG=\"nwscanmode\",%ld,1", cst_cmd_nwscanmode_default);
+          (void)sprintf((CRC_CHAR_t *)CST_CMD_Command, "AT+QCFG=\"nwscanmode\",%d,1", cst_cmd_nwscanmode_default);
           ret = (uint32_t)cst_at_command_handle((uint8_t *)CST_CMD_Command);
 
           /* send iotopmode set AT command  */
@@ -1365,7 +1720,7 @@ static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
 
 #if (CST_CMD_MODEM_TYPE1SC == 1)
 /*-----------------------------------------------*/
-/* Specific command managmement for ALTAIR Modem */
+/* Specific command management for ALTAIR Modem */
 /*-----------------------------------------------*/
 
 /**
@@ -1646,7 +2001,7 @@ static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
 
 #if (CST_CMD_USE_MODEM_CELL_GM01Q == 1)
 /*------------------------------------------------*/
-/* Specific command managmement for MODEM MONARCH */
+/* Specific command management for MODEM MONARCH */
 /*------------------------------------------------*/
 
 /**
@@ -1826,7 +2181,7 @@ static cmd_status_t CST_ModemCmd(uint8_t *cmd_line_p)
       else if (memcmp((const CRC_CHAR_t *)argv_p[1], "send", crs_strlen(argv_p[1])) == 0)
       {
         /* send condif to the modem */
-        /* Firstly: clear current modem confuguration */
+        /* Firstly: clear current modem configuration */
         ret = (uint32_t)cst_at_command_handle((uint8_t *)"AT!=\"clearscanconfig\"");
         if (ret != 0U)
         {
@@ -1908,7 +2263,7 @@ static void cst_at_cmd_help(void)
   CMD_print_help(CST_cmd_at_label);
 
   PRINT_FORCE("%s timeout [<modem response timeout(ms) (default %d)>]", CST_cmd_at_label, CST_AT_TIMEOUT)
-  PRINT_FORCE("%s <at command> (send an AT comand to modem ex:atcmd AT+CSQ)", CST_cmd_at_label)
+  PRINT_FORCE("%s <at command> (send an AT command to modem ex:atcmd AT+CSQ)", CST_cmd_at_label)
 }
 
 /**
@@ -1926,7 +2281,7 @@ static cmd_status_t cst_at_command_handle(uint8_t *cmd_line_p)
   cmd_status = CMD_OK;
 
   size =  crs_strlen(cmd_line_p) + 1U;
-  if (size <= MAX_DIREXT_CMD_SIZE)
+  if (size <= MAX_DIRECT_CMD_SIZE)
   {
     (void)memcpy(&CST_direct_cmd_tx.cmd_str[0],
                  (CRC_CHAR_t *)cmd_line_p,

@@ -45,7 +45,7 @@ IPC_ClientDescription_t IPC_DevicesList[IPC_MAX_DEVICES];
   * @param  hitf Handle to the HAL structure of the interface.
   * @retval status
   */
-IPC_Status_t IPC_init(IPC_Device_t device, IPC_Interface_t itf_type, void *hitf)
+IPC_Status_t IPC_init(IPC_Device_t device, IPC_Interface_t itf_type, void *const hitf)
 {
   IPC_Status_t status;
 
@@ -111,14 +111,16 @@ IPC_Status_t IPC_deinit(IPC_Device_t  device)
   * @param  mode IPC mode (char or stream).
   * @param  pRxClientCallback Callback ptr called when a message has been received.
   * @param  pTxClientCallback Callback ptr called when a message has been send.
+  * @param  pErrorClientCallback Callback ptr called when an error has occurred, (optional: can be NULL).
   * @param  pCheckEndOfMsg Callback ptr to the function used to analyze if char received is a termination char
   * @retval status
   */
-IPC_Status_t IPC_open(IPC_Handle_t *hipc,
+IPC_Status_t IPC_open(IPC_Handle_t *const hipc,
                       IPC_Device_t  device,
                       IPC_Mode_t    mode,
                       IPC_RxCallbackTypeDef pRxClientCallback,
                       IPC_TxCallbackTypeDef pTxClientCallback,
+                      IPC_ErrCallbackTypeDef pErrorClientCallback,
                       IPC_CheckEndOfMsgCallbackTypeDef pCheckEndOfMsg)
 {
   IPC_Status_t status;
@@ -145,7 +147,9 @@ IPC_Status_t IPC_open(IPC_Handle_t *hipc,
     if (IPC_DevicesList[device].phy_int.interface_type == IPC_INTERFACE_UART)
     {
 #if (IPC_USE_UART == 1U)
-      status = IPC_UART_open(hipc, device, mode, pRxClientCallback, pTxClientCallback, pCheckEndOfMsg);
+      status = IPC_UART_open(hipc, device, mode,
+                             pRxClientCallback, pTxClientCallback, pErrorClientCallback,
+                             pCheckEndOfMsg);
 #else
       status = IPC_ERROR;
 #endif /* IPC_USE_UART == 1U */
@@ -164,7 +168,7 @@ IPC_Status_t IPC_open(IPC_Handle_t *hipc,
   * @param  hipc IPC handle to close.
   * @retval status
   */
-IPC_Status_t IPC_close(IPC_Handle_t *hipc)
+IPC_Status_t IPC_close(IPC_Handle_t *const hipc)
 {
   IPC_Status_t status;
 
@@ -185,7 +189,7 @@ IPC_Status_t IPC_close(IPC_Handle_t *hipc)
   * @param  hipc IPC handle to reset.
   * @retval status
   */
-IPC_Status_t IPC_reset(IPC_Handle_t *hipc)
+IPC_Status_t IPC_reset(IPC_Handle_t *const hipc)
 {
   IPC_Status_t status;
 
@@ -206,7 +210,7 @@ IPC_Status_t IPC_reset(IPC_Handle_t *hipc)
   * @param  hipc IPC handle to abort.
   * @retval status
   */
-IPC_Status_t IPC_abort(IPC_Handle_t *hipc)
+IPC_Status_t IPC_abort(IPC_Handle_t *const hipc)
 {
   IPC_Status_t status;
 
@@ -227,7 +231,7 @@ IPC_Status_t IPC_abort(IPC_Handle_t *hipc)
   * @param  hipc IPC handle to select.
   * @retval status
   */
-IPC_Status_t IPC_select(IPC_Handle_t *hipc)
+IPC_Status_t IPC_select(IPC_Handle_t *const hipc)
 {
   IPC_Status_t status;
 
@@ -248,7 +252,7 @@ IPC_Status_t IPC_select(IPC_Handle_t *hipc)
   * @param  hipc IPC handle.
   * @retval IPC_Handle_t*
   */
-IPC_Handle_t *IPC_get_other_channel(IPC_Handle_t *hipc)
+IPC_Handle_t *IPC_get_other_channel(IPC_Handle_t *const hipc)
 {
   return (IPC_UART_get_other_channel(hipc));
 }
@@ -260,7 +264,7 @@ IPC_Handle_t *IPC_get_other_channel(IPC_Handle_t *hipc)
   * @param  bufsize Length of the data buffer.
   * @retval status
   */
-IPC_Status_t IPC_send(IPC_Handle_t *hipc, uint8_t *p_TxBuffer, uint16_t bufsize)
+IPC_Status_t IPC_send(IPC_Handle_t *const hipc, uint8_t *p_TxBuffer, uint16_t bufsize)
 {
   IPC_Status_t status;
 
@@ -282,7 +286,7 @@ IPC_Status_t IPC_send(IPC_Handle_t *hipc, uint8_t *p_TxBuffer, uint16_t bufsize)
   * @param  p_msg Pointer to the IPC message structure to fill with received message.
   * @retval status
   */
-IPC_Status_t IPC_receive(IPC_Handle_t *hipc, IPC_RxMessage_t *p_msg)
+IPC_Status_t IPC_receive(IPC_Handle_t *const hipc, IPC_RxMessage_t *const p_msg)
 {
   IPC_Status_t status;
 
@@ -307,7 +311,7 @@ IPC_Status_t IPC_receive(IPC_Handle_t *hipc, IPC_RxMessage_t *p_msg)
   *         and p_len is updated with received buffer size.
   * @retval status
   */
-IPC_Status_t IPC_streamReceive(IPC_Handle_t *hipc, uint8_t *p_buffer, int16_t *p_len)
+IPC_Status_t IPC_streamReceive(IPC_Handle_t *const hipc, uint8_t *const p_buffer, int16_t *const p_len)
 {
 #if (IPC_USE_STREAM_MODE == 1U)
   IPC_Status_t status;
@@ -336,7 +340,7 @@ IPC_Status_t IPC_streamReceive(IPC_Handle_t *hipc, uint8_t *p_buffer, int16_t *p
   * @param  readable If equal 1, print special characters explicitly (<CR>, <LF>, <NULL>).
   * @retval none
   */
-void IPC_DumpRXQueue(IPC_Handle_t *hipc, uint8_t readable)
+void IPC_DumpRXQueue(IPC_Handle_t *const hipc, uint8_t readable)
 {
 #if (DBG_IPC_RX_FIFO == 1U)
   if (hipc != NULL)

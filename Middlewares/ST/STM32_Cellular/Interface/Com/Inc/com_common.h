@@ -27,8 +27,7 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
-
-#include "plf_config.h"
+#include <stdint.h>
 
 /* Exported constants --------------------------------------------------------*/
 /** @addtogroup COM_Constants
@@ -55,32 +54,13 @@ typedef uint8_t com_char_t;
   */
 
 /* External variables --------------------------------------------------------*/
-/** @addtogroup COM_Variables
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported macros -----------------------------------------------------------*/
-/** @addtogroup COM_Macros
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 /* Exported functions ------------------------------------------------------- */
-
-/** @addtogroup COM_Functions
-  * @{
-  */
-
-/**
-  * @}
-  */
+/* None */
 
 #ifdef __cplusplus
 }

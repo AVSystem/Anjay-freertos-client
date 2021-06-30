@@ -223,11 +223,10 @@ sysctrl_status_t SysCtrl_sim_select(sysctrl_device_type_t device_type, sysctrl_s
   */
 void SysCtrl_delay(uint32_t timeMs)
 {
-#if (RTOS_USED == 1)
-  (void) osDelay(timeMs);
-#else
-  HAL_Delay(timeMs);
-#endif /* RTOS_USED */
+  if (timeMs != 0U)
+  {
+    (void) rtosalDelay(timeMs);
+  }
 }
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

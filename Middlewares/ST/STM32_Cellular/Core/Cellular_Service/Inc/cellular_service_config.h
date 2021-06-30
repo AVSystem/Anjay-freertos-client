@@ -29,7 +29,6 @@ extern "C" {
 #include "plf_modem_config.h"
 
 /* Exported constants --------------------------------------------------------*/
-#define CST_NFMC_TEMPO_NB          7U
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -41,10 +40,6 @@ extern "C" {
 void CST_set_default_setup_config(dc_cellular_params_t *cellular_params);
 CS_Status_t CST_config_init(void);
 CS_PDN_conf_id_t  cst_get_cid_value(uint8_t cid_value);
-#if (!USE_DEFAULT_SETUP == 1)
-uint32_t CST_update_config_setup_handler(dc_apn_config_t *apn_config, dc_cs_sim_slot_type_t  active_slot);
-
-#endif /* (!USE_DEFAULT_SETUP == 1) */
 
 #ifdef __cplusplus
 }

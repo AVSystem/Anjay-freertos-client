@@ -128,7 +128,7 @@ at_status_t atcc_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeout)
   * @brief  Call modem function to extract a element from a received message.
   * @param  p_at_ctxt Pointer to the modem context.
   * @param  p_msg_in Pointer to the received message.
-  * @param  element_infos Pointer to the structure with extracted informations.
+  * @param  element_infos Pointer to the structure with extracted information.
   * @retval at_endmsg_t Indicates if this is the last message.
   */
 at_endmsg_t atcc_extractElement(at_context_t *p_at_ctxt,
@@ -150,7 +150,7 @@ at_endmsg_t atcc_extractElement(at_context_t *p_at_ctxt,
   * @brief  Call modem function to analyze command from a received message.
   * @param  p_at_ctxt Pointer to the modem context.
   * @param  p_msg_in Pointer to the received message.
-  * @param  element_infos Pointer to the structure with extracted informations.
+  * @param  element_infos Pointer to the structure with extracted information.
   * @retval at_action_rsp_t Indicates next action.
   */
 at_action_rsp_t atcc_analyzeCmd(at_context_t *p_at_ctxt,
@@ -169,7 +169,7 @@ at_action_rsp_t atcc_analyzeCmd(at_context_t *p_at_ctxt,
   * @brief  Call modem function to analyze command parameters from a received message.
   * @param  p_at_ctxt Pointer to the modem context.
   * @param  p_msg_in Pointer to the received message.
-  * @param  element_infos Pointer to the structure with extracted informations.
+  * @param  element_infos Pointer to the structure with extracted information.
   * @retval at_action_rsp_t Indicates next action.
   */
 at_action_rsp_t atcc_analyzeParam(at_context_t *p_at_ctxt,
@@ -187,7 +187,7 @@ at_action_rsp_t atcc_analyzeParam(at_context_t *p_at_ctxt,
 /**
   * @brief  Call modem function to terminate a command.
   * @param  p_at_ctxt Pointer to the modem context.
-  * @param  element_infos Pointer to the structure with extracted informations.
+  * @param  element_infos Pointer to the structure with extracted information.
   * @retval at_action_rsp_t Indicates next action.
   */
 at_action_rsp_t atcc_terminateCmd(at_context_t *p_at_ctxt, at_element_info_t *element_infos)
