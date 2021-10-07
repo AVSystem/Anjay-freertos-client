@@ -56,6 +56,6 @@ static int get_humidity(float *out_humidity) {
 const basic_sensor_driver_t BSP_HYGROMETER_DRIVER = {
     .init = hygrometer_init,
     .read = get_humidity,
-    .unit = "%",
+    .unit = "%RH",
     .name = "hygrometer"
 };

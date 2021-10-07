@@ -45,21 +45,11 @@ static anjay_t *g_anjay;
 static avs_crypto_prng_ctx_t *g_prng_ctx;
 
 static osThreadId g_lwm2m_task_handle;
-static osThreadId g_lwm2m_notify_task_handle;
-
-osMutexDef(anjay_mtx);
-static osMutexId g_anjay_mtx;
-
-#define LOCKED(mtx)                                                 \
-    for (osStatus s = osMutexWait((mtx), osWaitForever); s == osOK; \
-         s = osErrorOS, osMutexRelease((mtx)))
 
 extern RNG_HandleTypeDef hrng;
 
 // Used to communicate between datacache callback and lwm2m thread
 static osMessageQId status_msg_queue;
-
-static volatile bool g_network_up;
 
 static void dc_cellular_callback(dc_com_event_id_t dc_event_id,
                                  const void *user_arg) {
@@ -70,11 +60,10 @@ static void dc_cellular_callback(dc_com_event_id_t dc_event_id,
         (void) dc_com_read(&dc_com_db, DC_CELLULAR_NIFMAN_INFO,
                            (void *) &dc_nifman_info, sizeof(dc_nifman_info));
         if (dc_nifman_info.rt_state == DC_SERVICE_ON) {
-            g_network_up = true;
             LOG(INFO, "network is up");
             (void) osMessagePut(status_msg_queue, (uint32_t) dc_event_id, 0);
         } else {
-            g_network_up = false;
+            anjay_event_loop_interrupt(g_anjay);
             LOG(INFO, "network is down");
         }
     } else if (dc_event_id == DC_CELLULAR_CONFIG) {
@@ -88,50 +77,27 @@ static void dc_cellular_callback(dc_com_event_id_t dc_event_id,
     }
 }
 
-void main_loop(void) {
-    while (g_network_up) {
-        AVS_LIST(avs_net_socket_t *const) sockets = NULL;
-        LOCKED(g_anjay_mtx) {
-            sockets = anjay_get_sockets(g_anjay);
-        }
+static void heartbeat_led_toggle(void) {
+    HAL_GPIO_TogglePin(BSP_HEARTBEAT_LED_PORT, BSP_HEARTBEAT_LED);
+}
 
-        size_t numsocks = AVS_LIST_SIZE(sockets);
-        struct pollfd pollfds[numsocks];
-        size_t i = 0;
-        AVS_LIST(avs_net_socket_t *const) sock;
-        AVS_LIST_FOREACH(sock, sockets) {
-            pollfds[i].fd = *(const int *) avs_net_socket_get_system(*sock);
-            pollfds[i].events = POLLIN;
-            pollfds[i].revents = 0;
-            ++i;
-        }
+static void lwm2m_notify_job(avs_sched_t *sched, const void *anjay_ptr) {
+    static size_t cycle = 0;
+    anjay_t *anjay = *(anjay_t *const *) anjay_ptr;
 
-        const int max_wait_time_ms = 1000;
-        int wait_ms = max_wait_time_ms;
-        LOCKED(g_anjay_mtx) {
-            wait_ms = anjay_sched_calculate_wait_time_ms(g_anjay,
-                                                         max_wait_time_ms);
-        }
+    device_object_update(anjay);
+    joystick_object_update(anjay);
 
-        if (poll(pollfds, numsocks, wait_ms) > 0) {
-            int socket_id = 0;
-            AVS_LIST(avs_net_socket_t *const) socket = NULL;
-            AVS_LIST_FOREACH(socket, sockets) {
-                if (pollfds[socket_id].revents) {
-                    LOCKED(g_anjay_mtx) {
-                        if (anjay_serve(g_anjay, *socket)) {
-                            LOG(ERROR, "anjay_serve() failed");
-                        }
-                    }
-                }
-                ++socket_id;
-            }
-        }
-
-        LOCKED(g_anjay_mtx) {
-            anjay_sched_run(g_anjay);
-        }
+    three_axis_sensor_objects_update(anjay);
+    if (cycle % 5 == 0) {
+        basic_sensor_objects_update(anjay);
     }
+
+    heartbeat_led_toggle();
+
+    cycle++;
+    AVS_SCHED_DELAYED(sched, NULL, avs_time_duration_from_scalar(1, AVS_TIME_S),
+                      lwm2m_notify_job, &anjay, sizeof(anjay));
 }
 
 static void lwm2m_thread(void const *user_arg) {
@@ -139,35 +105,9 @@ static void lwm2m_thread(void const *user_arg) {
 
     (void) osMessageGet(status_msg_queue, RTOS_WAIT_FOREVER);
 
+    lwm2m_notify_job(anjay_get_scheduler(g_anjay), &g_anjay);
     // TODO handle connection lost
-    main_loop();
-}
-
-static void heartbeat_led_toggle(void) {
-    HAL_GPIO_TogglePin(BSP_HEARTBEAT_LED_PORT, BSP_HEARTBEAT_LED);
-}
-
-static void lwm2m_notify_thread(void const *user_arg) {
-    (void) user_arg;
-
-    size_t cycle = 0;
-    while (true) {
-        LOCKED(g_anjay_mtx) {
-            device_object_update(g_anjay);
-            joystick_object_update(g_anjay);
-            accelerometer_object_update(g_anjay);
-            gyrometer_object_update(g_anjay);
-            magnetometer_object_update(g_anjay);
-            if (cycle % 5 == 0) {
-                temperature_object_update(g_anjay);
-                humidity_object_update(g_anjay);
-                barometer_object_update(g_anjay);
-            }
-        }
-        heartbeat_led_toggle();
-        cycle++;
-        osDelay(1000);
-    }
+    anjay_event_loop_run(g_anjay, avs_time_duration_from_scalar(1, AVS_TIME_S));
 }
 
 static int
@@ -244,15 +184,6 @@ void lwm2m_init(void) {
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
     }
 
-    // Registration to datacache
-    dc_com_reg_id_t reg =
-            dc_com_register_gen_event_cb(&dc_com_db, dc_cellular_callback,
-                                         NULL);
-    if (reg == DC_COM_INVALID_ENTRY) {
-        LOG(ERROR, "failed to subscribe to datacache events");
-        ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
-    }
-
     g_prng_ctx = avs_crypto_prng_new(entropy_callback, NULL);
     if (!g_prng_ctx) {
         LOG(ERROR, "failed to create PRNG ctx");
@@ -272,6 +203,15 @@ void lwm2m_init(void) {
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
     }
 
+    // Registration to datacache
+    dc_com_reg_id_t reg =
+            dc_com_register_gen_event_cb(&dc_com_db, dc_cellular_callback,
+                                         NULL);
+    if (reg == DC_COM_INVALID_ENTRY) {
+        LOG(ERROR, "failed to subscribe to datacache events");
+        ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
+    }
+
     if (setup_security_object() || setup_server_object()
             || anjay_attr_storage_install(g_anjay)
             || device_object_install(g_anjay)) {
@@ -279,18 +219,9 @@ void lwm2m_init(void) {
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
     }
 
-    accelerometer_object_install(g_anjay);
-    gyrometer_object_install(g_anjay);
-    magnetometer_object_install(g_anjay);
-    temperature_object_install(g_anjay);
-    humidity_object_install(g_anjay);
-    barometer_object_install(g_anjay);
+    basic_sensor_objects_install(g_anjay);
+    three_axis_sensor_objects_install(g_anjay);
     joystick_object_install(g_anjay);
-
-    if (!(g_anjay_mtx = osMutexCreate(osMutex(anjay_mtx)))) {
-        LOG(ERROR, "failed to create Anjay mutex");
-        ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
-    }
 }
 
 static uint32_t lwm2m_thread_stack_buffer[LWM2M_THREAD_STACK_SIZE];
@@ -302,24 +233,6 @@ void lwm2m_start(void) {
     g_lwm2m_task_handle = osThreadCreate(osThread(lwm2m_task), NULL);
 
     if (!g_lwm2m_task_handle) {
-        LOG(ERROR, "failed to create thread");
-        ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
-    }
-}
-
-static uint32_t
-        lwm2m_notify_thread_stack_buffer[LWM2M_NOTIFY_THREAD_STACK_SIZE];
-static osStaticThreadDef_t lwm2m_notify_controlblock;
-void lwm2m_notify_start(void) {
-    osThreadStaticDef(lwm2m_notify_task, lwm2m_notify_thread,
-                      LWM2M_NOTIFY_THREAD_PRIO, 0,
-                      LWM2M_NOTIFY_THREAD_STACK_SIZE,
-                      lwm2m_notify_thread_stack_buffer,
-                      &lwm2m_notify_controlblock);
-    g_lwm2m_notify_task_handle =
-            osThreadCreate(osThread(lwm2m_notify_task), NULL);
-
-    if (!g_lwm2m_notify_task_handle) {
         LOG(ERROR, "failed to create thread");
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
     }

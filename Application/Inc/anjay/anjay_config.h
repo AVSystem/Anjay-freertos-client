@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@
  *
  * Only meaningful if <c>ANJAY_WITH_LOGS</c> is enabled.
  */
-//#define ANJAY_WITH_TRACE_LOGS
+/* #undef ANJAY_WITH_TRACE_LOGS */
 
 /**
  * Enable core support for Access Control mechanisms.
@@ -91,7 +91,7 @@
  * <c>ANJAY_WITH_MODULE_ACCESS_CONTROL</c>, or a custom application-provided one
  * may be used.
  */
-#define ANJAY_WITH_ACCESS_CONTROL
+/* #undef ANJAY_WITH_ACCESS_CONTROL */
 
 /**
  * Enable support for the <c>anjay_download()</c> API.
@@ -147,6 +147,28 @@
  * Enable support for the <c>anjay_resource_observation_status()</c> API.
  */
 #define ANJAY_WITH_OBSERVATION_STATUS
+
+/**
+ * Enable guarding of all accesses to <c>anjay_t</c> with a mutex.
+ */
+/* #undef ANJAY_WITH_THREAD_SAFETY */
+
+/**
+ * Enable standard implementation of an event loop.
+ *
+ * Requires C11 <c>stdatomic.h</c> header to be available, and either a platform
+ * that provides a BSD-compatible socket API, or a compatibility layer file (see
+ * <c>AVS_COMMONS_POSIX_COMPAT_HEADER</c> in <c>avs_commons_config.h</c>). This
+ * is designed to best work with the defalt implementation of avs_net sockets
+ * (see <c>AVS_COMMONS_NET_WITH_POSIX_AVS_SOCKET</c>), but alternative socket
+ * implementations can also be used.
+ *
+ * The event loop is most useful when thread safety features
+ * (@ref ANJAY_WITH_THREAD_SAFETY and <c>AVS_COMMONS_SCHED_THREAD_SAFE</c>) are
+ * enabled as well, but this is not a hard requirement. See the documentation
+ * for <c>anjay_event_loop_run()</c> for details.
+ */
+#define ANJAY_WITH_EVENT_LOOP
 
 /**
  * Enable support for features new to LwM2M protocol version 1.1.
@@ -320,18 +342,6 @@
 #define ANJAY_MAX_PK_OR_IDENTITY_SIZE 256
 
 /**
- * Maximum size in bytes supported for the "Server Public Key" resource in the
- * LwM2M Security object.
- *
- * If editing this file manually, <c>256</c> shall
- * be replaced with a positive integer literal.
- *
- * The default value defined in CMake build scripts is 2048.
- * Minimal suggested setting for low-resource builds is 256.
- */
-#define ANJAY_MAX_SERVER_PK_OR_IDENTITY_SIZE 256
-
-/**
  * Maximum size in bytes supported for the "Secret Key" resource in the LwM2M
  * Security Object.
  *
@@ -428,10 +438,14 @@
 
 /**
  * Enable fw_update module (implementation of the Firmware Update object).
- *
- * Requires <c>ANJAY_WITH_DOWNLOADER</c> to be enabled.
  */
 #define ANJAY_WITH_MODULE_FW_UPDATE
+
+/**
+ * Enables ipso_objects module (generic implementation of the following kinds of
+ * the basic sensor and three axis sensor IPSO objects).
+ */
+#define ANJAY_WITH_MODULE_IPSO_OBJECTS
 
 /**
  * Enable at_sms module (implementation of an SMS driver for AT modem devices).

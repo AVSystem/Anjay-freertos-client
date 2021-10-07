@@ -46,16 +46,19 @@ static int get_pressure(float *out_pressure) {
         LOG(ERROR, "IKS01A2 barometer not initialized");
         return -1;
     }
-    if (BSP_PRESSURE_Get_Press(g_sensor_barometer, out_pressure)) {
+    float pressure;
+    if (BSP_PRESSURE_Get_Press(g_sensor_barometer, &pressure)) {
         LOG(ERROR, "error getting current pressure");
         return -1;
     }
+    // convert hPa to Pa
+    *out_pressure = 100.0f * pressure;
     return 0;
 }
 
 const basic_sensor_driver_t BSP_BAROMETER_DRIVER = {
     .init = barometer_init,
     .read = get_pressure,
-    .unit = "hPa",
+    .unit = "Pa",
     .name = "barometer"
 };

@@ -19,22 +19,10 @@
 
 #include <anjay/dm.h>
 
-int accelerometer_object_install(anjay_t *anjay);
-void accelerometer_object_update(anjay_t *anjay);
+int basic_sensor_objects_install(anjay_t *anjay);
+void basic_sensor_objects_update(anjay_t *anjay);
 
-int gyrometer_object_install(anjay_t *anjay);
-void gyrometer_object_update(anjay_t *anjay);
-
-int magnetometer_object_install(anjay_t *anjay);
-void magnetometer_object_update(anjay_t *anjay);
-
-int temperature_object_install(anjay_t *anjay);
-void temperature_object_update(anjay_t *anjay);
-
-int humidity_object_install(anjay_t *anjay);
-void humidity_object_update(anjay_t *anjay);
-
-int barometer_object_install(anjay_t *anjay);
-void barometer_object_update(anjay_t *anjay);
+int three_axis_sensor_objects_install(anjay_t *anjay);
+void three_axis_sensor_objects_update(anjay_t *anjay);
 
 #endif // SENSOR_OBJECTS_H

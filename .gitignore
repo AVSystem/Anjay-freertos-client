@@ -6,3 +6,4 @@
 Projects/*/.cproject
 Projects/*/.mxproject
 Projects/*/.project
+__pycache__/

@@ -51,14 +51,14 @@ static int get_magnetism(three_axis_sensor_values_t *out_magnetism) {
         LOG(ERROR, "error getting current magnetism");
         return -1;
     }
-    // Convert from mG to uT
-    *out_magnetism = three_axis_sensor_get_values_scaled(&magnetism, 0.1f);
+    // Convert from mG to T
+    *out_magnetism = three_axis_sensor_get_values_scaled(&magnetism, 1e-7f);
     return 0;
 }
 
 const three_axis_sensor_driver_t BSP_MAGNETOMETER_DRIVER = {
     .init = magnetometer_init,
     .read = get_magnetism,
-    .unit = "uT",
+    .unit = "T",
     .name = "magnetometer"
 };

@@ -60,6 +60,6 @@ static int get_acceleration(three_axis_sensor_values_t *out_acceleration) {
 const three_axis_sensor_driver_t BSP_ACCELEROMETER_DRIVER = {
     .init = accelerometer_init,
     .read = get_acceleration,
-    .unit = "m/s^2",
+    .unit = "m/s2",
     .name = "accelerometer"
 };

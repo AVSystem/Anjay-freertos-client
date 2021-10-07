@@ -17,7 +17,6 @@ The following LwM2M Objects are supported:
 
 - Security (/0),
 - Server (/1),
-- Access Control (/2),
 - Device (/3),
 - Temperature (/3303),
 - Humidity (/3304),

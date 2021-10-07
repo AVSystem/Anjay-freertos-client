@@ -91,6 +91,5 @@ void application_init() {
 
     cellular_start();
     lwm2m_start();
-    lwm2m_notify_start();
     utilities_start();
 }
