@@ -46,7 +46,7 @@ To connect to [Coiote IoT Device Management](https://www.avsystem.com/products/c
 
 If you use BG96-based configuration, you must upgrade the firmware of the modem to at least `BG96MAR02A08M1G` revision. Older versions may cause unexpected loss of connection.
 
-[Video guide showing basic usage of Try-Anjay](https://www.youtube.com/watchv=fgy38XfttM8) is available on YouTube.
+[Video guide showing basic usage of Try-Anjay](https://www.youtube.com/watch?v=fgy38XfttM8) is available on YouTube.
 
 
 ## Configuration menu
