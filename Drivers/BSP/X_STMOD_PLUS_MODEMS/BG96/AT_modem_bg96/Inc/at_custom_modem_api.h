@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -28,20 +27,45 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "at_core.h"
 #include "at_modem_api.h"
-#include "sysctrl.h"
+#include "at_sysctrl.h"
 
-/* Exported constants --------------------------------------------------------*/
-/* Exported types ------------------------------------------------------------*/
-/* External variables --------------------------------------------------------*/
-/* Exported macros -----------------------------------------------------------*/
-/* Exported functions ------------------------------------------------------- */
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_QUECTEL_BG96 AT_CUSTOM QUECTEL_BG96
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_QUECTEL_BG96_API AT_CUSTOM QUECTEL_BG96 API
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_API_Exported_Functions AT_CUSTOM QUECTEL_BG96 API Exported Functions
+  * @{
+  */
+
 void atcma_init_at_func_ptrs(atcustom_funcPtrs_t *funcPtrs);
 void atcma_init_sysctrl_func_ptrs(sysctrl_funcPtrs_t *funcPtrs);
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_CUSTOM_MODEM_API_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

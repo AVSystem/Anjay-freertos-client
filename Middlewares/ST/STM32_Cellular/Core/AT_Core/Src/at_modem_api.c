@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -26,11 +25,17 @@
 #include "cellular_runtime_custom.h"
 #include "at_custom_modem_api.h"
 
-/* Private typedef -----------------------------------------------------------*/
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
 
-/* Private defines -----------------------------------------------------------*/
+/** @addtogroup AT_CORE_API AT_CORE API
+  * @{
+  */
 
-/* Private macros ------------------------------------------------------------*/
+/** @defgroup AT_CORE_API_Private_Macros AT_CORE API Private Macros
+  * @{
+  */
 #if (USE_TRACE_ATCUSTOM_COMMON == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -48,16 +53,22 @@
 #define PRINT_DBG(...)   __NOP(); /* Nothing to do */
 #define PRINT_ERR(...)   __NOP(); /* Nothing to do */
 #endif /* USE_TRACE_ATCUSTOM_COMMON */
+/**
+  * @}
+  */
 
-/* Private variables ---------------------------------------------------------*/
+/** @defgroup AT_CORE_API_Private_Variables AT_CORE API Private Variables
+  * @{
+  */
 /* AT custom functions ptrs table */
 static atcustom_funcPtrs_t at_custom_func[DEVTYPE_INVALID] = { 0 };
+/**
+  * @}
+  */
 
-/* Global variables ----------------------------------------------------------*/
-
-/* Private function prototypes -----------------------------------------------*/
-
-/* Functions Definition ------------------------------------------------------*/
+/** @defgroup AT_CORE_API_Exported_Functions AT_CORE API Exported Functions
+  * @{
+  */
 /**
   * @brief  Initialize modem parsers.
   * @param  deviceType Device ID on which the event has been received.
@@ -267,4 +278,14 @@ void atcc_hw_event(sysctrl_device_type_t deviceType, at_hw_event_t hwEvent, GPIO
   }
 }
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */

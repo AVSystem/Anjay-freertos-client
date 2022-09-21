@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,7 +58,5 @@ static int get_magnetism(three_axis_sensor_values_t *out_magnetism) {
 
 const three_axis_sensor_driver_t BSP_MAGNETOMETER_DRIVER = {
     .init = magnetometer_init,
-    .read = get_magnetism,
-    .unit = "T",
-    .name = "magnetometer"
+    .read = get_magnetism
 };

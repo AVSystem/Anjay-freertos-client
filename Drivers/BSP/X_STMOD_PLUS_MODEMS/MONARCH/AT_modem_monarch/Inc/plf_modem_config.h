@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -25,12 +24,21 @@
 extern "C" {
 #endif
 
-/* Includes ------------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
 
-/* Exported constants --------------------------------------------------------*/
-/* You can specify in project configuration the modem and hardware interface used.
-*  If this is not specified, default configuration is specified below.
-*/
+/** @addtogroup AT_CUSTOM_SEQUANS_MONARCH AT_CUSTOM SEQUANS_MONARCH
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_SEQUANS_MONARCH_CONFIG AT_CUSTOM SEQUANS_MONARCH CONFIG
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_SEQUANS_MONARCH_CONFIG_Exported_Defines AT_CUSTOM SEQUANS_MONARCH CONFIG Exported Defines
+  * @{
+  */
 #if defined(HWREF_GM01QDBA1)
 /* already explicitly defined:
  * using HWREF_GM01QDBA1 directly on STMOD+ connector
@@ -45,7 +53,6 @@ extern "C" {
 #define ENABLE_MONARCH_LOW_POWER_MODE  (0U) /* Monarch Low Power mode (UART deactivation): not supported yet */
 
 /* MODEM parameters */
-
 #define USE_MODEM_GM01Q
 #define CONFIG_MODEM_UART_BAUDRATE (115200U)
 #define CONFIG_MODEM_USE_STMOD_CONNECTOR
@@ -69,17 +76,25 @@ extern "C" {
 #define CONFIG_MODEM_UART_RTS_CTS  (1)
 #endif /* user flag for modem flow control */
 
-/* At the end of the modem power on, this parameter defines whether we apply the theoretical delay to let the
- * modem start or if we try to establish communication immediately.
- *
- * SEQMONARCH_FASTEST_POWER_ON : not supported by MONARCH
- */
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /*_PLF_MODEM_CONFIG_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

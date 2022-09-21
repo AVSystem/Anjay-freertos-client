@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,8 +23,6 @@
 #include <avsystem/commons/avs_memory.h>
 
 #include "main.h"
-#include "stm32l4xx.h"
-#include "stm32l4xx_hal_cortex.h"
 
 #include "utils.h"
 
@@ -171,7 +169,7 @@ static int resource_read(anjay_t *anjay,
 
     case RID_FIRMWARE_VERSION:
         assert(riid == ANJAY_ID_INVALID);
-        return anjay_ret_string(ctx, "21.10");
+        return anjay_ret_string(ctx, "22.09");
 
     case RID_ERROR_CODE:
         assert(riid == 0);

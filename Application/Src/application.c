@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,14 +24,19 @@
 #include "cellular_service_datacache.h"
 #include "plf_config.h"
 
+#ifdef USE_AIBP
+#include "ai_bridge.h"
+#include "console.h"
+#endif
+
 #if (!USE_DEFAULT_SETUP == 1)
-#    include "app_select.h"
-#    include "setup.h"
-#    include "time_date.h"
-#    if (USE_MODEM_VOUCHER == 1)
-#        include "voucher.h"
-#    endif /* (USE_MODEM_VOUCHER == 1) */
-#endif     /* (!USE_DEFAULT_SETUP == 1) */
+#include "app_select.h"
+#include "setup.h"
+#include "time_date.h"
+#if (USE_MODEM_VOUCHER == 1)
+#include "voucher.h"
+#endif /* (USE_MODEM_VOUCHER == 1) */
+#endif /* (!USE_DEFAULT_SETUP == 1) */
 
 #include "lwm2m.h"
 
@@ -83,6 +88,14 @@ void application_init() {
     /* RandomNumberGenerator );*/
     srand(osKernelSysTick());
 
+#ifdef USE_AIBP
+    console_write("### Detect AI BRIDGE type. ###\r\n");
+    if (ai_bridge_get_type() == AI_BRIDGE_CLASSIFIER_TYPE) {
+        ai_bridge_get_classes();
+    }
+    console_write("### End of detection. ###\r\n");
+#endif
+
     cellular_init();
     lwm2m_init();
     utilities_init();
@@ -92,4 +105,8 @@ void application_init() {
     cellular_start();
     lwm2m_start();
     utilities_start();
+
+#ifdef USE_AIBP
+    ai_bridge_start_it();
+#endif
 }

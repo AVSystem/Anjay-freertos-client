@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -22,30 +21,36 @@
 #include <string.h>
 #include "at_custom_modem_api.h"
 #include "at_custom_modem_specific.h"
-#include "sysctrl_specific.h"
+#include "at_custom_sysctrl.h"
 #include "plf_config.h"
 
-/* BG96 COMPILATION FLAGS to define in project option if needed:
-*
-*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
 
-/* Private typedef -----------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM_QUECTEL_BG96 AT_CUSTOM QUECTEL_BG96
+  * @{
+  */
 
-/* Private defines -----------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM_QUECTEL_BG96_API AT_CUSTOM QUECTEL_BG96 API
+  * @{
+  */
 
-/* Private macros ------------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_API_Exported_Functions AT_CUSTOM QUECTEL_BG96 API Exported Functions
+  * @{
+  */
 
-/* Private variables ---------------------------------------------------------*/
-
-/* Global variables ----------------------------------------------------------*/
-
-/* Private function prototypes -----------------------------------------------*/
-
-/* Functions Definition ------------------------------------------------------*/
+/**
+  * @brief  Initialize AT custom function pointers.
+  * @param  funcPtrs Pointer to the structure of AT functions.
+  * @retval none
+  */
 void atcma_init_at_func_ptrs(atcustom_funcPtrs_t *funcPtrs)
 {
 #if defined(USE_MODEM_BG96)
-  /* init function pointers with BG96 functions */
+  /* initialize the structure of function pointers with TYPE1SC functions.
+   * This structure will be used by common code to call specific modem functions.
+   */
   funcPtrs->f_init = ATCustom_BG96_init;
   funcPtrs->f_checkEndOfMsgCallback = ATCustom_BG96_checkEndOfMsgCallback;
   funcPtrs->f_getCmd = ATCustom_BG96_getCmd;
@@ -62,10 +67,17 @@ void atcma_init_at_func_ptrs(atcustom_funcPtrs_t *funcPtrs)
 #endif /* USE_MODEM_BG96 */
 }
 
+/**
+  * @brief  Initialize SYSCTRL custom function pointers.
+  * @param  funcPtrs Pointer to the structure of SYSCTRL functions.
+  * @retval none
+  */
 void atcma_init_sysctrl_func_ptrs(sysctrl_funcPtrs_t *funcPtrs)
 {
 #if defined(USE_MODEM_BG96)
-  /* init function pointers with BG96 functions */
+  /* initialize the structure of function pointers with TYPE1SC functions.
+   * This structure will be used by common code to call specific modem functions.
+   */
   funcPtrs->f_getDeviceDescriptor = SysCtrl_BG96_getDeviceDescriptor;
   funcPtrs->f_open_channel =  SysCtrl_BG96_open_channel;
   funcPtrs->f_close_channel =  SysCtrl_BG96_close_channel;
@@ -78,4 +90,18 @@ void atcma_init_sysctrl_func_ptrs(sysctrl_funcPtrs_t *funcPtrs)
 #endif /* USE_MODEM_BG96 */
 }
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */

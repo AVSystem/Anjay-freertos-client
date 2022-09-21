@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -24,13 +23,16 @@
 #include "ipc_rxfifo.h"
 #include "plf_config.h"
 #include "rtosal.h"
+#include "error_handler.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
+/* Private variables -----------------------------------------------------------*/
+
 /* Private defines -----------------------------------------------------------*/
+#define USE_REARM_MUTEX 1
 
 /* Private macros ------------------------------------------------------------*/
-
 #if (USE_TRACE_IPC == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -50,12 +52,19 @@
 #endif /* USE_TRACE_IPC */
 
 /* Private variables ---------------------------------------------------------*/
+static uint8_t error_during_rearm_RX_IT = 0U;
+
+#if (USE_REARM_MUTEX == 1)
+static osMutexId IPC_RearmMutexHandle;
+#endif /* USE_REARM_MUTEX == 1 */
 
 /* Global variables ----------------------------------------------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
 static uint8_t find_Device_Id(const UART_HandleTypeDef *huart);
 static IPC_Status_t change_ipc_channel(IPC_Handle_t *const hipc);
+static void set_rearm_error(void);
+static void check_UART_rearm_RX_IT(IPC_Handle_t *const hipc);
 
 /* Functions Definition ------------------------------------------------------*/
 /**
@@ -69,6 +78,15 @@ IPC_Status_t IPC_UART_init(IPC_Device_t device, UART_HandleTypeDef *const huart)
   IPC_Status_t retval;
   /* input parameters validity has been tested in calling function */
 
+#if (USE_REARM_MUTEX == 1U)
+  IPC_RearmMutexHandle = rtosalMutexNew((const rtosal_char_t *)"IPC_MUT_REARM");
+  if (IPC_RearmMutexHandle == NULL)
+  {
+    /* Platform is reset */
+    ERROR_Handler(DBG_CHAN_IPC, 1, ERROR_FATAL);
+  }
+#endif /* USE_REARM_MUTEX == 1U */
+
   /* check if this device has not been already initialized */
   if (IPC_DevicesList[device].state != IPC_STATE_NOT_INITIALIZED)
   {
@@ -76,6 +94,7 @@ IPC_Status_t IPC_UART_init(IPC_Device_t device, UART_HandleTypeDef *const huart)
   }
   else
   {
+    /* initialize IPC structure for requested device */
     IPC_DevicesList[device].state = IPC_STATE_INITIALIZED;
     IPC_DevicesList[device].phy_int.interface_type = IPC_INTERFACE_UART;
     IPC_DevicesList[device].phy_int.h_uart = huart;
@@ -178,7 +197,7 @@ IPC_Status_t IPC_UART_open(IPC_Handle_t *const hipc,
     {
       hipc->RxFifoWrite = IPC_RXFIFO_writeStream;
     }
-#endif /* IPC_USE_STREAM_MODE */
+#endif /* IPC_USE_STREAM_MODE == 1U */
 
     /* initialize IPC channel parameters */
     hipc->Device_ID = device;
@@ -197,7 +216,7 @@ IPC_Status_t IPC_UART_open(IPC_Handle_t *const hipc,
     IPC_RXFIFO_init(hipc);
 #if (IPC_USE_STREAM_MODE == 1U)
     IPC_RXFIFO_stream_init(hipc);
-#endif /* IPC_USE_STREAM_MODE */
+#endif /* IPC_USE_STREAM_MODE == 1U */
 
     /* start RX IT */
     uart_status = HAL_UART_Receive_IT(hipc->Interface.h_uart, (uint8_t *)IPC_DevicesList[device].RxChar, 1U);
@@ -238,7 +257,7 @@ IPC_Status_t IPC_UART_close(IPC_Handle_t *const hipc)
     IPC_RXFIFO_init(hipc);
 #if (IPC_USE_STREAM_MODE == 1U)
     IPC_RXFIFO_stream_init(hipc);
-#endif /* IPC_USE_STREAM_MODE */
+#endif /* IPC_USE_STREAM_MODE == 1U */
 
     /* update IPC_DevicesList state */
     uint8_t device_id = hipc->Device_ID;
@@ -294,6 +313,7 @@ IPC_Status_t IPC_UART_close(IPC_Handle_t *const hipc)
 
 /**
   * @brief  Reset IPC handle to select.
+  * @param  hipc IPC handle to select.
   * @retval status
   */
 IPC_Status_t IPC_UART_reset(IPC_Handle_t *const hipc)
@@ -312,10 +332,15 @@ IPC_Status_t IPC_UART_reset(IPC_Handle_t *const hipc)
     IPC_RXFIFO_init(hipc);
 #if (IPC_USE_STREAM_MODE == 1U)
     IPC_RXFIFO_stream_init(hipc);
-#endif /* IPC_USE_STREAM_MODE */
+#endif /* IPC_USE_STREAM_MODE == 1U */
 
     /* rearm IT */
-    (void) HAL_UART_Receive_IT(hipc->Interface.h_uart, (uint8_t *)IPC_DevicesList[device_id].RxChar, 1U);
+    HAL_StatusTypeDef uart_status;
+    uart_status = HAL_UART_Receive_IT(hipc->Interface.h_uart, (uint8_t *)IPC_DevicesList[device_id].RxChar, 1U);
+    if (uart_status != HAL_OK)
+    {
+      set_rearm_error();
+    }
     hipc->State = IPC_STATE_ACTIVE;
     retval = IPC_OK;
   }
@@ -325,6 +350,7 @@ IPC_Status_t IPC_UART_reset(IPC_Handle_t *const hipc)
 
 /**
   * @brief  Abort IPC transaction.
+  * @param  hipc IPC handle to select.
   * @retval status
   */
 IPC_Status_t IPC_UART_abort(IPC_Handle_t *const hipc)
@@ -336,6 +362,7 @@ IPC_Status_t IPC_UART_abort(IPC_Handle_t *const hipc)
   {
     if (hipc->Interface.h_uart->gState != HAL_UART_STATE_RESET)
     {
+      /* abort IPC transaction */
       (void)HAL_UART_AbortTransmit_IT(hipc->Interface.h_uart);
     }
   }
@@ -353,6 +380,7 @@ IPC_Status_t IPC_UART_select(IPC_Handle_t *const hipc)
   PRINT_DBG("IPC select %p", hipc)
   if (hipc != IPC_DevicesList[hipc->Device_ID].h_current_channel)
   {
+    /* update IPC channel */
     (void) change_ipc_channel(hipc);
   }
 
@@ -367,16 +395,17 @@ IPC_Status_t IPC_UART_select(IPC_Handle_t *const hipc)
 IPC_Handle_t *IPC_UART_get_other_channel(const IPC_Handle_t *const hipc)
 {
   IPC_Handle_t *handle = NULL;
-
   if ((IPC_DevicesList[hipc->Device_ID].h_current_channel == hipc) &&
       (IPC_DevicesList[hipc->Device_ID].h_inactive_channel != NULL))
   {
+    /* other channel is the inactive channel */
     handle = IPC_DevicesList[hipc->Device_ID].h_inactive_channel;
   }
 
   if ((IPC_DevicesList[hipc->Device_ID].h_inactive_channel == hipc) &&
       (IPC_DevicesList[hipc->Device_ID].h_current_channel != NULL))
   {
+    /* other channel is the active channel */
     handle = IPC_DevicesList[hipc->Device_ID].h_current_channel;
   }
 
@@ -418,10 +447,10 @@ IPC_Status_t IPC_UART_send(IPC_Handle_t *const hipc, uint8_t *p_TxBuffer, uint16
 IPC_Status_t IPC_UART_receive(IPC_Handle_t *const hipc, IPC_RxMessage_t *const p_msg)
 {
   IPC_Status_t retval;
-  int16_t unread_msg;
+  int16_t unread_msg_size;
 #if (DBG_IPC_RX_FIFO == 1U)
-  int16_t free_bytes;
-#endif /* DBG_IPC_RX_FIFO */
+  uint16_t free_bytes;
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
   /* check the handle */
   if (hipc->Mode == IPC_MODE_UART_CHARACTER)
@@ -436,11 +465,11 @@ IPC_Status_t IPC_UART_receive(IPC_Handle_t *const hipc, IPC_RxMessage_t *const p
 #if (DBG_IPC_RX_FIFO == 1U)
       free_bytes = IPC_RXFIFO_getFreeBytes(hipc);
       PRINT_DBG("free_bytes before msg read=%d", free_bytes)
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
       /* read the first unread message */
-      unread_msg = IPC_RXFIFO_read(hipc, p_msg);
-      if (unread_msg == -1)
+      unread_msg_size = IPC_RXFIFO_read(hipc, p_msg);
+      if (unread_msg_size == -1)
       {
         PRINT_DBG("IPC_receive err - no unread msg")
         retval = IPC_ERROR;
@@ -450,20 +479,26 @@ IPC_Status_t IPC_UART_receive(IPC_Handle_t *const hipc, IPC_RxMessage_t *const p
 #if (DBG_IPC_RX_FIFO == 1U)
         free_bytes = IPC_RXFIFO_getFreeBytes(hipc);
         PRINT_DBG("free bytes after msg read=%d", free_bytes)
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
         if (hipc->State == IPC_STATE_PAUSED)
         {
 #if (DBG_IPC_RX_FIFO == 1U)
           /* dump_RX_dbg_infos(hipc, 1, 1); */
-          PRINT_INFO("Resume IPC (paused %d times) %d unread msg", hipc->dbgRxQueue.cpt_RXPause, unread_msg)
-#endif /* DBG_IPC_RX_FIFO */
+          PRINT_INFO("Resume IPC (paused %d times) %d unread msg", hipc->dbgRxQueue.cpt_RXPause, unread_msg_size)
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
           hipc->State = IPC_STATE_ACTIVE;
-          (void) HAL_UART_Receive_IT(hipc->Interface.h_uart, (uint8_t *)IPC_DevicesList[hipc->Device_ID].RxChar, 1U);
+          HAL_StatusTypeDef uart_status;
+          uart_status = HAL_UART_Receive_IT(hipc->Interface.h_uart,
+                                            (uint8_t *)IPC_DevicesList[hipc->Device_ID].RxChar, 1U);
+          if (uart_status != HAL_OK)
+          {
+            set_rearm_error();
+          }
         }
 
-        if (unread_msg == 0)
+        if (unread_msg_size == 0)
         {
           retval = IPC_RXQUEUE_EMPTY;
         }
@@ -551,7 +586,12 @@ void IPC_UART_rearm_RX_IT(IPC_Handle_t *const hipc)
     /* rearm uart TX interrupt */
     if (hipc->Interface.interface_type == IPC_INTERFACE_UART)
     {
-      (void)HAL_UART_Receive_IT(hipc->Interface.h_uart, (uint8_t *)IPC_DevicesList[hipc->Device_ID].RxChar, 1U);
+      HAL_StatusTypeDef uart_status;
+      uart_status = HAL_UART_Receive_IT(hipc->Interface.h_uart, (uint8_t *)IPC_DevicesList[hipc->Device_ID].RxChar, 1U);
+      if (uart_status != HAL_OK)
+      {
+        set_rearm_error();
+      }
     }
   }
 }
@@ -616,7 +656,7 @@ void IPC_UART_DumpRXQueue(const IPC_Handle_t *const hipc, uint8_t readable)
 #else
   UNUSED(hipc);
   UNUSED(readable);
-#endif /* USE_TRACE_IPC */
+#endif /* USE_TRACE_IPC == 1U */
 }
 #endif /* DBG_IPC_RX_FIFO */
 
@@ -634,6 +674,7 @@ void IPC_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle)
   {
     if (IPC_DevicesList[device_id].h_current_channel != NULL)
     {
+      /* write received character to Rx FIFO */
       IPC_DevicesList[device_id].h_current_channel->RxFifoWrite(IPC_DevicesList[device_id].h_current_channel,
                                                                 IPC_DevicesList[device_id].RxChar[0]);
     }
@@ -658,6 +699,10 @@ void IPC_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle)
       IPC_DevicesList[device_id].h_current_channel->TxClientCallback(
         IPC_DevicesList[device_id].h_current_channel
       );
+
+      /* check if an error occurred when rearming RX IT, retry now if needed */
+      check_UART_rearm_RX_IT(IPC_DevicesList[device_id].h_current_channel);
+
     }
   }
 }
@@ -698,20 +743,17 @@ static uint8_t find_Device_Id(const UART_HandleTypeDef *huart)
 {
   /* search device corresponding to this uart in the devices list */
   uint8_t device_id = IPC_DEVICE_NOT_FOUND;
-  uint8_t idx = 0U;
-  bool leave_loop = false;
 
-  do
+  for (uint8_t idx = 0U; idx < IPC_MAX_DEVICES; idx++)
   {
     /* search the device corresponding to this instance */
     if (huart->Instance == IPC_DevicesList[idx].phy_int.h_uart->Instance)
     {
       /* force loop exit */
       device_id = idx;
-      leave_loop = true;
+      break;
     }
-    idx++;
-  } while ((leave_loop == false) && (idx < IPC_MAX_DEVICES));
+  }
 
   return (device_id);
 }
@@ -738,5 +780,43 @@ static IPC_Status_t change_ipc_channel(IPC_Handle_t *const hipc)
   return (IPC_OK);
 }
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+static void set_rearm_error(void)
+{
+#if (USE_REARM_MUTEX == 1)
+  (void)rtosalMutexAcquire(IPC_RearmMutexHandle, RTOSAL_WAIT_FOREVER);
+#endif /* USE_REARM_MUTEX == 1 */
+  error_during_rearm_RX_IT = 1U;
+#if (USE_REARM_MUTEX == 1)
+  (void)rtosalMutexRelease(IPC_RearmMutexHandle);
+#endif /* USE_REARM_MUTEX == 1 */
+}
+static void check_UART_rearm_RX_IT(IPC_Handle_t *const hipc)
+{
+  if (hipc != NULL)
+  {
+    if (hipc->Interface.interface_type == IPC_INTERFACE_UART)
+    {
+#if (USE_REARM_MUTEX == 1)
+      (void)rtosalMutexAcquire(IPC_RearmMutexHandle, RTOSAL_WAIT_FOREVER);
+#endif /* USE_REARM_MUTEX == 1 */
+
+      /* if an error occurred when RX interrupt was rearmed, try again */
+      if (error_during_rearm_RX_IT == 1U)
+      {
+        HAL_StatusTypeDef uart_status;
+        uart_status = HAL_UART_Receive_IT(hipc->Interface.h_uart,
+                                          (uint8_t *)IPC_DevicesList[hipc->Device_ID].RxChar, 1U);
+        if (uart_status == HAL_OK)
+        {
+          /* clear the error if the IT was successfully rearmed */
+          error_during_rearm_RX_IT = 0U;
+        }
+
+#if (USE_REARM_MUTEX == 1)
+        (void)rtosalMutexRelease(IPC_RearmMutexHandle);
+#endif /* USE_REARM_MUTEX == 1 */
+      }
+    }
+  }
+}
 

@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -28,7 +27,17 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "cellular_service.h"
 
-/* Exported constants --------------------------------------------------------*/
+/** @addtogroup CELLULAR_SERVICE CELLULAR_SERVICE
+  * @{
+  */
+
+/** @addtogroup CELLULAR_SERVICE_INTERNAL CELLULAR_SERVICE INTERNAL
+  * @{
+  */
+
+/** @defgroup CELLULAR_SERVICE_INTERNAL_Exported_Macros CELLULAR_SERVICE INTERNAL Exported Macros
+  * @{
+  */
 #define MAX_PINCODE_SIZE               (16U)
 #define MAX_APN_SIZE                   (64U)
 #define MAX_IP_ADDR_SIZE               (64U)
@@ -41,7 +50,13 @@ extern "C" {
 #define DEFAULT_TRP_RX_TIMEOUT         (50U)
 
 #define PING_INVALID_INDEX             (0xFFU)
-/* Exported types ------------------------------------------------------------*/
+/**
+  * @}
+  */
+
+/** @defgroup CELLULAR_SERVICE_INTERNAL_Exported_Types CELLULAR_SERVICE INTERNAL Exported Types
+  * @{
+  */
 enum
 {
   CSMT_UNDEFINED = 3,
@@ -76,8 +91,6 @@ enum
   CSMT_SOCKET_RXDATA_FROM, /* csint_socket_rxdata_from_t */
   CSMT_SOCKET_CNX_STATUS,  /* csint_socket_cnx_infos_t */
   CSMT_SIGNAL_QUALITY,     /* csint_signal_quality_t */
-  CSMT_ATTACH_PS_DOMAIN,   /* uint32_t */
-  CSMT_DETACH_PS_DOMAIN,   /* uint32_t */
   CSMT_RESET,              /* CS_Reset_t */
   CSMT_ACTIVATE_PDN,       /* CS_PDN_conf_id_t */
   CSMT_DEACTIVATE_PDN,     /* CS_PDN_conf_id_t */
@@ -323,27 +336,27 @@ enum
   SID_CS_GET_IP_ADDRESS,
   SID_CS_DEFINE_PDN,
   SID_CS_SET_DEFAULT_PDN,
-  /* SID_CS_AUTOACTIVATE_PDN, */
-  /* SID_CS_CONNECT, */
-  /* SID_CS_DISCONNECT, */
+  SID_CS_RESET,
+  SID_CS_MODEM_CONFIG,
+  SID_CS_SUSBCRIBE_MODEM_EVENT,
+  SID_CS_DIRECT_CMD,
+  /* PPP: DATA mode and COMMAND mode swiches */
+  SID_CS_DATA_SUSPEND,
+  SID_CS_DATA_RESUME,
+  /* SIM */
+  SID_CS_SIM_SELECT,
+  SID_CS_SIM_GENERIC_ACCESS,
+  /* Modem Socket (TCP/IP offload) */
   SID_CS_DIAL_ONLINE, /* NOT SUPPORTED */
   SID_CS_DIAL_COMMAND,
   SID_CS_SEND_DATA,
   SID_CS_RECEIVE_DATA,
   SID_CS_RECEIVE_DATA_FROM,
   SID_CS_SOCKET_CLOSE,
-  /* DATA mode and COMMAND mode swiches */
-  SID_CS_DATA_SUSPEND,
-  SID_CS_DATA_RESUME,
-  SID_CS_RESET,
   SID_CS_SOCKET_CNX_STATUS,
-  SID_CS_MODEM_CONFIG,
   SID_CS_DNS_REQ,
   SID_CS_PING_IP_ADDRESS,
-  SID_CS_SUSBCRIBE_MODEM_EVENT,
-  SID_CS_DIRECT_CMD,
-  SID_CS_SIM_SELECT,
-  SID_CS_SIM_GENERIC_ACCESS,
+  /* Modem Low Power */
   SID_CS_INIT_POWER_CONFIG,
   SID_CS_SET_POWER_CONFIG,
   SID_CS_SLEEP_REQUEST,
@@ -351,13 +364,22 @@ enum
   SID_CS_SLEEP_CANCEL,
   SID_CS_WAKEUP
 };
+/**
+  * @}
+  */
 
-/* External variables --------------------------------------------------------*/
+/** @defgroup CELLULAR_SERVICE_INTERNAL_Exported_Variables CELLULAR_SERVICE INTERNAL Exported Variabmles
+  * @{
+  */
+extern cellular_ping_response_callback_t urc_ping_rsp_callback;
 extern csint_socket_infos_t cs_ctxt_sockets_info[CELLULAR_MAX_SOCKETS]; /*socket infos (array index = socket handle)*/
+/**
+  * @}
+  */
 
-
-/* Exported macros -----------------------------------------------------------*/
-/* Exported functions ------------------------------------------------------- */
+/** @defgroup CELLULAR_SERVICE_INTERNAL_Exported_Functions CELLULAR_SERVICE INTERNAL Exported Functions
+  * @{
+  */
 void csint_modem_reset_update_socket_state(void);
 void csint_socket_init(socket_handle_t index);
 socket_handle_t csint_socket_allocateHandle(void);
@@ -378,11 +400,26 @@ CS_Status_t csint_socket_configure_remote(socket_handle_t sockhandle,
                                           CS_CHAR_t *p_ip_addr_value,
                                           uint16_t remote_port);
 
+void set_Adapter_Handle(at_handle_t value);
+at_handle_t get_Adapter_Handle(void);
+at_buf_t *getCmdBufPtr(void);
+at_buf_t *getRspBufPtr(void);
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* CELLULAR_SERVICE_INT_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

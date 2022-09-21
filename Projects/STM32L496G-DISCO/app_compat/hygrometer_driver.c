@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,5 @@ static int get_humidity(float *out_humidity) {
 
 const basic_sensor_driver_t BSP_HYGROMETER_DRIVER = {
     .init = hygrometer_init,
-    .read = get_humidity,
-    .unit = "%RH",
-    .name = "hygrometer"
+    .read = get_humidity
 };

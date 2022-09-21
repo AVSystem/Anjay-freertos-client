@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -48,16 +47,16 @@ extern "C" {
 
 typedef struct
 {
-  int32_t x;
-  int32_t y;
-  int32_t z;
+  int32_t x; /* CodingRules: Rule-13 single letter variable 'x' is ok when it is for Axes */
+  int32_t y; /* CodingRules: Rule-13 single letter variable 'y' is ok when it is for Axes */
+  int32_t z; /* CodingRules: Rule-13 single letter variable 'z' is ok when it is for Axes */
 } MOTION_SENSOR_Axes_t;
 
 typedef struct
 {
-  int16_t x;
-  int16_t y;
-  int16_t z;
+  int16_t x; /* CodingRules: Rule-13 single letter variable 'x' is ok when it is for AxesRaw */
+  int16_t y; /* CodingRules: Rule-13 single letter variable 'y' is ok when it is for AxesRaw */
+  int16_t z; /* CodingRules: Rule-13 single letter variable 'z' is ok when it is for AxesRaw */
 } MOTION_SENSOR_AxesRaw_t;
 
 /* Motion Sensor instance Info */
@@ -140,6 +139,8 @@ typedef struct
   */
 int32_t BSP_MOTION_SENSOR_Init_Acc(void);
 int32_t BSP_MOTION_SENSOR_Init_Mag(void);
+int32_t BSP_MOTION_SENSOR_DeInit_Acc(void);
+int32_t BSP_MOTION_SENSOR_DeInit_Mag(void);
 int32_t BSP_MOTION_SENSOR_Read_Acc(MOTION_SENSOR_Axes_t *acceleration);
 int32_t BSP_MOTION_SENSOR_Read_Mag(MOTION_SENSOR_Axes_t *magnetic_field);
 
@@ -180,5 +181,3 @@ int32_t BSP_MOTION_SENSOR_SetFullScale(uint32_t Instance, uint32_t Function, int
 #endif /* __cplusplus */
 
 #endif /* STM32L462E_CELL1_MOTION_SENSOR_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

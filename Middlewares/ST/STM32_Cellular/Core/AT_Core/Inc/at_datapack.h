@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -28,10 +27,25 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "at_core.h"
 
-/* Exported constants --------------------------------------------------------*/
-#define DATAPACK_MAX_BUF_SIZE (ATCMD_MAX_BUF_SIZE)
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
 
-/* Exported types ------------------------------------------------------------*/
+/** @addtogroup AT_CORE_DATAPACK AT_CORE DATAPACK
+  * @{
+  */
+
+/** @defgroup AT_CORE_DATAPACK_Private_Defines AT_CORE DATAPACK Private Defines
+  * @{
+  */
+#define DATAPACK_MAX_BUF_SIZE (ATCMD_MAX_BUF_SIZE)
+/**
+  * @}
+  */
+
+/** @defgroup AT_CORE_DATAPACK_Private_Types AT_CORE DATAPACK Private Types
+  * @{
+  */
 typedef enum
 {
   DATAPACK_OK = 0,
@@ -42,12 +56,13 @@ typedef struct
 {
   void *structptr;
 } datapack_structptr_t;
+/**
+  * @}
+  */
 
-/* External variables --------------------------------------------------------*/
-
-/* Exported macros -----------------------------------------------------------*/
-
-/* Exported functions ------------------------------------------------------- */
+/** @defgroup AT_CORE_DATAPACK_Exported_Functions AT_CORE DATAPACK Exported Functions
+  * @{
+  */
 DataPack_Status_t DATAPACK_writePtr(uint8_t *p_buf, uint16_t msgtype, void *p_data);
 DataPack_Status_t DATAPACK_writeStruct(uint8_t *p_buf, uint16_t msgtype, uint16_t size, void *p_data);
 DataPack_Status_t DATAPACK_readPtr(uint8_t *p_buf, uint16_t msgtype, void **p_data);
@@ -55,10 +70,20 @@ DataPack_Status_t DATAPACK_readStruct(uint8_t *p_buf, uint16_t msgtype, uint16_t
 uint16_t               DATAPACK_readMsgType(uint8_t *p_buf);
 uint16_t               DATAPACK_readSize(uint8_t *p_buf);
 
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_DATAPACK_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

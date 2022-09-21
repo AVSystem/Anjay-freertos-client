@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "stm32l4xx_hal.h"
+#include "main.h"
 
 #include "console.h"
 
-#define CHAR_TAB 0x09
-#define CHAR_ESC 0x1b
+#define CHAR_BS 0x08
 #define CHAR_DEL 0x7f
+#define CHAR_ESC 0x1b
 
 extern UART_HandleTypeDef *const g_console_huart;
 
@@ -45,10 +46,10 @@ static char console_read_character(void) {
     while (HAL_UART_Receive(g_console_huart, (uint8_t *) &ch, sizeof(char),
                             HAL_MAX_DELAY)
            == HAL_OK) {
-        // Ignore escape sequences and tabs
+        // Ignore escape sequences
         if (ch == CHAR_ESC) {
             console_ignore_characters();
-        } else if (ch != CHAR_TAB) {
+        } else {
             break;
         }
     }
@@ -59,14 +60,16 @@ void console_read_line(char *buffer, size_t size) {
     char ch;
     size_t i = 0;
     while ((ch = console_read_character()) != '\r') {
-        if (ch == CHAR_DEL) {
+        if (ch == CHAR_BS || ch == CHAR_DEL) {
             if (i > 0) {
-                buffer[--i] = '\0';
+                i--;
                 console_write("\b \b");
             }
-        } else if (i < size - 1) {
-            buffer[i++] = ch;
-            console_write("%c", ch);
+        } else if (isprint(ch) || isblank(ch)) {
+            if (i < size - 1) {
+                buffer[i++] = ch;
+                console_write("%c", ch);
+            }
         }
     }
     buffer[i] = '\0';

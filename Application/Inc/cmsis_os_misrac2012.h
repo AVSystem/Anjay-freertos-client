@@ -19,16 +19,16 @@
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef CMSIS_OS_MISRAC2012_H
-#    define CMSIS_OS_MISRAC2012_H
+#define CMSIS_OS_MISRAC2012_H
 
-#    ifdef __cplusplus
+#ifdef __cplusplus
 extern "C" {
-#    endif
+#endif
 
 /* Includes ------------------------------------------------------------------*/
 /* FreeRTOS is a Third Party so MISRAC messages linked to it are ignored */
 /*cstat -MISRAC2012-* */
-#    include "cmsis_os.h"
+#include "cmsis_os.h"
 /*cstat +MISRAC2012-* */
 
 /* Exported constants --------------------------------------------------------*/
@@ -36,16 +36,16 @@ extern "C" {
 /* Platform defines ----------------------------------------------------------*/
 /* MISRAC 2012 issue link to osWaitForever usage */
 /* Adding U in order to solve MISRAC2012-Dir-7.2 */
-#    define RTOS_WAIT_FOREVER 0xFFFFFFFFU
+#define RTOS_WAIT_FOREVER 0xFFFFFFFFU
 
 /* Exported types ------------------------------------------------------------*/
 /* External variables --------------------------------------------------------*/
 /* Exported macros -----------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
 
-#    ifdef __cplusplus
+#ifdef __cplusplus
 }
-#    endif
+#endif
 
 #endif /* CMSIS_OS_MISRAC2012_H */
 

@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -447,7 +446,8 @@ void osCCS_get_release_cs_resource(void);
   * @param  power_config Pointer to the structure describing the power parameters
   * @retval CS_Status_t
   */
-CS_Status_t osCS_InitPowerConfig(CS_init_power_config_t *p_power_config, cellular_power_status_callback_t lp_status);
+CS_Status_t osCS_InitPowerConfig(CS_init_power_config_t *p_power_config,
+                                 cellular_power_status_callback_t power_status_callback);
 
 
 /**
@@ -498,5 +498,3 @@ CS_Status_t osCS_SetPowerConfig(CS_set_power_config_t *p_power_config);
 #endif
 
 #endif /* CELLULAR_SERVICE_OS_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

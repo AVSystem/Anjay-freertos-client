@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,7 +72,13 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == MODEM_UART_INSTANCE) {
         IPC_UART_RxCpltCallback(huart);
-    } else {
+    } else
+#ifdef USE_AIBP
+            if (huart->Instance == USART2) {
+        ai_bridge_it_callback();
+    } else
+#endif
+    {
         /* Nothing to do */
     }
 }

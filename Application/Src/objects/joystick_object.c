@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,37 +38,37 @@
 
 #if defined(BSP_JOYSTICK_PRESENT)
 
-#    define JOYSTICK_OBJ_LOG(...) avs_log(joystick_obj, __VA_ARGS__)
+#define JOYSTICK_OBJ_LOG(...) avs_log(joystick_obj, __VA_ARGS__)
 
 /**
  * Digital Input State: R, Single, Optional
  * type: boolean, range: N/A, unit: N/A
  * The current state of a digital input.
  */
-#    define RID_DIGITAL_INPUT_STATE 5500
+#define RID_DIGITAL_INPUT_STATE 5500
 
 /**
  * Digital Input Counter: R, Single, Optional
  * type: integer, range: N/A, unit: N/A
  * The cumulative value of active state detected.
  */
-#    define RID_DIGITAL_INPUT_COUNTER 5501
+#define RID_DIGITAL_INPUT_COUNTER 5501
 
 /**
  * X Value: R, Single, Optional
  * type: float, range: N/A, unit: N/A
  * The measured value along the X axis.
  */
-#    define RID_X_VALUE 5702
+#define RID_X_VALUE 5702
 
 /**
  * Y Value: R, Single, Optional
  * type: float, range: N/A, unit: N/A
  * The measured value along the Y axis.
  */
-#    define RID_Y_VALUE 5703
+#define RID_Y_VALUE 5703
 
-#    define JOYSTICK_OID 3345
+#define JOYSTICK_OID 3345
 
 typedef struct multiple_axis_joystick_object_struct {
     const anjay_dm_object_def_t *def;

@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -23,18 +22,27 @@
 #include "at_util.h"
 #include "plf_config.h"
 
-/* Private typedef -----------------------------------------------------------*/
-/* Private defines -----------------------------------------------------------*/
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
+
+/** @addtogroup AT_CORE_UTIL AT_CORE UTIL
+  * @{
+  */
+
+/** @defgroup AT_CORE_UTIL_Private_Defines AT_CORE UTIL Private Defines
+  * @{
+  */
 #define MAX_32BITS_STRING_SIZE (8U)  /* = max string size for a 32bits value (FFFF.FFFF) */
 #define MAX_64BITS_STRING_SIZE (16U) /* = max string size for a 64bits value (FFFF.FFFF.FFFF.FFFF) */
-
 #define MAX_PARAM_SIZE ((uint16_t)32U) /* max size of string */
-/* Private macros ------------------------------------------------------------*/
-/* Private variables ---------------------------------------------------------*/
-/* Global variables ----------------------------------------------------------*/
-/* Private function prototypes -----------------------------------------------*/
+/**
+  * @}
+  */
 
-/* Functions Definition ------------------------------------------------------*/
+/** @defgroup AT_CORE_UTIL_Exported_Functions AT_CORE UTIL Exported Functions
+  * @{
+  */
 uint32_t ATutil_ipow(uint32_t base, uint16_t exp)
 {
   uint16_t local_exp = exp;
@@ -519,5 +527,14 @@ uint32_t ATutil_convert_T3324_to_seconds(uint32_t encoded_value)
 
   return (decode_value);
 }
+/**
+  * @}
+  */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */

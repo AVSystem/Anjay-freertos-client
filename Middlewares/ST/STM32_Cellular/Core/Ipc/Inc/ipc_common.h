@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -48,7 +47,7 @@ extern "C" {
 #define IPC_MAX_DEVICES  ((uint8_t) USER_DEFINED_IPC_MAX_DEVICES)
 #else
 #define IPC_MAX_DEVICES  ((uint8_t) 1)
-#endif /* USER_DEFINED_IPC_MAX_DEVICES */
+#endif /* USER_DEFINED_IPC_MAX_DEVICES != 0 */
 
 /* IPC message format stored in circular buffer:
 *  <HEADER><PAYLOAD>
@@ -86,7 +85,7 @@ typedef struct
   dbg_msg_info_t    msg_info_queue[DBG_QUEUE_SIZE];
   uint16_t          queue_pos;
 } dbg_rx_queue_info_t;
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
 typedef uint8_t IPC_Device_t;
 #define IPC_DEVICE_0 ((IPC_Device_t)(0x00U))
@@ -173,15 +172,16 @@ typedef struct
 } IPC_RxBuffer_t;
 #endif  /* IPC_USE_STREAM_MODE */
 
-struct IPC_Handle_Typedef_struct;
+struct IPC_Handle_struct_t; /* MISRAC2012-Rule-2.4: Tag 'IPC_Handle_struct' is used for callbacks as parameter
+                             *                      and callbacks are used in IPC_Handle_t structure as fields */
 
-typedef void (*IPC_RxCallbackTypeDef)(struct IPC_Handle_Typedef_struct *hipc);
-typedef void (*IPC_TxCallbackTypeDef)(struct IPC_Handle_Typedef_struct *hipc);
-typedef void (*IPC_ErrCallbackTypeDef)(struct IPC_Handle_Typedef_struct *hipc);
-typedef void (*IPC_RXFIFO_writeTypeDef)(struct IPC_Handle_Typedef_struct *hipc, uint8_t rxChar);
+typedef void (*IPC_RxCallbackTypeDef)(struct IPC_Handle_struct_t *hipc);
+typedef void (*IPC_TxCallbackTypeDef)(struct IPC_Handle_struct_t *hipc);
+typedef void (*IPC_ErrCallbackTypeDef)(struct IPC_Handle_struct_t *hipc);
+typedef void (*IPC_RXFIFO_writeTypeDef)(struct IPC_Handle_struct_t *hipc, uint8_t rxChar);
 typedef uint8_t (*IPC_CheckEndOfMsgCallbackTypeDef)(uint8_t rxChar);
 
-typedef struct IPC_Handle_Typedef_struct
+typedef struct IPC_Handle_struct_t
 {
   IPC_Device_t            Device_ID;    /* IPC device ID */
   IPC_PhysicalInterface_t Interface;
@@ -199,7 +199,7 @@ typedef struct IPC_Handle_Typedef_struct
 
 #if (DBG_IPC_RX_FIFO == 1U)
   dbg_rx_queue_info_t         dbgRxQueue;
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 } IPC_Handle_t;
 
 typedef struct
@@ -241,8 +241,6 @@ void IPC_DumpRXQueue(IPC_Handle_t *const hipc, uint8_t readable);
 #endif
 
 #endif /* IPC_COMMON_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 
 
 

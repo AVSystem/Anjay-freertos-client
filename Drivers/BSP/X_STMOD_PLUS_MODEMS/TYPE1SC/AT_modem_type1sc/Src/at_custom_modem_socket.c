@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -35,9 +34,24 @@
 #include "plf_modem_config.h"
 #include "error_handler.h"
 
-/* Private typedef -----------------------------------------------------------*/
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
 
-/* Private macros ------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC AT_CUSTOM ALTAIR_T1SC
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC_SOCKET AT_CUSTOM ALTAIR_T1SC SOCKET
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SOCKET_Private_Macros AT_CUSTOM ALTAIR_T1SC SOCKET Private Macros
+  * @{
+  */
+
 #if (USE_TRACE_ATCUSTOM_SPECIFIC == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -76,23 +90,34 @@
   if (retval == ATACTION_RSP_ERROR) {exitcode = 1U;}\
   } while (exitcode == 0U);
 
-/* Private defines -----------------------------------------------------------*/
+/**
+  * @}
+  */
 
-/* Global variables ----------------------------------------------------------*/
 
-/* Private variables ---------------------------------------------------------*/
-
-/* Private function prototypes -----------------------------------------------*/
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SOCKET_Private_Functions_Prototypes
+  *  AT_CUSTOM ALTAIR_T1SC SOCKET Private Functions Prototypes
+  * @{
+  */
 static uint8_t convertToASCII(uint8_t nbr);
 static void convertCharToHEX(uint8_t val, uint8_t *p_msd, uint8_t *p_lsd);
 static at_status_t convertDigitToValue(uint8_t digit, uint8_t *res);
 static at_status_t convertHEXToChar(uint8_t MSD, uint8_t LSD, uint8_t *res);
+/**
+  * @}
+  */
 
-/* Functions Definition ------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SOCKET_Exported_Functions AT_CUSTOM ALTAIR_T1SC SOCKET Exported Functions
+  * @{
+  */
 
-/* Build command functions ---------------------------------------------------*/
-
-/* Analyze command functions -------------------------------------------------*/
+/* Build command functions -------------------------------------------------*/
+/**
+  * @brief  Build specific modem command : PDNACT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_PDNACT(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -123,6 +148,12 @@ at_status_t fCmdBuild_PDNACT(atparser_context_t *p_atp_ctxt, atcustom_modem_cont
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SOCKETCMD ALLOCATE.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SOCKETCMD_ALLOCATE(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   /* Array to convert AT%SOCKETCMD="ALLOCATE" service type parameter to a string
@@ -137,12 +168,14 @@ at_status_t fCmdBuild_SOCKETCMD_ALLOCATE(atparser_context_t *p_atp_ctxt, atcusto
   };
 
   at_status_t retval = ATSTATUS_OK;
+  atsocket_servicetype_t service_type_index;
+
   PRINT_API("enter fCmdBuild_SOCKETCMD_ALLOCATE()")
 
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    if (p_modem_ctxt->socket_ctxt.socket_info != NULL)
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
     {
       /* allocates socket session
       * AT%SOCKETCMD="ALLOCATE",<param1>,<param2>,<param3>,<param4>,<param5>,<param6>,<param7>
@@ -160,26 +193,24 @@ at_status_t fCmdBuild_SOCKETCMD_ALLOCATE(atparser_context_t *p_atp_ctxt, atcusto
       /* <param1> */
       /* convert user cid (CS_PDN_conf_id_t) to PDP modem cid (value) */
       uint8_t pdp_modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist,
-                                                          p_modem_ctxt->socket_ctxt.socket_info->conf_id);
-      PRINT_INFO("user cid = %d, PDP modem cid = %d", (uint8_t)p_modem_ctxt->socket_ctxt.socket_info->conf_id,
+                                                          p_modem_ctxt->socket_ctxt.p_socket_info->conf_id);
+      PRINT_INFO("user cid = %d, PDP modem cid = %d", (uint8_t)p_modem_ctxt->socket_ctxt.p_socket_info->conf_id,
                  pdp_modem_cid)
 
       /* <param3> */
       /* set the right string for socket open mode client / server */
-      atsocket_servicetype_t service_type_index;
-
-      if (strcmp((CRC_CHAR_t const *)p_modem_ctxt->socket_ctxt.socket_info->ip_addr_value,
+      if (strcmp((CRC_CHAR_t const *)p_modem_ctxt->socket_ctxt.p_socket_info->ip_addr_value,
                  (CRC_CHAR_t const *)CONFIG_MODEM_UDP_SERVICE_CONNECT_IP) == 0)
       {
         /* TCP or UDP as server */
         /* To Do: TCP server in mode IPv6 is not yet managed */
-        service_type_index = ((p_modem_ctxt->socket_ctxt.socket_info->protocol) == CS_TCP_PROTOCOL) ? \
+        service_type_index = ((p_modem_ctxt->socket_ctxt.p_socket_info->protocol) == CS_TCP_PROTOCOL) ? \
                              ATSOCKET_SERVICETYPE_TCP_SERVER : ATSOCKET_SERVICETYPE_UDP_SERVICE;
       }
       else
       {
         /* TCP or UDP as client */
-        service_type_index = ((p_modem_ctxt->socket_ctxt.socket_info->protocol) == CS_TCP_PROTOCOL) ? \
+        service_type_index = ((p_modem_ctxt->socket_ctxt.p_socket_info->protocol) == CS_TCP_PROTOCOL) ? \
                              ATSOCKET_SERVICETYPE_TCP_CLIENT : ATSOCKET_SERVICETYPE_UDP_CLIENT;
       }
 
@@ -190,10 +221,10 @@ at_status_t fCmdBuild_SOCKETCMD_ALLOCATE(atparser_context_t *p_atp_ctxt, atcusto
         (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",%d,\"%s\",\"%s\",\"%s\",,%d,%ld",
                        "ALLOCATE",
                        pdp_modem_cid,
-                       ((p_modem_ctxt->socket_ctxt.socket_info->protocol == CS_TCP_PROTOCOL) ? "TCP" : "UDP"),
+                       ((p_modem_ctxt->socket_ctxt.p_socket_info->protocol == CS_TCP_PROTOCOL) ? "TCP" : "UDP"),
                        type1sc_array_ALLOCATE_service_type[service_type_index],
-                       p_modem_ctxt->socket_ctxt.socket_info->ip_addr_value,
-                       p_modem_ctxt->socket_ctxt.socket_info->local_port,
+                       p_modem_ctxt->socket_ctxt.p_socket_info->ip_addr_value,
+                       p_modem_ctxt->socket_ctxt.p_socket_info->local_port,
                        CONFIG_MODEM_MAX_SOCKET_TX_DATA_SIZE);
       }
       else
@@ -201,23 +232,30 @@ at_status_t fCmdBuild_SOCKETCMD_ALLOCATE(atparser_context_t *p_atp_ctxt, atcusto
         (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",%d,\"%s\",\"%s\",\"%s\",%d,%d,%ld",
                        "ALLOCATE",
                        pdp_modem_cid,
-                       ((p_modem_ctxt->socket_ctxt.socket_info->protocol == CS_TCP_PROTOCOL) ? "TCP" : "UDP"),
+                       ((p_modem_ctxt->socket_ctxt.p_socket_info->protocol == CS_TCP_PROTOCOL) ? "TCP" : "UDP"),
                        type1sc_array_ALLOCATE_service_type[service_type_index],
-                       p_modem_ctxt->socket_ctxt.socket_info->ip_addr_value,
-                       p_modem_ctxt->socket_ctxt.socket_info->remote_port,
-                       p_modem_ctxt->socket_ctxt.socket_info->local_port,
+                       p_modem_ctxt->socket_ctxt.p_socket_info->ip_addr_value,
+                       p_modem_ctxt->socket_ctxt.p_socket_info->remote_port,
+                       p_modem_ctxt->socket_ctxt.p_socket_info->local_port,
                        CONFIG_MODEM_MAX_SOCKET_TX_DATA_SIZE);
       }
     }
     else
     {
       PRINT_ERR("No socket context for fCmdBuild_SOCKETCMD_ALLOCATE")
+      retval = ATSTATUS_ERROR;
     }
   }
 
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SOCKETCMD ACTIVATE.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SOCKETCMD_ACTIVATE(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -226,13 +264,14 @@ at_status_t fCmdBuild_SOCKETCMD_ACTIVATE(atparser_context_t *p_atp_ctxt, atcusto
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    if (p_modem_ctxt->socket_ctxt.socket_info != NULL)
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
     {
       /* activates the predefined socket
       * AT%SOCKETCMD="ACTIVATE",<param1>
       * <param1>: decimal, the socket ID of the specified socket
       */
-      uint32_t socketID = atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle);
+      uint32_t socketID = atcm_socket_get_modem_cid(p_modem_ctxt,
+                                                    p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",%ld",
                      "ACTIVATE",
                      socketID);
@@ -240,12 +279,19 @@ at_status_t fCmdBuild_SOCKETCMD_ACTIVATE(atparser_context_t *p_atp_ctxt, atcusto
     else
     {
       PRINT_ERR("No socket context for fCmdBuild_SOCKETCMD_ACTIVATE")
+      retval = ATSTATUS_ERROR;
     }
   }
 
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SOCKETCMD INFO.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SOCKETCMD_INFO(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -254,30 +300,37 @@ at_status_t fCmdBuild_SOCKETCMD_INFO(atparser_context_t *p_atp_ctxt, atcustom_mo
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    if (p_modem_ctxt->socket_ctxt.socket_info != NULL)
+    if (p_modem_ctxt->socket_ctxt.p_socket_cnx_infos != NULL)
     {
       /* returns the details of the specific socket ID
       * AT%SOCKETCMD="INFO",<param1>
       * <param1>: decimal, the socket ID for which info is requested
       */
       /* warning ! information related to SID_CS_SOCKET_CNX_STATUS
-       * are referring to p_modem_ctxt->socket_ctxt.socket_cnx_infos,
+       * are referring to p_modem_ctxt->socket_ctxt.p_socket_cnx_infos,
        * especially for the socket_handle parameter.
        */
       uint32_t socketID = atcm_socket_get_modem_cid(p_modem_ctxt,
-                                                    p_modem_ctxt->socket_ctxt.socket_cnx_infos->socket_handle);
+                                                    p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->socket_handle);
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",%ld",
                      "INFO",
                      socketID);
     }
     else
     {
-      PRINT_ERR("No socket context for fCmdBuild_SOCKETCMD_INFO")
+      PRINT_ERR("No socket cnx infos context for fCmdBuild_SOCKETCMD_INFO")
+      retval = ATSTATUS_ERROR;
     }
   }
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SOCKETCMD DEACTIVATE.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SOCKETCMD_DEACTIVATE(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -286,13 +339,14 @@ at_status_t fCmdBuild_SOCKETCMD_DEACTIVATE(atparser_context_t *p_atp_ctxt, atcus
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    if (p_modem_ctxt->socket_ctxt.socket_info != NULL)
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
     {
       /* Request to deactivate the specific socket ID and release its resources
       * AT%SOCKETCMD="DEACTIVATE",<param1>
       * <param1>: decimal, the socket ID to be closed
       */
-      uint32_t socketID = atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle);
+      uint32_t socketID = atcm_socket_get_modem_cid(p_modem_ctxt,
+                                                    p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
 
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",%ld",
                      "DEACTIVATE",
@@ -301,12 +355,19 @@ at_status_t fCmdBuild_SOCKETCMD_DEACTIVATE(atparser_context_t *p_atp_ctxt, atcus
     else
     {
       PRINT_ERR("No socket context for fCmdBuild_SOCKETCMD_DEACTIVATE")
+      retval = ATSTATUS_ERROR;
     }
   }
 
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SOCKETCMD DELETE.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SOCKETCMD_DELETE(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -315,13 +376,14 @@ at_status_t fCmdBuild_SOCKETCMD_DELETE(atparser_context_t *p_atp_ctxt, atcustom_
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    if (p_modem_ctxt->socket_ctxt.socket_info != NULL)
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
     {
       /* Request to delete specific socket ID allocation
       * AT%SOCKETCMD="DELETE",<param1>
       * <param1>: decimal, the socket ID to be deleted
       */
-      uint32_t socketID = atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle);
+      uint32_t socketID = atcm_socket_get_modem_cid(p_modem_ctxt,
+                                                    p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
 
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",%ld",
                      "DELETE",
@@ -330,12 +392,19 @@ at_status_t fCmdBuild_SOCKETCMD_DELETE(atparser_context_t *p_atp_ctxt, atcustom_
     else
     {
       PRINT_ERR("No socket context for fCmdBuild_SOCKETCMD_DELETE")
+      retval = ATSTATUS_ERROR;
     }
   }
 
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SOCKETCMD SEND.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SOCKETDATA_SEND(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -418,6 +487,12 @@ at_status_t fCmdBuild_SOCKETDATA_SEND(atparser_context_t *p_atp_ctxt, atcustom_m
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SOCKETCMD RECEIVE.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SOCKETDATA_RECEIVE(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -443,6 +518,12 @@ at_status_t fCmdBuild_SOCKETDATA_RECEIVE(atparser_context_t *p_atp_ctxt, atcusto
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : DNSRSLV.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_DNSRSLV(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -456,17 +537,31 @@ at_status_t fCmdBuild_DNSRSLV(atparser_context_t *p_atp_ctxt, atcustom_modem_con
      * <sessionID>: decimal, PDN
      * <domain_name>: string, domain to solve
      */
-    CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
-    uint8_t pdp_modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
-    /* configure DNS server address for the specified PDP context */
-    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,\"%s\"",
-                   pdp_modem_cid,
-                   p_modem_ctxt->SID_ctxt.dns_request_infos->dns_req.host_name);
+    if (p_modem_ctxt->SID_ctxt.p_dns_request_infos != NULL)
+    {
+      CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
+      uint8_t pdp_modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
+      /* configure DNS server address for the specified PDP context */
+      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,\"%s\"",
+                     pdp_modem_cid,
+                     p_modem_ctxt->SID_ctxt.p_dns_request_infos->dns_req.host_name);
+    }
+    else
+    {
+      PRINT_ERR("No dns request info context")
+      retval = ATSTATUS_ERROR;
+    }
   }
 
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : PINGCMD.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_PINGCMD(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -499,6 +594,13 @@ at_status_t fCmdBuild_PINGCMD(atparser_context_t *p_atp_ctxt, atcustom_modem_con
 }
 
 /* TYPE1SC specific analyze commands */
+
+/**
+  * @brief  Analyze specific modem response : PDNACT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_PDNACT(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                    const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -512,6 +614,12 @@ at_action_rsp_t fRspAnalyze_PDNACT(at_context_t *p_at_ctxt, atcustom_modem_conte
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SOCKETCMD.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SOCKETCMD(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -529,14 +637,22 @@ at_action_rsp_t fRspAnalyze_SOCKETCMD(at_context_t *p_at_ctxt, atcustom_modem_co
   {
     if (element_infos->param_rank == 2U)
     {
-      /* <socket_id> */
-      uint32_t affected_socket_ID = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                              element_infos->str_size);
-      PRINT_INFO("<affected socket_id> = %ld", affected_socket_ID)
-      type1sc_shared.SocketCmd_Allocated_SocketID = AT_TRUE;
-      /* save this socket ID received from the modem */
-      (void) atcm_socket_set_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle,
-                                       affected_socket_ID);
+      if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
+      {
+        /* <socket_id> */
+        uint32_t affected_socket_ID = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                                element_infos->str_size);
+        PRINT_INFO("<affected socket_id> = %ld", affected_socket_ID)
+        type1sc_shared.SocketCmd_Allocated_SocketID = AT_TRUE;
+        /* save this socket ID received from the modem */
+        (void) atcm_socket_set_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle,
+                                         affected_socket_ID);
+      }
+      else
+      {
+        PRINT_ERR("No socket context for fRspAnalyze_SOCKETCMD / ALLOCATE")
+        retval = ATACTION_RSP_ERROR;
+      }
     }
     else
     {
@@ -557,62 +673,70 @@ at_action_rsp_t fRspAnalyze_SOCKETCMD(at_context_t *p_at_ctxt, atcustom_modem_co
   else if (p_atp_ctxt->current_atcmd.id == (CMD_ID_t) CMD_AT_SOCKETCMD_INFO)
   {
     /* warning ! information related to SID_CS_SOCKET_CNX_STATUS
-     * are referring to p_modem_ctxt->socket_ctxt.socket_cnx_infos
+     * are referring to p_modem_ctxt->socket_ctxt.p_socket_cnx_infos
      * especially the socket_handle to
      */
-    if (element_infos->param_rank == 2U)
+    if (p_modem_ctxt->socket_ctxt.p_socket_cnx_infos != NULL)
     {
-      /* <socket_stat> */
-      /* info ignored */
-    }
-    else if (element_infos->param_rank == 3U)
-    {
-      /* <socket_type> */
-      /* info ignored */
-    }
-    else if (element_infos->param_rank == 4U)
-    {
-      /* <src_ip> */
-      atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
-                              (uint16_t) element_infos->str_size,
-                              (uint8_t *)p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->loc_ip_addr_value);
-    }
-    else if (element_infos->param_rank == 5U)
-    {
-      /* <dst_ip> */
-      atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
-                              (uint16_t) element_infos->str_size,
-                              (uint8_t *)p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->rem_ip_addr_value);
-    }
-    else if (element_infos->param_rank == 6U)
-    {
-      /* <src_port> */
-      uint32_t src_port = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                    element_infos->str_size);
-      PRINT_DBG("<src_port>=%ld", src_port)
-      p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->loc_port = (uint16_t) src_port;
-    }
-    else if (element_infos->param_rank == 7U)
-    {
-      /* <dst_port> */
-      uint32_t dst_port = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                    element_infos->str_size);
-      PRINT_DBG("<dst_port>=%ld", dst_port)
-      p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->rem_port = (uint16_t) dst_port;
-    }
-    else if (element_infos->param_rank == 8U)
-    {
-      /* <socket_dir> */
-      /* info ignored */
-    }
-    else if (element_infos->param_rank == 9U)
-    {
-      /* <socket_to> */
-      /* info ignored */
+      if (element_infos->param_rank == 2U)
+      {
+        /* <socket_stat> */
+        /* info ignored */
+      }
+      else if (element_infos->param_rank == 3U)
+      {
+        /* <socket_type> */
+        /* info ignored */
+      }
+      else if (element_infos->param_rank == 4U)
+      {
+        /* <src_ip> */
+        atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
+                                (uint16_t) element_infos->str_size,
+                                (uint8_t *)p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->loc_ip_addr_value);
+      }
+      else if (element_infos->param_rank == 5U)
+      {
+        /* <dst_ip> */
+        atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
+                                (uint16_t) element_infos->str_size,
+                                (uint8_t *)p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->rem_ip_addr_value);
+      }
+      else if (element_infos->param_rank == 6U)
+      {
+        /* <src_port> */
+        uint32_t src_port = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size);
+        PRINT_DBG("<src_port>=%ld", src_port)
+        p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->loc_port = (uint16_t) src_port;
+      }
+      else if (element_infos->param_rank == 7U)
+      {
+        /* <dst_port> */
+        uint32_t dst_port = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                      element_infos->str_size);
+        PRINT_DBG("<dst_port>=%ld", dst_port)
+        p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->rem_port = (uint16_t) dst_port;
+      }
+      else if (element_infos->param_rank == 8U)
+      {
+        /* <socket_dir> */
+        /* info ignored */
+      }
+      else if (element_infos->param_rank == 9U)
+      {
+        /* <socket_to> */
+        /* info ignored */
+      }
+      else
+      {
+        /* other parameters are ignored */
+      }
     }
     else
     {
-      /* other parameters are ignored */
+      PRINT_ERR("No socket cnx infos context available")
+      retval = ATACTION_RSP_ERROR;
     }
   }
   /* for "LASTERROR" command:
@@ -650,6 +774,12 @@ at_action_rsp_t fRspAnalyze_SOCKETCMD(at_context_t *p_at_ctxt, atcustom_modem_co
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SOCKETDATA.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SOCKETDATA(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                        const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -844,6 +974,12 @@ at_action_rsp_t fRspAnalyze_SOCKETDATA(at_context_t *p_at_ctxt, atcustom_modem_c
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SOCKETEV.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SOCKETEV(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                      const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -921,6 +1057,12 @@ at_action_rsp_t fRspAnalyze_SOCKETEV(at_context_t *p_at_ctxt, atcustom_modem_con
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : DNSRSLV.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_DNSRSLV(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                     const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -983,6 +1125,12 @@ at_action_rsp_t fRspAnalyze_DNSRSLV(at_context_t *p_at_ctxt, atcustom_modem_cont
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : PINGCMD.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_PINGCMD(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                     const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1059,6 +1207,13 @@ at_action_rsp_t fRspAnalyze_PINGCMD(at_context_t *p_at_ctxt, atcustom_modem_cont
   return (retval);
 }
 
+/* TYPE1SC other exported functions */
+
+/**
+  * @brief  Clear the structure used for PING response.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval none
+  */
 void clear_ping_resp_struct(atcustom_modem_context_t *p_modem_ctxt)
 {
   /* clear CS_Ping_response_t structure parameters EXCEPT ping_resp_urc.index */
@@ -1071,7 +1226,13 @@ void clear_ping_resp_struct(atcustom_modem_context_t *p_modem_ctxt)
   /* p_modem_ctxt->persist.ping_resp_urc.index is unchanged */
 }
 
-/* *********************** */
+/**
+  * @}
+  */
+
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SOCKET_Private_Functions AT_CUSTOM ALTAIR_T1SC SOCKET Private Functions
+  * @{
+  */
 
 /**
   * @brief  Convert a number to its ASCII value.
@@ -1174,8 +1335,20 @@ static at_status_t convertHEXToChar(uint8_t msd, uint8_t lsd, uint8_t *p_conv)
   }
   return (retval);
 }
+/**
+  * @}
+  */
 
+/**
+  * @}
+  */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
 
+/**
+  * @}
+  */
 
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */

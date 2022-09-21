@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -238,9 +237,9 @@ typedef uint16_t cst_autom_event_t;
 #define CST_POLLING_TIMER_EVENT                    (cst_autom_event_t)11U  /* time to poll modem */
 #define CST_MODEM_URC_EVENT                        (cst_autom_event_t)12U  /* modem URC received */
 #define CST_NO_EVENT                               (cst_autom_event_t)13U  /* no event to process */
-#define CST_CMD_UNKWOWN_EVENT                      (cst_autom_event_t)14U  /* unknown cmd reveived */
+#define CST_CMD_UNKWOWN_EVENT                      (cst_autom_event_t)14U  /* unknown cmd received */
 #define CST_TARGET_STATE_CMD_EVENT                 (cst_autom_event_t)15U  /* modem target state request */
-#define CST_APN_CONFIG_EVENT                       (cst_autom_event_t)16U  /* new apn config rerquest */
+#define CST_APN_CONFIG_EVENT                       (cst_autom_event_t)16U  /* new apn config request */
 #define CST_REBOOT_MODEM_EVENT                     (cst_autom_event_t)17U  /* reboot modem */
 #define CST_MODEM_POWER_ON_ONLY_EVENT              (cst_autom_event_t)18U  /* modem power on request */
 #define CST_NETWORK_CALLBACK_EVENT                 (cst_autom_event_t)19U  /* cellular callback  */
@@ -255,16 +254,18 @@ typedef uint16_t cst_autom_event_t;
 #define CST_MODEM_POWER_DOWN_EVENT                 (cst_autom_event_t)28U  /* modem power down event */
 #define CST_SIM_RESET_EVENT                        (cst_autom_event_t)29U  /* SIM Change (refresh or reset, insertion,*/
 /*                                                                                        removal)  event */
+#define CST_POWER_STATUS_CALLBACK_EVENT            (cst_autom_event_t)30U  /* New low power parameter */
 #if (USE_LOW_POWER == 0)
-#define CST_MAX_EVENT                              30U
+#define CST_MAX_EVENT                              31U
 #else /* (USE_LOW_POWER == 1) */
-#define CST_POWER_SLEEP_TIMEOUT_EVENT              (cst_autom_event_t)30U  /* low power entry timeout */
-#define CST_POWER_SLEEP_REQUEST_EVENT              (cst_autom_event_t)31U  /* low power request */
-#define CST_POWER_SLEEP_COMPLETE_EVENT             (cst_autom_event_t)32U  /* low power completed */
-#define CST_POWER_WAKEUP_EVENT                     (cst_autom_event_t)33U  /* exit from low power Host wakeup*/
-#define CST_POWER_MODEM_WAKEUP_EVENT               (cst_autom_event_t)34U  /* exit from low power Modem wakeup*/
-#define CST_POWER_SLEEP_ABORT_EVENT                (cst_autom_event_t)35U  /* low power request abort */
-#define CST_MAX_EVENT                              36U
+#define CST_POWER_SLEEP_TIMEOUT_EVENT              (cst_autom_event_t)31U  /* low power entry timeout */
+#define CST_POWER_SLEEP_REQUEST_EVENT              (cst_autom_event_t)32U  /* low power request */
+#define CST_POWER_SLEEP_COMPLETE_EVENT             (cst_autom_event_t)33U  /* low power completed */
+#define CST_POWER_WAKEUP_EVENT                     (cst_autom_event_t)34U  /* exit from low power Host wakeup */
+#define CST_POWER_MODEM_WAKEUP_EVENT               (cst_autom_event_t)35U  /* exit from low power Modem wakeup */
+#define CST_POWER_SLEEP_ABORT_EVENT                (cst_autom_event_t)36U  /* low power request abort */
+#define CST_LP_INACTIVITY_TIMER_EVENT              (cst_autom_event_t)37U  /* low power request from network */
+#define CST_MAX_EVENT                              38U
 
 
 #endif /* (USE_LOW_POWER == 1) */
@@ -273,9 +274,11 @@ typedef uint16_t cst_autom_event_t;
 /* List of automation events - END   */
 /* ================================= */
 
-/* Maximum number of MMC/MNC - APN association */
-#define MMCMNC_APN_MAX 5U
+/* Maximum number of MCC/MNC - APN association */
+#define MCCMNC_APN_MAX 5U
 
+/* Maximum number of ICCID head - APN association */
+#define ICCIDHEAD_APN_MAX 2U
 
 /* list of event messages to send to cellular automaton task */
 #define CST_MESSAGE_CS_EVENT              ((CST_message_type_t)0U)       /* CS: Cellular Service */
@@ -379,6 +382,4 @@ CS_Status_t CST_get_dev_IP_address(CS_IPaddrType_t *ip_addr_type, CS_CHAR_t *p_i
 #endif
 
 #endif /* CELLULAR_SERVICE_TASK_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -419,14 +418,14 @@ CS_Bool_t osCDS_cellular_service_init(void)
   result = CELLULAR_TRUE;
   if (CellularServiceInitialized == CELLULAR_FALSE)
   {
-    CellularServiceMutexHandle = rtosalMutexNew(NULL);
+    CellularServiceMutexHandle = rtosalMutexNew((const rtosal_char_t *)"CS_MUT_CTRL_PLANE");
     if (CellularServiceMutexHandle == NULL)
     {
       result = CELLULAR_FALSE;
       /* Platform is reset */
       ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
     }
-    CellularServiceGeneralMutexHandle = rtosalMutexNew(NULL);
+    CellularServiceGeneralMutexHandle = rtosalMutexNew((const rtosal_char_t *)"CS_MUT_DATA_PLANE");
     if (CellularServiceGeneralMutexHandle == NULL)
     {
       result = CELLULAR_FALSE;
@@ -822,7 +821,7 @@ CS_Status_t osCDS_dns_request(CS_PDN_conf_id_t cid,
   CS_Status_t result;
 
   (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
-  result = CS_dns_request(cid, dns_req, dns_resp);
+  result = CDS_dns_request(cid, dns_req, dns_resp);
   (void)rtosalMutexRelease(CellularServiceMutexHandle);
 
   return (result);
@@ -1041,6 +1040,4 @@ CS_Status_t osCS_SetPowerConfig(CS_set_power_config_t *p_power_config)
 
 #endif  /* (USE_LOW_POWER == 1) */
 
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

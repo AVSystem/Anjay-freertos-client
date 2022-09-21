@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -33,9 +32,24 @@
 #include "plf_modem_config.h"
 #include "error_handler.h"
 
-/* Private typedef -----------------------------------------------------------*/
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
 
-/* Private macros ------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_SEQUANS_MONARCH AT_CUSTOM SEQUANS_MONARCH
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_SEQUANS_MONARCH_SOCKET AT_CUSTOM SEQUANS_MONARCH SOCKET
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_SEQUANS_MONARCH_SOCKET_Private_Macros AT_CUSTOM SEQUANS_MONARCH SOCKET Private Macros
+  * @{
+  */
+
 #if (USE_TRACE_ATCUSTOM_SPECIFIC == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -71,17 +85,22 @@
   if (retval == ATACTION_RSP_ERROR) {exitcode = 1U;}\
   } while (exitcode == 0U);
 
-/* Private defines -----------------------------------------------------------*/
+/**
+  * @}
+  */
 
-/* Global variables ----------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_SEQUANS_MONARCH_SOCKET_Exported_Functions AT_CUSTOM SEQUANS_MONARCH SOCKET Exported Functions
+  * @{
+  */
 
-/* Private variables ---------------------------------------------------------*/
-
-/* Private function prototypes -----------------------------------------------*/
-
-/* Functions Definition ------------------------------------------------------*/
 /* Build command functions ------------------------------------------------------- */
 
+/**
+  * @brief  Build specific modem command : SQNSCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNSCFG_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -90,7 +109,7 @@ at_status_t fCmdBuild_SQNSCFG_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_m
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    if (p_modem_ctxt->socket_ctxt.socket_info != NULL)
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
     {
       /*
         * AT+SQNSCFG=<connId>,<cid>, <pktSz>, <maxTo>,<connTo>, <txTo>
@@ -101,16 +120,16 @@ at_status_t fCmdBuild_SQNSCFG_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_m
 
       /* convert user cid (CS_PDN_conf_id_t) to PDP modem cid (value) */
       uint8_t pdp_modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist,
-                                                          p_modem_ctxt->socket_ctxt.socket_info->conf_id);
+                                                          p_modem_ctxt->socket_ctxt.p_socket_info->conf_id);
       PRINT_DBG("user cid = %d, PDP modem cid = %d",
-                (uint8_t)p_modem_ctxt->socket_ctxt.socket_info->conf_id, pdp_modem_cid)
+                (uint8_t)p_modem_ctxt->socket_ctxt.p_socket_info->conf_id, pdp_modem_cid)
       /* build the command */
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%ld,%d,%d,%d,%d,0",
-                     atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle),
+                     atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle),
                      pdp_modem_cid,
-                     p_modem_ctxt->socket_ctxt.socket_info->ip_max_packet_size,
-                     p_modem_ctxt->socket_ctxt.socket_info->trp_max_timeout,
-                     p_modem_ctxt->socket_ctxt.socket_info->trp_conn_setup_timeout);
+                     p_modem_ctxt->socket_ctxt.p_socket_info->ip_max_packet_size,
+                     p_modem_ctxt->socket_ctxt.p_socket_info->trp_max_timeout,
+                     p_modem_ctxt->socket_ctxt.p_socket_info->trp_conn_setup_timeout);
     }
     else
     {
@@ -121,6 +140,12 @@ at_status_t fCmdBuild_SQNSCFG_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_m
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNSCFGEXT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNSCFGEXT_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -136,23 +161,37 @@ at_status_t fCmdBuild_SQNSCFGEXT_MONARCH(atparser_context_t *p_atp_ctxt, atcusto
       *
       * AT+SQNSCFGEXT=<connId>,<srMode>,<recvDataMode>, <keepalive>,[<listenAutoRsp>],[<sendDataMode>]
       */
-    uint8_t srMode = 1U;        /* SQNSRING format = 1 => SQNSRING: <connId>,<recData> */
-    uint8_t recvDataMode = 0U;  /* 0: as text */
-    uint8_t keepalive = 0U;     /* 0 (currently unused) */
-    uint8_t listenAutorsp = 0U; /* 0 */
-    uint8_t sendDataMode = 0U;  /* 0: as text */
-    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%ld,%d,%d,%d,%d,%d",
-                   atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle),
-                   srMode,
-                   recvDataMode,
-                   keepalive,
-                   listenAutorsp,
-                   sendDataMode);
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
+    {
+      uint8_t srMode = 1U;        /* SQNSRING format = 1 => SQNSRING: <connId>,<recData> */
+      uint8_t recvDataMode = 0U;  /* 0: as text */
+      uint8_t keepalive = 0U;     /* 0 (currently unused) */
+      uint8_t listenAutorsp = 0U; /* 0 */
+      uint8_t sendDataMode = 0U;  /* 0: as text */
+      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%ld,%d,%d,%d,%d,%d",
+                     atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle),
+                     srMode,
+                     recvDataMode,
+                     keepalive,
+                     listenAutorsp,
+                     sendDataMode);
+    }
+    else
+    {
+      PRINT_ERR("No socket info context")
+      retval = ATSTATUS_ERROR;
+    }
   }
 
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNSD.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNSD_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -161,7 +200,7 @@ at_status_t fCmdBuild_SQNSD_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mod
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    if (p_modem_ctxt->socket_ctxt.socket_info != NULL)
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
     {
       /*
         * AT+SQNSD=<connId>,<txProt>,<rPort>,<IPaddr>
@@ -169,13 +208,13 @@ at_status_t fCmdBuild_SQNSD_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mod
         *
         */
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%ld,%d,%d,\"%s\",0,%d,%d",
-                     atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle),
-                     ((p_modem_ctxt->socket_ctxt.socket_info->protocol == CS_TCP_PROTOCOL) ? 0 : 1),
-                     p_modem_ctxt->socket_ctxt.socket_info->remote_port,
-                     p_modem_ctxt->socket_ctxt.socket_info->ip_addr_value,
+                     atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle),
+                     ((p_modem_ctxt->socket_ctxt.p_socket_info->protocol == CS_TCP_PROTOCOL) ? 0 : 1),
+                     p_modem_ctxt->socket_ctxt.p_socket_info->remote_port,
+                     p_modem_ctxt->socket_ctxt.p_socket_info->ip_addr_value,
                      /*closureType fixed to 0*/
-                     p_modem_ctxt->socket_ctxt.socket_info->local_port,
-                     ((p_modem_ctxt->socket_ctxt.socket_info->trp_connect_mode == CS_CM_COMMAND_MODE) ? 1 : 0)
+                     p_modem_ctxt->socket_ctxt.p_socket_info->local_port,
+                     ((p_modem_ctxt->socket_ctxt.p_socket_info->trp_connect_mode == CS_CM_COMMAND_MODE) ? 1 : 0)
                     );
     }
     else
@@ -187,6 +226,12 @@ at_status_t fCmdBuild_SQNSD_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mod
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNSH.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNSH_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -195,12 +240,12 @@ at_status_t fCmdBuild_SQNSH_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mod
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    if (p_modem_ctxt->socket_ctxt.socket_info != NULL)
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
     {
       /*
         * AT+SQNSH=<connId>
         */
-      uint32_t connID = atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle);
+      uint32_t connID = atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%ld", connID);
     }
     else
@@ -211,6 +256,12 @@ at_status_t fCmdBuild_SQNSH_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mod
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNSSENDEXT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNSSENDEXT_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -228,7 +279,7 @@ at_status_t fCmdBuild_SQNSSENDEXT_MONARCH(atparser_context_t *p_atp_ctxt, atcust
       */
 
     /* FIXED SIZE MODE
-      * prepare message with connectionId, length and datas
+      * prepare message with connectionId, length and data
       */
     (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%ld,%ld",
                    atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->SID_ctxt.socketSendData_struct.socket_handle),
@@ -238,6 +289,12 @@ at_status_t fCmdBuild_SQNSSENDEXT_MONARCH(atparser_context_t *p_atp_ctxt, atcust
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNSSEND (write data).
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNSSEND_WRITE_DATA_MONARCH(atparser_context_t *p_atp_ctxt,
                                                   atcustom_modem_context_t *p_modem_ctxt)
 {
@@ -269,6 +326,12 @@ at_status_t fCmdBuild_SQNSSEND_WRITE_DATA_MONARCH(atparser_context_t *p_atp_ctxt
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNSI.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNSI_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -292,6 +355,12 @@ at_status_t fCmdBuild_SQNSI_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mod
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNSRECV.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNSRECV_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -318,6 +387,12 @@ at_status_t fCmdBuild_SQNSRECV_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_
 
 }
 
+/**
+  * @brief  Build specific modem command : PING.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_PING_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -330,7 +405,7 @@ at_status_t fCmdBuild_PING_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mode
       *  Ping a remote server:
       *  AT+PING=<IPaddr>,<count>[,<len>[,<interval>[,<timeout>[,<ttl>[,<cid>]]]]]]
       *    <IPaddr> (str): Address of the remote host.
-      *             Any valid IP address in the format “xxx.xxx.xxx.xxx” or any host name solved with a DNS query.
+      *             Any valid IP address in the format "xxx.xxx.xxx.xxx" or any host name solved with a DNS query.
       *    <count> (int)[1-64]: Number of Ping Echo Request to send (default: 4)
       *             Ping stop after sending <count> ECHO_REQUEST packets.
       *             With deadline option, ping waits for count ECHO_REPLY packets, until the timeout expires.
@@ -367,6 +442,12 @@ at_status_t fCmdBuild_PING_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mode
 
 /* Analyze command functions ------------------------------------------------------- */
 
+/**
+  * @brief  Analyze specific modem response : SQNSRING.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SQNSRING_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                              const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -396,7 +477,7 @@ at_action_rsp_t fRspAnalyze_SQNSRING_MONARCH(at_context_t *p_at_ctxt, atcustom_m
       /* Special case:
       *  When +SQNSRING URC is received while we are requesting to receive data on a socket with AT+SQNSRECV,
       *  if +SQNSRING concerns the same socket (= same connId) that the pendind AT+SQNSRECV, a crash occur.
-      *  To avoid this, in this particular case, the +SQNSRING URC is not forwaded to upper layer.
+      *  To avoid this, in this particular case, the +SQNSRING URC is not forwarded to upper layer.
       */
       PRINT_INFO("+SQNSRING URC for socket handle=%ld (pending AT+SQNSRECV concerns socket handle=%ld)",
                  sockHandle,
@@ -433,6 +514,12 @@ at_action_rsp_t fRspAnalyze_SQNSRING_MONARCH(at_context_t *p_at_ctxt, atcustom_m
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SQNSI.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SQNSI_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -500,6 +587,12 @@ at_action_rsp_t fRspAnalyze_SQNSI_MONARCH(at_context_t *p_at_ctxt, atcustom_mode
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SQNSS.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SQNSS_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -517,77 +610,91 @@ at_action_rsp_t fRspAnalyze_SQNSS_MONARCH(at_context_t *p_at_ctxt, atcustom_mode
     */
 
   START_PARAM_LOOP();
-  if (element_infos->param_rank == 2U)
+  if (p_modem_ctxt->socket_ctxt.p_socket_cnx_infos != NULL)
   {
-    /* <connId> */
-    uint32_t connId = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                element_infos->str_size);
-    socket_handle_t sockHandle = atcm_socket_get_socket_handle(p_modem_ctxt, connId);
-    /* if this connection ID corresponds to requested socket handle, we will report the following infos */
-    if (sockHandle == p_modem_ctxt->socket_ctxt.socket_cnx_infos->socket_handle)
+    if (element_infos->param_rank == 2U)
     {
-      monarch_snqss_for_requested_socket = AT_TRUE;
+      /* <connId> */
+      uint32_t connId = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                  element_infos->str_size);
+      socket_handle_t sockHandle = atcm_socket_get_socket_handle(p_modem_ctxt, connId);
+      /* if this connection ID corresponds to requested socket handle, we will report the following infos */
+      if (sockHandle == p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->socket_handle)
+      {
+        monarch_snqss_for_requested_socket = AT_TRUE;
+      }
+      else
+      {
+        monarch_snqss_for_requested_socket = AT_FALSE;
+      }
+      PRINT_DBG("<SEQMONARCH custom> +SQNSS: connId=%ld (requested=%d)",
+                connId, ((monarch_snqss_for_requested_socket == AT_TRUE) ? 1 : 0))
     }
-    else
+    else if (element_infos->param_rank == 3U)
     {
-      monarch_snqss_for_requested_socket = AT_FALSE;
+      /* <state> - parameter not used */
+      PRINT_DBG("<SEQMONARCH custom> +SQNSS: state=%ld",
+                ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
     }
-    PRINT_DBG("<SEQMONARCH custom> +SQNSS: connId=%ld (requested=%d)",
-              connId, ((monarch_snqss_for_requested_socket == AT_TRUE) ? 1 : 0))
-  }
-  else if (element_infos->param_rank == 3U)
-  {
-    /* <state> - parameter not used */
-    PRINT_DBG("<SEQMONARCH custom> +SQNSS: state=%ld",
-              ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
-  }
-  else if (element_infos->param_rank == 4U)
-  {
-    /* <locIP> */
-    atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
-                            (uint16_t) element_infos->str_size,
-                            (uint8_t *) p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->loc_ip_addr_value);
-    PRINT_DBG("<SEQMONARCH custom> +SQNSS: locIP=%s",
-              p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->loc_ip_addr_value)
-  }
-  else if (element_infos->param_rank == 5U)
-  {
-    /* <locPort> */
-    uint32_t locPort = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                 element_infos->str_size);
-    PRINT_DBG("<SEQMONARCH custom> +SQNSS: locPort=%ld", locPort)
+    else if (element_infos->param_rank == 4U)
+    {
+      /* <locIP> */
+      atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
+                              (uint16_t) element_infos->str_size,
+                              (uint8_t *) p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->loc_ip_addr_value);
+      PRINT_DBG("<SEQMONARCH custom> +SQNSS: locIP=%s",
+                p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->loc_ip_addr_value)
+    }
+    else if (element_infos->param_rank == 5U)
+    {
+      /* <locPort> */
+      uint32_t locPort = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                   element_infos->str_size);
+      PRINT_DBG("<SEQMONARCH custom> +SQNSS: locPort=%ld", locPort)
 
-    if (monarch_snqss_for_requested_socket == AT_TRUE)
-    {
-      p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->loc_port = (uint16_t) locPort;
+      if (monarch_snqss_for_requested_socket == AT_TRUE)
+      {
+        p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->loc_port = (uint16_t) locPort;
+      }
     }
-  }
-  else if (element_infos->param_rank == 6U)
-  {
-    /* <remIP> */
-    atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
-                            (uint16_t) element_infos->str_size,
-                            (uint8_t *) p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->rem_ip_addr_value);
-    PRINT_DBG("<SEQMONARCH custom> +SQNSS: remIP=%s",
-              p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->rem_ip_addr_value)
-  }
-  else if (element_infos->param_rank == 7U)
-  {
-    /* <remPort> */
-    uint32_t remPort = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                 element_infos->str_size);
-    PRINT_DBG("<SEQMONARCH custom> +SQNSS: remPort=%ld", remPort)
+    else if (element_infos->param_rank == 6U)
+    {
+      /* <remIP> */
+      atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
+                              (uint16_t) element_infos->str_size,
+                              (uint8_t *) p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->rem_ip_addr_value);
+      PRINT_DBG("<SEQMONARCH custom> +SQNSS: remIP=%s",
+                p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->rem_ip_addr_value)
+    }
+    else if (element_infos->param_rank == 7U)
+    {
+      /* <remPort> */
+      uint32_t remPort = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
+                                                   element_infos->str_size);
+      PRINT_DBG("<SEQMONARCH custom> +SQNSS: remPort=%ld", remPort)
 
-    if (monarch_snqss_for_requested_socket == AT_TRUE)
-    {
-      p_modem_ctxt->socket_ctxt.socket_cnx_infos->infos->rem_port = (uint16_t) remPort;
+      if (monarch_snqss_for_requested_socket == AT_TRUE)
+      {
+        p_modem_ctxt->socket_ctxt.p_socket_cnx_infos->infos->rem_port = (uint16_t) remPort;
+      }
     }
+  }
+  else
+  {
+    PRINT_ERR("No socket cnx infos context")
+    retval = ATACTION_RSP_ERROR;
   }
   END_PARAM_LOOP();
 
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SQNSH.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SQNSH_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -632,6 +739,12 @@ at_action_rsp_t fRspAnalyze_SQNSH_MONARCH(at_context_t *p_at_ctxt, atcustom_mode
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SQNSRECV.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SQNSRECV_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                              const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -680,6 +793,12 @@ at_action_rsp_t fRspAnalyze_SQNSRECV_MONARCH(at_context_t *p_at_ctxt, atcustom_m
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SQNSRECV (data part).
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SQNSRECV_data_MONARCH(at_context_t *p_at_ctxt,
                                                   atcustom_modem_context_t *p_modem_ctxt,
                                                   const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
@@ -713,6 +832,12 @@ at_action_rsp_t fRspAnalyze_SQNSRECV_data_MONARCH(at_context_t *p_at_ctxt,
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : PING.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_PING_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                          const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -817,7 +942,11 @@ at_action_rsp_t fRspAnalyze_PING_MONARCH(at_context_t *p_at_ctxt, atcustom_modem
   return (retval);
 }
 
-/*----------------------------------------------------------------------------*/
+/**
+  * @brief  Clear the structure used for PING information.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval none
+  */
 void clear_ping_resp_struct(atcustom_modem_context_t *p_modem_ctxt)
 {
   /* clear CS_Ping_response_t structure parameters EXCEPT ping_resp_urc.index */
@@ -830,8 +959,22 @@ void clear_ping_resp_struct(atcustom_modem_context_t *p_modem_ctxt)
   /* p_modem_ctxt->persist.ping_resp_urc.index is unchanged */
 }
 
-/* Private function Definition -----------------------------------------------*/
+/**
+  * @}
+  */
 
+/**
+  * @}
+  */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
+
 

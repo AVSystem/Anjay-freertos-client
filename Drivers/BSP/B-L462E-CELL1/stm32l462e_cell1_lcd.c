@@ -6,19 +6,19 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
+#include "stm32l462e_cell1.h"
 #include "stm32l462e_cell1_lcd.h"
 
 /** @addtogroup BSP BSP
@@ -37,7 +37,9 @@
   * @{
   */
 
-/* LINK UTIL LCD */
+/**
+  * @brief  LINK UTIL LCD (used in stm32_lcd)
+  */
 const LCD_UTILS_Drv_t LCD_Driver =
 {
   BSP_LCD_DrawBitmap,
@@ -52,6 +54,10 @@ const LCD_UTILS_Drv_t LCD_Driver =
   NULL,
   BSP_LCD_GetPixelFormat
 };
+
+/**
+  * @brief  BSP LCD context.
+  */
 BSP_LCD_Ctx_t LcdCtx[LCD_INSTANCES_NBR];
 
 /**
@@ -64,12 +70,11 @@ BSP_LCD_Ctx_t LcdCtx[LCD_INSTANCES_NBR];
 
 #define POLY_X(Z)               ((int32_t)((pPoints + (Z))->X))
 #define POLY_Y(Z)               ((int32_t)((pPoints + (Z))->Y))
+#define ABS(X)  ((X) > 0 ? (X) : -(X))
 
 #define MAX_HEIGHT_FONT         11U
 #define MAX_WIDTH_FONT          16U
 #define OFFSET_BITMAP           54U
-
-#define ABS(X)  ((X) > 0 ? (X) : -(X))
 
 /**
   * @}
@@ -78,9 +83,8 @@ BSP_LCD_Ctx_t LcdCtx[LCD_INSTANCES_NBR];
 /** @defgroup STM32L462E_CELL1_LCD_Private_Variables Private Variables
   * @{
   */
-
-static LCD_DrvTypeDef  *lcd_drv;
-static bool bsp_lcd_initialized = false;
+static SSD1315_Drv_t *LcdDrv = NULL;
+static SSD1315_Object_t *LcdCompObj = NULL;
 
 /**
   * @}
@@ -89,9 +93,12 @@ static bool bsp_lcd_initialized = false;
 /** @defgroup STM32L462E_CELL1_LCD_Private_Functions_Prototypes STM32L462E_CELL1 LCD Private Functions Prototypes
   * @{
   */
-
-static uint16_t convertColor(uint32_t Color);
-
+static int32_t SSD1315_Probe(uint32_t Orientation);
+static int32_t LCD_IO_Init(void);
+static int32_t LCD_IO_DeInit(void);
+static int32_t BSP_LCD_ReadReg(uint16_t Reg, uint8_t *pData, uint16_t Length);
+static int32_t BSP_LCD_WriteReg(uint16_t Reg, uint8_t *pData, uint16_t Length);
+static int32_t BSP_LCD_SendData(uint8_t *pData, uint16_t Length);
 /**
   * @}
   */
@@ -107,6 +114,7 @@ static uint16_t convertColor(uint32_t Color);
 int32_t BSP_LCD_Init(uint32_t Instance)
 {
   int32_t ret = BSP_ERROR_NONE;
+  static bool bsp_lcd_initialized = false;
 
   if (Instance >= LCD_INSTANCES_NBR)
   {
@@ -114,13 +122,17 @@ int32_t BSP_LCD_Init(uint32_t Instance)
   }
   else
   {
-
     if (bsp_lcd_initialized == false)
     {
-      lcd_drv = &ssd1315_drv;
+      /* Orientation: Landscape */
+      LcdCtx[Instance].Width  = LCD_DEFAULT_WIDTH;
+      LcdCtx[Instance].Height = LCD_DEFAULT_HEIGHT;
 
-      /* LCD Init */
-      lcd_drv->Init();
+      /* registers the function and initialize the controller */
+      if (SSD1315_Probe(SSD1315_ORIENTATION_LANDSCAPE) != BSP_ERROR_NONE)
+      {
+        ret = BSP_ERROR_UNKNOWN_COMPONENT;
+      }
 
       /* Update BSP LCD initialization status */
       bsp_lcd_initialized = true;
@@ -144,12 +156,15 @@ int32_t BSP_LCD_DeInit(uint32_t Instance)
   }
   else
   {
-    if (bsp_lcd_initialized == true)
+    if (LcdDrv->DeInit(LcdCompObj) < 0)
     {
-      LCD_IO_DeInit();
-      bsp_lcd_initialized = false;
+      ret = BSP_ERROR_COMPONENT_FAILURE;
     }
+
+    /* turn LCD off = drive pin high (active low) */
+    LCD_CS_HIGH();
   }
+
   return ret;
 }
 
@@ -161,17 +176,24 @@ int32_t BSP_LCD_DeInit(uint32_t Instance)
   */
 int32_t BSP_LCD_GetXSize(uint32_t Instance, uint32_t *pXSize)
 {
-
   int32_t ret = BSP_ERROR_NONE;
 
   if (Instance >= LCD_INSTANCES_NBR)
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
+  else if (LcdDrv->GetXSize != NULL)
+  {
+    if (LcdDrv->GetXSize(LcdCompObj, pXSize) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
+  }
   else
   {
-    *pXSize = lcd_drv->GetLcdPixelWidth();
+    *pXSize = LcdCtx[Instance].Width;
   }
+
   return ret;
 }
 
@@ -189,10 +211,18 @@ int32_t BSP_LCD_GetYSize(uint32_t Instance, uint32_t *pYSize)
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
+  else if (LcdDrv->GetYSize != NULL)
+  {
+    if (LcdDrv->GetYSize(LcdCompObj, pYSize) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
+  }
   else
   {
-    *pYSize = lcd_drv->GetLcdPixelHeight();
+    *pYSize = LcdCtx[Instance].Height;
   }
+
   return ret;
 }
 
@@ -210,9 +240,16 @@ int32_t BSP_LCD_Clear(uint32_t Instance, uint32_t Color)
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
+  else if (LcdDrv->FillRect != NULL)
+  {
+    if (LcdDrv->FillRect(LcdCompObj, 0, 0, LcdCtx[Instance].Width, LcdCtx[Instance].Height, Color) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
+  }
   else
   {
-    ssd1315_Clear(convertColor(Color));
+    ret = BSP_ERROR_FEATURE_NOT_SUPPORTED;
   }
 
   return ret;
@@ -231,10 +268,18 @@ int32_t BSP_LCD_Refresh(uint32_t Instance)
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
+  else if (LcdDrv->Refresh != NULL)
+  {
+    if (LcdDrv->Refresh(LcdCompObj) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
+  }
   else
   {
-    ssd1315_Refresh();
+    ret = BSP_ERROR_FEATURE_NOT_SUPPORTED;
   }
+
   return ret;
 }
 
@@ -254,9 +299,13 @@ int32_t BSP_LCD_DrawBitmap(uint32_t Instance, uint32_t Xpos, uint32_t Ypos, uint
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
-  else if (lcd_drv->DrawBitmap != NULL)
+  else if (LcdDrv->DrawBitmap != NULL)
   {
-    lcd_drv->DrawBitmap(Xpos, Ypos, pBmp);
+    /* Draw the bitmap on LCD */
+    if (LcdDrv->DrawBitmap(LcdCompObj, Xpos, Ypos, pBmp) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
   }
   else
   {
@@ -285,22 +334,19 @@ int32_t BSP_LCD_FillRGBRect(uint32_t Instance, uint32_t Xpos, uint32_t Ypos, uin
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
-  else
+  else if (LcdDrv->FillRGBRect != NULL)
   {
-    uint32_t i;
-    uint32_t j;
-    uint32_t color;
-    for (i = 0; i < Height; i++)
+    /* shift bitmap on LCD */
+    if (LcdDrv->FillRGBRect(LcdCompObj, Xpos, Ypos, pData, Width, Height) < 0)
     {
-      for (j = 0; j < Width; j++)
-      {
-        color = (uint32_t)(*pData | (*(pData + 1) << 8) | (*(pData + 2) << 16) | (*(pData + 3) << 24));
-
-        (void) BSP_LCD_WritePixel(Instance, Xpos + j, Ypos + i, color);
-        pData += 4;
-      }
+      ret = BSP_ERROR_COMPONENT_FAILURE;
     }
   }
+  else
+  {
+    ret = BSP_ERROR_FEATURE_NOT_SUPPORTED;
+  }
+
   return ret;
 }
 
@@ -321,9 +367,13 @@ int32_t BSP_LCD_DrawHLine(uint32_t Instance, uint32_t Xpos, uint32_t Ypos, uint3
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
-  else if (lcd_drv->DrawHLine != NULL)
+  else if (LcdDrv->DrawHLine != NULL)
   {
-    lcd_drv->DrawHLine(convertColor(Color),  Xpos, Ypos, Length);
+    /* Draw the horizontal line on LCD */
+    if (LcdDrv->DrawHLine(LcdCompObj, Xpos, Ypos, Length, Color) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
   }
   else
   {
@@ -345,13 +395,18 @@ int32_t BSP_LCD_DrawHLine(uint32_t Instance, uint32_t Xpos, uint32_t Ypos, uint3
 int32_t BSP_LCD_DrawVLine(uint32_t Instance, uint32_t Xpos, uint32_t Ypos, uint32_t Length, uint32_t Color)
 {
   int32_t ret = BSP_ERROR_NONE;
+
   if (Instance >= LCD_INSTANCES_NBR)
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
-  else if (lcd_drv->DrawVLine != NULL)
+  else if (LcdDrv->DrawVLine != NULL)
   {
-    lcd_drv->DrawVLine(convertColor(Color), Xpos, Ypos, Length);
+    /* Draw the vertical line on LCD */
+    if (LcdDrv->DrawVLine(LcdCompObj, Xpos, Ypos, Length, Color) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
   }
   else
   {
@@ -380,16 +435,16 @@ int32_t BSP_LCD_FillRect(uint32_t Instance, uint32_t Xpos, uint32_t Ypos, uint32
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
+  else if (LcdDrv->FillRect != NULL)
+  {
+    if (LcdDrv->FillRect(LcdCompObj, Xpos, Ypos, Width, Height, Color) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
+  }
   else
   {
-    uint32_t localYpos = Ypos;
-    uint32_t localHeight = Height;
-    while (localHeight > 0U)
-    {
-      localHeight--;
-      (void) BSP_LCD_DrawHLine(0, Xpos, localYpos, Width, Color);
-      localYpos++;
-    }
+    ret = BSP_ERROR_FEATURE_NOT_SUPPORTED;
   }
 
   return ret;
@@ -411,9 +466,12 @@ int32_t  BSP_LCD_ReadPixel(uint32_t Instance, uint32_t Xpos, uint32_t Ypos, uint
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
-  else if (lcd_drv->ReadPixel != NULL)
+  else if (LcdDrv->GetPixel != NULL)
   {
-    *Color = lcd_drv->ReadPixel(Xpos, Ypos);
+    if (LcdDrv->GetPixel(LcdCompObj, Xpos, Ypos, Color) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
   }
   else
   {
@@ -439,9 +497,12 @@ int32_t  BSP_LCD_WritePixel(uint32_t Instance, uint32_t Xpos, uint32_t Ypos, uin
   {
     ret = BSP_ERROR_WRONG_PARAM;
   }
-  else  if (lcd_drv->WritePixel != NULL)
+  else if (LcdDrv->SetPixel != NULL)
   {
-    lcd_drv->WritePixel(Xpos, Ypos, convertColor(Color));
+    if (LcdDrv->SetPixel(LcdCompObj, Xpos, Ypos, Color) < 0)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
   }
   else
   {
@@ -483,18 +544,221 @@ int32_t BSP_LCD_GetPixelFormat(uint32_t Instance, uint32_t *PixelFormat)
   * @{
   */
 
-static uint16_t convertColor(uint32_t Color)
+/**
+  * @brief  Register Bus IOs for instance 0 if SSD1315 ID is OK
+  * @param  Orientation
+  * @retval BSP status
+  */
+static int32_t SSD1315_Probe(uint32_t Orientation)
 {
-  uint16_t convertedColor;
-  if (Color == 0U)
+  int32_t                 ret = BSP_ERROR_NONE;
+  SSD1315_IO_t            IOCtx;
+  static SSD1315_Object_t SSD1315Obj;
+
+  /* Configure the lcd driver : map to LCD_IO function*/
+  IOCtx.Init             = LCD_IO_Init;
+  IOCtx.DeInit           = LCD_IO_DeInit;
+  IOCtx.ReadReg          = BSP_LCD_ReadReg;
+  IOCtx.WriteReg         = BSP_LCD_WriteReg;
+  IOCtx.GetTick          = BSP_GetTick;
+
+  if (SSD1315_RegisterBusIO(&SSD1315Obj, &IOCtx) != SSD1315_OK)
   {
-    convertedColor = LCD_COLOR_BLACK;
+    ret = BSP_ERROR_UNKNOWN_COMPONENT;
   }
   else
   {
-    convertedColor = LCD_COLOR_WHITE;
+    LcdCompObj = &SSD1315Obj;
+
+    /* turn LCD on = drive pin low (active low) */
+    LCD_CS_LOW();
+
+    /* LCD Initialization */
+    LcdDrv = (SSD1315_Drv_t *)&SSD1315_Driver;
+    if (LcdDrv->Init(LcdCompObj, SSD1315_FORMAT_DEFAULT, Orientation) != SSD1315_OK)
+    {
+      ret = BSP_ERROR_COMPONENT_FAILURE;
+    }
   }
-  return convertedColor;
+
+  return ret;
+}
+
+/**
+  * @brief  Initializes lcd low level.
+  * @retval int32_t
+  */
+int32_t LCD_IO_Init(void)
+{
+  int32_t ret;
+
+  GPIO_InitTypeDef GPIO_InitStruct;
+  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_SET);
+
+  /* Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LCD_RST_DISP_GPIO_PORT, LCD_RST_DISP_PIN, GPIO_PIN_SET);
+
+  /* Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_SET);
+
+  /* Configure GPIO pin : LCD_D_C_DISP_PIN */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIO_InitStruct.Pin = LCD_D_C_DISP_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LCD_D_C_DISP_GPIO_PORT, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_RESET);
+
+  /* Configure GPIO pin : LCD_RST_DISP_PIN */
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  GPIO_InitStruct.Pin = LCD_RST_DISP_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  /* GPIO_InitStruct.Pull = GPIO_NOPULL; */          /* Already done in previous line */
+  /* GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW; */ /* Already done in previous line */
+  HAL_GPIO_Init(LCD_RST_DISP_GPIO_PORT, &GPIO_InitStruct);
+
+  /* Configure GPIO pin : LCD_CS_DISP_PIN */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  GPIO_InitStruct.Pin = LCD_CS_DISP_PIN;
+  /* GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD; */  /* Already done in previous line */
+  /* GPIO_InitStruct.Pull = GPIO_NOPULL; */          /* Already done in previous line */
+  /* GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW; */ /* Already done in previous line */
+  HAL_GPIO_Init(LCD_CS_DISP_GPIO_PORT, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_RESET);
+
+  /* Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(LCD_RST_DISP_GPIO_PORT, LCD_RST_DISP_PIN, GPIO_PIN_RESET);
+  HAL_Delay(1);
+  HAL_GPIO_WritePin(LCD_RST_DISP_GPIO_PORT, LCD_RST_DISP_PIN, GPIO_PIN_SET);
+
+  ret = BSP_SPI3_Init();
+
+  GPIO_InitStruct.Pin = LCD_D_C_DISP_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  /* GPIO_InitStruct.Pull = GPIO_NOPULL; */  /* Already done in previous line */
+  /* GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW; */  /* Already done in previous line */
+  HAL_GPIO_Init(LCD_D_C_DISP_GPIO_PORT, &GPIO_InitStruct);
+  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_RESET);
+
+  return (ret);
+}
+
+/**
+  * @brief  Deinitializes lcd low level.
+  * @retval int32_t
+  */
+int32_t LCD_IO_DeInit(void)
+{
+  int32_t ret;
+
+  /* SPI Deinit */
+  ret = BSP_SPI3_DeInit();
+
+  HAL_GPIO_DeInit(GPIOC, (GPIO_PIN_12 | GPIO_PIN_11 | GPIO_PIN_10));
+  __HAL_RCC_SPI3_FORCE_RESET();
+  __HAL_RCC_SPI3_RELEASE_RESET();
+
+  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_SET);
+
+  /* Disable SPIx clock  */
+  __HAL_RCC_GPIOC_CLK_DISABLE();
+
+  return (ret);
+}
+
+/**
+  * @brief  Read data from LCD data register.
+  * @param  Reg Register to be read
+  * @param  pData pointer to the read data from LCD SRAM.
+  * @param  Length length of data be read from the LCD SRAM
+  * @retval BSP status
+  */
+static int32_t BSP_LCD_ReadReg(uint16_t Reg, uint8_t *pData, uint16_t Length)
+{
+  int32_t ret = BSP_ERROR_NONE;
+  UNUSED(Length);
+
+  /* Send Reg value to Read */
+  if (BSP_LCD_WriteReg(Reg, pData, 0) != BSP_ERROR_NONE)
+  {
+    ret = BSP_ERROR_BUS_FAILURE;
+  }
+  /* Reset LCD control line(/CS) and Send command */
+  LCD_CS_LOW();
+
+  if (ret == BSP_ERROR_NONE)
+  {
+    if (BSP_SPI3_Recv(pData, 2) != BSP_ERROR_NONE)
+    {
+      ret = BSP_ERROR_BUS_FAILURE;
+    }
+  }
+  /* Deselect : Chip Select high */
+  LCD_CS_HIGH();
+
+  return ret;
+}
+
+/**
+  * @brief  Writes register on LCD register.
+  * @param  Reg Register to be written
+  * @param  pData pointer to the read data from LCD SRAM.
+  * @param  Length length of data be read from the LCD SRAM
+  * @retval BSP status
+  */
+static int32_t BSP_LCD_WriteReg(uint16_t Reg, uint8_t *pData, uint16_t Length)
+{
+  UNUSED(Reg);
+  int32_t ret = BSP_ERROR_NONE;
+
+  /* Send Data */
+  if (BSP_LCD_SendData(pData, Length) != BSP_ERROR_NONE)
+  {
+    ret = BSP_ERROR_BUS_FAILURE;
+  }
+
+  return ret;
+}
+
+/**
+  * @brief  Send data to select the LCD SRAM.
+  * @param  pData pointer to data to write to LCD SRAM.
+  * @param  Length length of data to write to LCD SRAM
+  * @retval Error status
+  */
+static int32_t BSP_LCD_SendData(uint8_t *pData, uint16_t Length)
+{
+  int32_t ret = BSP_ERROR_NONE;
+  if (Length == 1U) /* [MISRAC2012] Rule-14.3_b Conditional expression is always false analyzed as false positive */
+  {
+    /* Reset LCD control line CS */
+    LCD_CS_LOW();
+    LCD_DC_LOW();
+    /* Send Data */
+    if (BSP_SPI3_Send(pData, Length) != BSP_ERROR_NONE)
+    {
+      ret = BSP_ERROR_BUS_FAILURE;
+    }
+    /* Deselect : Chip Select high */
+    LCD_CS_HIGH();
+  }
+  else
+  {
+    LCD_CS_LOW();
+    LCD_DC_HIGH();
+    /* Send Data */
+    if (BSP_SPI3_Send(pData, Length) != BSP_ERROR_NONE)
+    {
+      ret = BSP_ERROR_BUS_FAILURE;
+    }
+    LCD_DC_LOW() ;
+    /* Deselect : Chip Select high */
+    LCD_CS_HIGH();
+  }
+
+  return ret;
 }
 
 /**
@@ -512,5 +776,3 @@ static uint16_t convertColor(uint32_t Color)
 /**
   * @}
   */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

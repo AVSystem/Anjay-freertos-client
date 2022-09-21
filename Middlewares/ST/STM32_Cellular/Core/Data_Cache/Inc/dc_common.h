@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -212,14 +211,11 @@ extern "C" {
 /* According to dc_com_reg_id_t type, and DC_COM_INVALID_ENTRY error code, should not exceed 254 */
 #define DC_COM_MAX_NB_SUBSCRIBER (DC_COM_MAX_NB_CORE_SUBSCRIBER + DC_COM_MAX_NB_APPLI_SUBSCRIBER)
 
-#if !defined APPLICATION_DATACACHE_ENTRIES_NB
-#define APPLICATION_DATACACHE_ENTRIES_NB (0U)
-#endif /* !defined APPLICATION_DATACACHE_ENTRIES_NB */
 
 #if (USE_LOW_POWER == 1)
-#define DC_CELLULAR_CORE_ENTRIES 10U + APPLICATION_DATACACHE_ENTRIES_NB
+#define DC_CELLULAR_CORE_ENTRIES 10U
 #else
-#define DC_CELLULAR_CORE_ENTRIES 8U + APPLICATION_DATACACHE_ENTRIES_NB
+#define DC_CELLULAR_CORE_ENTRIES 8U
 #endif /* (USE_LOW_POWER == 1) */
 
 /** @brief Number max of Data Cache entries */
@@ -246,21 +242,6 @@ typedef uint16_t dc_com_event_id_t; /*!< type of Data Cache event */
 typedef bool  dc_com_status_t;   /*!< type of Data Cache return code  */
 #define   DC_COM_OK     (dc_com_status_t)true   /*!< Ok  */
 #define   DC_COM_ERROR  (dc_com_status_t)false  /*!< Error  */
-
-/** @brief  Data Cache event type list */
-typedef enum
-{
-  DC_CELLULAR_INFO_EVENT          = (uint16_t)0x01,  /*!< Cellular Information event type value                    */
-  DC_SIGNAL_INFO_EVENT            = (uint16_t)0x02,  /*!< Signal Information event type                            */
-  DC_SIM_INFO_EVENT               = (uint16_t)0x04,  /*!< SIM Information event type value                         */
-  DC_NFMC_INFO_EVENT              = (uint16_t)0x08,  /*!< NFMC Information event type value                        */
-  DC_IP_INFO_EVENT                = (uint16_t)0x10,  /*!< IP Information event type value                          */
-#if (USE_LOW_POWER == 1)
-  DC_POWER_INFO_EVENT             = (uint16_t)0x20   /*!< Power Information event type value                       */
-#endif /* (USE_LOW_POWER == 1) */
-
-} dc_event_type_t;
-
 
 /** @brief type of entry/service state */
 typedef enum
@@ -290,16 +271,9 @@ typedef struct
 
 /** @brief type of Data Cache notification callback */
 typedef void (*dc_com_gen_event_callback_t)(
-  const dc_com_event_id_t event_id,      /*!< Event ID */
-  const void *private_consumer_data);        /*!< private consumer Data (p_private_data parameter
-                                                           of dc_com_register_gen_event_cb)  */
-
-/** @brief type of Data Cache notification callback for cellular API */
-typedef void (*dc_com_event_callback_t)(
-  const uint8_t event_id,      /*!< Event ID */
-  const void *info,
-  const void *private_consumer_data);        /*!< private consumer Data (p_private_data parameter
-                                                            of dc_com_register_gen_event_cb)  */
+  const dc_com_event_id_t event_id,   /*!< Event ID */
+  const void *private_consumer_data); /*!< private consumer Data: p_private_data parameter of
+                                           dc_com_register_gen_event_cb */
 
 /** @brief type of Data Cache callback storage (Data Cache internal use)  */
 typedef struct
@@ -454,5 +428,3 @@ dc_com_status_t dc_com_write_event(dc_com_db_t *p_dc, dc_com_event_id_t event_id
 
 
 #endif /* DC_COMMON_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

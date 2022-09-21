@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -28,13 +27,28 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "at_core.h"
 #include "at_parser.h"
-#include "sysctrl.h"
+#include "at_sysctrl.h"
 #include "ipc_common.h"
 
-/* Exported constants --------------------------------------------------------*/
-#define CMD_AT_INVALID ((uint32_t) 0xFFFFFFFFU)
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
 
-/* Exported types ------------------------------------------------------------*/
+/** @addtogroup AT_CORE_API AT_CORE API
+  * @{
+  */
+
+/** @defgroup AT_CORE_API_Exported_Defines AT_CORE API Exported Defines
+  * @{
+  */
+#define CMD_AT_INVALID ((uint32_t) 0xFFFFFFFFU)
+/**
+  * @}
+  */
+
+/** @defgroup AT_CORE_API_Exported_Types AT_CORE API Exported Types
+  * @{
+  */
 typedef enum
 {
   INTERMEDIATE_CMD = 0,
@@ -76,12 +90,13 @@ typedef struct
   ATC_hw_event                       f_hw_event;
 
 } atcustom_funcPtrs_t;
+/**
+  * @}
+  */
 
-/* External variables --------------------------------------------------------*/
-
-/* Exported macros -----------------------------------------------------------*/
-
-/* Exported functions ------------------------------------------------------- */
+/** @defgroup AT_CORE_API_Exported_Types AT_CORE API Exported Functions
+  * @{
+  */
 at_status_t atcc_initParsers(sysctrl_device_type_t device_type);
 void atcc_init(at_context_t *p_at_ctxt);
 ATC_checkEndOfMsgCallbackTypeDef atcc_checkEndOfMsgCallback(const at_context_t *p_at_ctxt);
@@ -101,10 +116,20 @@ at_status_t atcc_get_urc(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf);
 at_status_t atcc_get_error(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf);
 void atcc_hw_event(sysctrl_device_type_t deviceType, at_hw_event_t hwEvent, GPIO_PinState gstate);
 
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_MODEM_API_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

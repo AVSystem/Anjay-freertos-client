@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -108,6 +107,36 @@ int32_t BSP_ENV_SENSOR_Init_Pressure(void)
 int32_t BSP_ENV_SENSOR_Init_Humidity(void)
 {
   return (BSP_ENV_SENSOR_Init(STM32L462E_CELL1_HTS221_0, ENV_HUMIDITY));
+}
+
+/**
+  * @brief  Deinitializes the Temperature environmental sensor
+  * @note   This is a  part of High-Level API to ease use of sensors.
+  * @retval BSP status
+  */
+int32_t BSP_ENV_SENSOR_DeInit_Temperature(void)
+{
+  return (BSP_ENV_SENSOR_DeInit(STM32L462E_CELL1_HTS221_0));
+}
+
+/**
+  * @brief  Deinitializes the Pressure environmental sensor
+  * @note   This is a  part of High-Level API to ease use of sensors.
+  * @retval BSP status
+  */
+int32_t BSP_ENV_SENSOR_DeInit_Pressure(void)
+{
+  return (BSP_ENV_SENSOR_DeInit(STM32L462E_CELL1_LPS22HH_0));
+}
+
+/**
+  * @brief  Deinitializes the Humidity environmental sensor
+  * @note   This is a  part of High-Level API to ease use of sensors.
+  * @retval BSP status
+  */
+int32_t BSP_ENV_SENSOR_DeInit_Humidity(void)
+{
+  return (BSP_ENV_SENSOR_DeInit(STM32L462E_CELL1_HTS221_0));
 }
 
 /**
@@ -424,7 +453,8 @@ int32_t BSP_ENV_SENSOR_GetOutputDataRate(uint32_t Instance, uint32_t Function, f
   {
     if ((EnvCtx[Instance].Functions & Function) == Function)
     {
-      if (EnvFuncDrv[Instance][FunctionIndexEnv[Function]]->GetOutputDataRate(EnvCompObj[Instance], Odr) != BSP_ERROR_NONE)
+      if (EnvFuncDrv[Instance][FunctionIndexEnv[Function]]->GetOutputDataRate(EnvCompObj[Instance],
+                                                                              Odr) != BSP_ERROR_NONE)
       {
         ret = BSP_ERROR_COMPONENT_FAILURE;
       }
@@ -463,7 +493,8 @@ int32_t BSP_ENV_SENSOR_SetOutputDataRate(uint32_t Instance, uint32_t Function, f
   {
     if ((EnvCtx[Instance].Functions & Function) == Function)
     {
-      if (EnvFuncDrv[Instance][FunctionIndexEnv[Function]]->SetOutputDataRate(EnvCompObj[Instance], Odr) != BSP_ERROR_NONE)
+      if (EnvFuncDrv[Instance][FunctionIndexEnv[Function]]->SetOutputDataRate(EnvCompObj[Instance],
+                                                                              Odr) != BSP_ERROR_NONE)
       {
         ret = BSP_ERROR_COMPONENT_FAILURE;
       }
@@ -717,5 +748,3 @@ static int32_t LPS22HH_0_Probe(uint32_t Functions)
 /**
   * @}
   */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

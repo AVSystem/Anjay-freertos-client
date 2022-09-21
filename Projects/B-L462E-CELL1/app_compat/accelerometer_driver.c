@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,15 +40,13 @@ static int get_acceleration(three_axis_sensor_values_t *out_acceleration) {
         LOG(ERROR, "error getting current acceleration");
         return -1;
     }
-    // Convert from cm/s^2 to m/s^2
+    // Convert from mg to m/s^2
     *out_acceleration =
-            three_axis_sensor_get_values_scaled(&acceleration, 0.01f);
+            three_axis_sensor_get_values_scaled(&acceleration, 1e-3 * G_TO_MS2);
     return 0;
 }
 
 const three_axis_sensor_driver_t BSP_ACCELEROMETER_DRIVER = {
     .init = accelerometer_init,
-    .read = get_acceleration,
-    .unit = "m/s^2",
-    .name = "accelerometer"
+    .read = get_acceleration
 };

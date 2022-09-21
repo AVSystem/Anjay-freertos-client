@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -55,7 +54,7 @@ void IPC_UART_rearm_RX_IT(IPC_Handle_t *const hipc);
 
 #if (DBG_IPC_RX_FIFO == 1U)
 void IPC_UART_DumpRXQueue(const IPC_Handle_t *const hipc, uint8_t readable);
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
 void IPC_UART_RxCpltCallback(UART_HandleTypeDef *UartHandle);
 void IPC_UART_TxCpltCallback(UART_HandleTypeDef *UartHandle);
@@ -66,6 +65,4 @@ void IPC_UART_ErrorCallback(UART_HandleTypeDef *UartHandle);
 #endif
 
 #endif /* IPC_UART_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

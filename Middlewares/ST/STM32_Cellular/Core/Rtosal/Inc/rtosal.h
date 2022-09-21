@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -28,17 +27,11 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include <stdint.h>
 
-/* FreeRTOS headers are included in order to avoid warning during compilation */
-/* FreeRTOS is a Third Party so MISRAC messages linked to it are ignored */
+/* CMSIS is a Third Party so MISRAC messages linked to it are ignored */
 /*cstat -MISRAC2012-* */
 #include "cmsis_os.h"
-#include "FreeRTOS.h"
-#include "task.h"
-#include "timers.h"
-#include "queue.h"
-#include "semphr.h"
-#include "event_groups.h"
 /*cstat +MISRAC2012-* */
+#include "plf_rtosal_config.h"
 
 /* Exported constants --------------------------------------------------------*/
 /* MISRAC 2012 issue link to osWaitForever usage */
@@ -120,15 +113,15 @@ rtosalStatus rtosalThreadTerminate(osThreadId thread_id);
 osSemaphoreId rtosalSemaphoreNew(const rtosal_char_t *p_name, uint32_t count);
 
 /**
-  * @brief  Acquire a Semaphore token or timeout if no tokens are available.
+  * @brief  Acquire a Semaphore token.
   * @param  semaphore_id - semaphore ID obtained by rtosalSemaphoreNew.
-  * @param  timeout      - timeout value (in ms) or 0 in case of no time-out.
+  * @param  millisec     - timeout value (in ms) or 0 in case of no time-out.
   * @retval rtosalStatus - indicate the execution status of the function.
   * @note   With CMSIS RTOS V1, this function returns osErrorOS when no token is available.
   *         With CMSIS RTOS V2, this function returns osErrorResource when no token is available.
   *         Conclusion: test (rtosalStatus != osOK) to be independent of CMSIS RTOS version.
   */
-rtosalStatus rtosalSemaphoreAcquire(osSemaphoreId semaphore_id, uint32_t timeout);
+rtosalStatus rtosalSemaphoreAcquire(osSemaphoreId semaphore_id, uint32_t millisec);
 
 /**
   * @brief  Release a Semaphore token.
@@ -156,15 +149,15 @@ rtosalStatus rtosalSemaphoreDelete(osSemaphoreId semaphore_id);
 osMutexId rtosalMutexNew(const rtosal_char_t *p_name);
 
 /**
-  * @brief  Acquire a Mutex or timeout if it is locked.
+  * @brief  Acquire a Mutex.
   * @param  mutex_id     - mutex ID obtained by rtosalMutexNew.
-  * @param  timeout      - timeout value (in ms) or 0 in case of no time-out.
+  * @param  millisec     - timeout value (in ms) or 0 in case of no time-out.
   * @retval rtosalStatus - indicate the execution status of the function.
   * @note   With CMSIS RTOS V1, this function returns osErrorOS when no mutex is available.
   *         With CMSIS RTOS V2, this function returns osErrorResource when no mutex is available.
   *         Conclusion: test (rtosalStatus != osOK) to be independent of osCMSIS version.
   */
-rtosalStatus rtosalMutexAcquire(osMutexId mutex_id, uint32_t timeout);
+rtosalStatus rtosalMutexAcquire(osMutexId mutex_id, uint32_t millisec);
 
 /**
   * @brief  Release a Mutex that was acquired by rtosalMutexAcquire.
@@ -192,22 +185,22 @@ rtosalStatus rtosalMutexDelete(osMutexId mutex_id);
 osMessageQId rtosalMessageQueueNew(const rtosal_char_t *p_name, uint32_t queue_size);
 
 /**
-  * @brief Put a Message into a Queue or timeout if Queue is full.
+  * @brief Put a Message into a Queue.
   * @param mq_id         - message queue ID obtained by rtosalMessageNew.
   * @param msg           - message to put into a queue.
-  * @param timeout       - timeout value (in ms) or 0 in case of no time-out.
+  * @param millisec      - timeout value (in ms) or 0 in case of no time-out.
   * @retval rtosalStatus - indicate the execution status of the function.
   * @note   With CMSIS RTOS V1, this function returns osErrorOS if the queue is full.
-  *         With CMSIS RTOS V2, this function returns osErrorResource if the queue is fulle.
+  *         With CMSIS RTOS V2, this function returns osErrorResource if the queue is full.
   *         Conclusion: test (rtosalStatus != osOK) to be independent of osCMSIS version.
   */
-rtosalStatus rtosalMessageQueuePut(osMessageQId mq_id, uint32_t msg, uint32_t timeout);
+rtosalStatus rtosalMessageQueuePut(osMessageQId mq_id, uint32_t msg, uint32_t millisec);
 
 /**
-  * @brief Get a Message from a Queue or timeout if Queue is empty.
+  * @brief Get a Message from a Queue.
   * @param mq_id         - message queue id obtained by rtosalMessageNew.
   * @param p_msg         - pointer to buffer for message to get from a queue.
-  * @param timeout       - timeout value (in ms) or 0 in case of no time-out.
+  * @param millisec      - timeout value (in ms) or 0 in case of no time-out.
   * @retval rtosalStatus - indicate the execution status of the function.
   * @note with CMSIS RTOS V1, this function returns osEventMessage if a msg is available.
   *       with CMSIS RTOS V2, this function returns osOK if a msg is available.
@@ -215,7 +208,7 @@ rtosalStatus rtosalMessageQueuePut(osMessageQId mq_id, uint32_t msg, uint32_t ti
   *                   test (rtosalStatus == osEventTimeout) to treat timeout (if any)
   *                   then test (*p_msg != impossible value) to ensure a msg is available
   */
-rtosalStatus rtosalMessageQueueGet(osMessageQId mq_id, uint32_t *p_msg, uint32_t timeout);
+rtosalStatus rtosalMessageQueueGet(osMessageQId mq_id, uint32_t *p_msg, uint32_t millisec);
 
 /*********************************** TIMER ************************************/
 /**
@@ -232,10 +225,10 @@ osTimerId rtosalTimerNew(const rtosal_char_t *p_name, os_ptimer func, os_timer_t
 /**
   * @brief Start or Restart a Timer.
   * @param  timer_id     - timer ID obtained by rtosalTimerNew.
-  * @param  ticks        - "time ticks" value of the timer.
+  * @param  millisec     - time delay value (in ms) of the timer.
   * @retval rtosalStatus - indicate the execution status of the function.
   */
-rtosalStatus rtosalTimerStart(osTimerId timer_id, uint32_t ticks);
+rtosalStatus rtosalTimerStart(osTimerId timer_id, uint32_t millisec);
 
 /**
   * @brief Stop a Timer.
@@ -256,16 +249,13 @@ rtosalStatus rtosalTimerDelete(osTimerId timer_id);
 /*********************************** DELAY ************************************/
 /**
   * @brief Wait for Timeout (Time Delay).
-  * @param ticks         - "time ticks" value.
+  * @param  millisec     - time delay value (in ms).
   * @retval rtosalStatus - indicate the execution status of the function.
   */
-rtosalStatus rtosalDelay(uint32_t ticks);
-
+rtosalStatus rtosalDelay(uint32_t millisec);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* RTOSAL_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

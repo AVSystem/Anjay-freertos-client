@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -356,7 +355,7 @@ void dc_com_init(dc_com_db_t *p_dc)
   /* Start to register the appli consumers after all the core consumers. */
   p_dc->consumer_appli_number = DC_COM_MAX_NB_CORE_SUBSCRIBER;
 
-  dc_common_mutex = rtosalMutexNew(NULL);
+  dc_common_mutex = rtosalMutexNew((const rtosal_char_t *)"DC_MUT_MAIN");
   if (dc_common_mutex == NULL)
   {
     ERROR_Handler(DBG_CHAN_UTILITIES, 1, ERROR_FATAL);
@@ -374,6 +373,4 @@ void dc_com_start(dc_com_db_t *p_dc)
   /* Nothing to do */
   __NOP();
 }
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

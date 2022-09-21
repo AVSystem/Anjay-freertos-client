@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -26,10 +25,11 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include <stdbool.h>
-#include <stdint.h>
 
 #include "plf_config.h"
+
+#include <stdbool.h>
+#include <stdint.h>
 
 #include "com_common.h"
 
@@ -52,6 +52,8 @@ extern "C" {
   * @{
   */
 
+#if (USE_COM_PING == 1)
+
 typedef struct
 {
   int32_t  status; /*!< if COM_SOCKETS_ERR_OK then time and size are set */
@@ -60,11 +62,14 @@ typedef struct
   uint8_t  ttl;    /*!< Time to live */
 } com_ping_rsp_t;
 
+#endif /* USE_COM_PING == 1 */
+
 /**
   * @}
   */
 
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+/* IP address definition is needed for cellular_control_apih.h */
+#if ((USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) || (USE_COM_SOCKETS == 0))
 
 /* Exported constants --------------------------------------------------------*/
 /** @addtogroup COM_SOCKETS_Constants
@@ -173,10 +178,10 @@ typedef struct
 /* Exported functions ------------------------------------------------------- */
 /* None */
 
-#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) || (USE_COM_SOCKETS == 0) */
 
 
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
+#if ((USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) && (USE_COM_SOCKETS == 1))
 
 /* Includes ------------------------------------------------------------------*/
 /* only when USE_SOCKETS_TYPE == USE_SOCKETS_LWIP */
@@ -193,11 +198,13 @@ typedef struct
 /* Exported types ------------------------------------------------------------*/
 
 /* Re-Route com define to LwIP define */
-typedef ip4_addr_t com_ip4_addr_t;
-typedef ip_addr_t  com_ip_addr_t;
-typedef in_addr_t  com_in_addr_t;
-typedef struct sockaddr com_sockaddr_t;
-typedef struct sockaddr_in com_sockaddr_in_t;
+typedef ip4_addr_t      com_ip4_addr_t;
+typedef ip_addr_t       com_ip_addr_t;
+typedef in_addr_t       com_in_addr_t;
+typedef struct sockaddr com_sockaddr_t;       /* CodingRules: Rule-12 Typedef struct name does not end with '_t' is ok
+                                                 when struct comes from Third Party */
+typedef struct sockaddr_in com_sockaddr_in_t; /* CodingRules: Rule-12 Typedef struct name does not end with '_t' is ok
+                                                 when struct comes from Third Party */
 
 /* External variables --------------------------------------------------------*/
 
@@ -217,12 +224,10 @@ typedef struct sockaddr_in com_sockaddr_in_t;
 
 /* Exported functions ------------------------------------------------------- */
 
-#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) && (USE_COM_SOCKETS == 1) */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* COM_SOCKETS_ADDR_COMPAT_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

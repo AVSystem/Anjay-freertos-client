@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -71,11 +70,10 @@ static uint8_t *trace_cmd_label = (uint8_t *)"trace";
 #endif  /* (USE_CMD_CONSOLE == 1) */
 
 /* Private function prototypes -----------------------------------------------*/
-static void ITM_Out(uint32_t port, uint32_t ch);
 
 #if (USE_CMD_CONSOLE == 1)
 #if (SW_DEBUG_VERSION == 1)
-static cmd_status_t traceIF_cmd(uint8_t *cmd_line_p);
+static void traceIF_cmd(uint8_t *cmd_line_p);
 static void traceIF_cmd_Help(void);
 #endif /* SW_DEBUG_VERSION == 1 */
 #endif  /* (USE_CMD_CONSOLE == 1) */
@@ -118,10 +116,7 @@ static void CMD_ComponentEnableDisable(uint8_t *component, uint8_t enable)
   uint8_t i;
 
   /* Is request for all components ? */
-  if (strncmp((CRC_CHAR_t *)component,
-              "all",
-              strlen((CRC_CHAR_t *)component))
-      == 0)
+  if (strncmp((CRC_CHAR_t *)component, "all", strlen((CRC_CHAR_t *)component)) == 0)
   {
     /* Update trace enable/disable value for all components */
     for (i = 0U; i < (uint8_t)DBG_CHAN_MAX_VALUE ; i++)
@@ -134,9 +129,7 @@ static void CMD_ComponentEnableDisable(uint8_t *component, uint8_t enable)
     /* Check if value in component parameter is managed */
     for (i = 0U; i < (uint8_t)DBG_CHAN_MAX_VALUE ; i++)
     {
-      if (strncmp((CRC_CHAR_t *)component,
-                  (CRC_CHAR_t *)traceIF_traceComponentName[i],
-                  strlen((CRC_CHAR_t *)component))
+      if (strncmp((CRC_CHAR_t *)component, (CRC_CHAR_t *)traceIF_traceComponentName[i], strlen((CRC_CHAR_t *)component))
           == 0)
       {
         /* Component is found, stop the research */
@@ -192,26 +185,21 @@ static void traceIF_cmd_Help(void)
 /**
   * @brief  console cmd management
   * @param  cmd_line_p - command parameters
-  * @retval cmd_status - status of cmd management CMD_OK or CMD_SYNTAX_ERROR
+  * @retval -
   */
-static cmd_status_t traceIF_cmd(uint8_t *cmd_line_p)
+static void traceIF_cmd(uint8_t *cmd_line_p)
 {
   uint8_t    *argv_p[10];
   uint32_t    argc;
   const uint8_t    *cmd_p;
   uint32_t    level;
   uint32_t    ret ;
-  cmd_status_t cmd_status ;
-  cmd_status = CMD_OK;
 
   cmd_p = (uint8_t *)strtok((CRC_CHAR_t *)cmd_line_p, " \t");
 
   if (cmd_p != NULL)
   {
-    if (strncmp((const CRC_CHAR_t *)cmd_p,
-                (const CRC_CHAR_t *)trace_cmd_label,
-                strlen((const CRC_CHAR_t *)cmd_p))
-        == 0)
+    if (strncmp((const CRC_CHAR_t *)cmd_p, (const CRC_CHAR_t *)trace_cmd_label, strlen((const CRC_CHAR_t *)cmd_p)) == 0)
     {
       /* Parameters parsing */
       for (argc = 0U ; argc < 10U ; argc++)
@@ -224,46 +212,30 @@ static cmd_status_t traceIF_cmd(uint8_t *cmd_line_p)
       }
 
       /* If no parameter or 'help' - display help */
-      if ((argc == 0U)
-          || (strncmp((CRC_CHAR_t *)argv_p[0],
-                      "help",
-                      strlen((CRC_CHAR_t *)argv_p[0]))
-              == 0))
+      if ((argc == 0U) || (strncmp((CRC_CHAR_t *)argv_p[0], "help", strlen((CRC_CHAR_t *)argv_p[0])) == 0))
       {
         traceIF_cmd_Help();
       }
       /* 'on' : enable traces */
-      else if (strncmp((CRC_CHAR_t *)argv_p[0],
-                       "on",
-                       strlen((CRC_CHAR_t *)argv_p[0]))
-               == 0)
+      else if (strncmp((CRC_CHAR_t *)argv_p[0], "on", strlen((CRC_CHAR_t *)argv_p[0])) == 0)
       {
         traceIF_traceEnable = true;
         PRINT_FORCE("\n\r <<< TRACE ACTIVE >>>\n\r")
       }
       /* 'enable' : set to 1U - means enable - traces for all components */
-      else if (strncmp((CRC_CHAR_t *)argv_p[0],
-                       "enable",
-                       strlen((CRC_CHAR_t *)argv_p[0]))
-               == 0)
+      else if (strncmp((CRC_CHAR_t *)argv_p[0], "enable", strlen((CRC_CHAR_t *)argv_p[0])) == 0)
       {
         PRINT_FORCE("\n\r <<< TRACE ENABLE >>>\n\r")
         CMD_ComponentEnableDisable(argv_p[1], 1);
       }
       /* 'disable' : set to 0U - means disable - traces for all components */
-      else if (strncmp((CRC_CHAR_t *)argv_p[0],
-                       "disable",
-                       strlen((CRC_CHAR_t *)argv_p[0]))
-               == 0)
+      else if (strncmp((CRC_CHAR_t *)argv_p[0], "disable", strlen((CRC_CHAR_t *)argv_p[0])) == 0)
       {
         PRINT_FORCE("\n\r <<< TRACE DISABLE >>>\n\r")
         CMD_ComponentEnableDisable(argv_p[1], 0);
       }
       /* 'level' : change the level e.g P0, P1, ... of the activated traces */
-      else if (strncmp((CRC_CHAR_t *)argv_p[0],
-                       "level",
-                       strlen((CRC_CHAR_t *)argv_p[0]))
-               == 0)
+      else if (strncmp((CRC_CHAR_t *)argv_p[0], "level", strlen((CRC_CHAR_t *)argv_p[0])) == 0)
       {
         PRINT_FORCE("\n\r <<< TRACE LEVEL >>>\n\r")
         ret = CMD_GetValue(argv_p[1], (uint32_t *)&level);
@@ -272,7 +244,6 @@ static cmd_status_t traceIF_cmd(uint8_t *cmd_line_p)
         {
           /* Parameter level not recognized - display an error */
           PRINT_FORCE("invalid level %s\r\n", argv_p[1]);
-          cmd_status = CMD_SYNTAX_ERROR;
         }
         else
         {
@@ -281,10 +252,7 @@ static cmd_status_t traceIF_cmd(uint8_t *cmd_line_p)
         }
       }
       /* 'off' : disable traces */
-      else if (strncmp((CRC_CHAR_t *)argv_p[0],
-                       "off",
-                       strlen((CRC_CHAR_t *)argv_p[0]))
-               == 0)
+      else if (strncmp((CRC_CHAR_t *)argv_p[0], "off", strlen((CRC_CHAR_t *)argv_p[0])) == 0)
       {
         traceIF_traceEnable = false;
         PRINT_FORCE("\n\r <<< TRACE INACTIVE >>>\n\r")
@@ -297,42 +265,9 @@ static cmd_status_t traceIF_cmd(uint8_t *cmd_line_p)
       }
     }
   }
-
-  return cmd_status;
 }
 #endif /* SW_DEBUG_VERSION == 1 */
 #endif  /* (USE_CMD_CONSOLE == 1) */
-
-
-/**
-  * @brief  Print a trace through ITM
-  * @param  port - port value of ITM
-  * @param  ch - data to print
-  * @retval -
-  */
-static void ITM_Out(uint32_t port, uint32_t ch)
-{
-  /* Check port validity (0-31)*/
-  if (port <= 31U)
-  {
-    uint32_t tmp_mask;
-    tmp_mask = (ITM->TER & (1UL << port));
-    if (((ITM->TCR & ITM_TCR_ITMENA_Msk) != 0UL) &&   /* ITM enabled ? */
-        (tmp_mask != 0UL))   /* ITM selected Port enabled ? */
-    {
-      /* Wait until ITM port is ready */
-      while (ITM->PORT[port].u32 == 0UL)
-      {
-        /* Nothing to do except continue to wait */
-        __NOP();
-      }
-
-      /* ITM port is ready, send data, one byte at a time */
-      ITM->PORT[port].u8 = (uint8_t) ch;
-    }
-  }
-}
-
 
 /**
   * @brief  Print a trace through UART
@@ -373,47 +308,14 @@ void traceIF_trace_on(void)
 }
 
 /**
-  * @brief  Print a trace on ITM
-  * @param  port - component channel
-  * @param  lvl - trace level
-  * @param  pptr - pointer on the trace
-  * @param  len - length of the trace
-  * @retval -
-  */
-void traceIF_itmPrint(uint8_t port, uint8_t lvl, uint8_t *pptr, uint16_t len)
-{
-  /* Is trace enable ? */
-  if (traceIF_traceEnable == true)
-  {
-    /* Is this level of trace activated ? */
-    if ((traceIF_Level & lvl) != 0U)
-    {
-      /* Is the trace for this component activated ? */
-      if (traceIF_traceComponent[port] != 0U)
-      {
-        uint8_t *ptr;
-        ptr = pptr;
-
-        /* Print bytes of the trace one by one */
-        for (uint16_t i = 0U; i < len; i++)
-        {
-          ITM_Out((uint32_t) port, (uint32_t) *ptr);
-          ptr++;
-        }
-      }
-    }
-  }
-}
-
-/**
   * @brief  Print a trace on UART
-  * @param  port - component channel
+  * @param  chan - component channel
   * @param  lvl - trace level
   * @param  pptr - pointer on the trace
   * @param  len - length of the trace
   * @retval -
   */
-void traceIF_uartPrint(uint8_t port, uint8_t lvl, uint8_t *pptr, uint16_t len)
+void traceIF_uartPrint(uint8_t chan, uint8_t lvl, uint8_t *pptr, uint16_t len)
 {
   /* Is trace enable ? */
   if (traceIF_traceEnable == true)
@@ -422,7 +324,7 @@ void traceIF_uartPrint(uint8_t port, uint8_t lvl, uint8_t *pptr, uint16_t len)
     if ((traceIF_Level & lvl) != 0U)
     {
       /* Is the trace for this component activated ? */
-      if (traceIF_traceComponent[port] != 0U)
+      if (traceIF_traceComponent[chan] != 0U)
       {
         uint8_t *ptr;
         ptr = pptr;
@@ -435,36 +337,15 @@ void traceIF_uartPrint(uint8_t port, uint8_t lvl, uint8_t *pptr, uint16_t len)
 }
 
 /**
-  * @brief  Print a trace on ITM even if global or component trace is disable
-  * @param  port - component channel
+  * @brief  Print a trace on UART even if global or component trace is disable
+  * @param  chan - component channel (unused parameter)
   * @param  pptr - pointer on the trace
   * @param  len - length of the trace
   * @retval -
   */
-void traceIF_itmPrintForce(uint8_t port, uint8_t *pptr, uint16_t len)
+void traceIF_uartPrintForce(uint8_t chan, uint8_t *pptr, uint16_t len)
 {
-  uint8_t *ptr;
-  ptr = pptr;
-
-  /* Print bytes of the trace one by one */
-  for (uint16_t i = 0U; i < len; i++)
-  {
-    ITM_Out((uint32_t) port, (uint32_t) *ptr);
-    ptr++;
-  }
-}
-
-/**
-  * @brief  Print a trace on ITM even if global or component trace is disable
-  * @param  port - component channel
-  * @note   port is an unused parameter
-  * @param  pptr - pointer on the trace
-  * @param  len - length of the trace
-  * @retval -
-  */
-void traceIF_uartPrintForce(uint8_t port, uint8_t *pptr, uint16_t len)
-{
-  UNUSED(port);
+  UNUSED(chan);
 
   uint8_t *ptr;
   ptr = pptr;
@@ -475,7 +356,7 @@ void traceIF_uartPrintForce(uint8_t port, uint8_t *pptr, uint16_t len)
 
 /**
   * @brief  Print a trace in hexadecimal format
-  * @note   Available for ITM or UART trace And NOT for printf
+  * @note   Available for UART trace And NOT for printf
   * @param  chan - component channel
   * @param  lvl  - trace level
   * @param  buff - pointer on the trace
@@ -484,8 +365,8 @@ void traceIF_uartPrintForce(uint8_t port, uint8_t *pptr, uint16_t len)
   */
 void traceIF_hexPrint(dbg_channels_t chan, dbg_levels_t level, uint8_t *buff, uint16_t len)
 {
-#if ((TRACE_IF_TRACES_ITM == 1U) || (TRACE_IF_TRACES_UART == 1U))
-  static  uint8_t car[MAX_HEX_PRINT_SIZE];
+#if (TRACE_IF_TRACES_UART == 1U)
+  static uint8_t car[MAX_HEX_PRINT_SIZE];
 
   uint32_t i;
   uint16_t tmp_len;
@@ -526,7 +407,7 @@ void traceIF_hexPrint(dbg_channels_t chan, dbg_levels_t level, uint8_t *buff, ui
 
   /* Trace the converted buffer */
   TRACE_PRINT(chan,  level, "%s ", (CRC_CHAR_t *)car)
-#endif  /* ((TRACE_IF_TRACES_ITM == 1U) || (TRACE_IF_TRACES_UART == 1U)) */
+#endif  /* TRACE_IF_TRACES_UART == 1U */
 }
 
 /**
@@ -633,15 +514,13 @@ void traceIF_init(void)
   /* Multi call protection */
   if (traceIF_uart_mutex == NULL)
   {
-    traceIF_uart_mutex = rtosalMutexNew(NULL);
+    traceIF_uart_mutex = rtosalMutexNew((const rtosal_char_t *)"TRC_MUT_UART");
   }
 }
 
 /**
   * @brief  Component start
-  * @note   must be called only one time but
-            after traceIF_init
-            and before using any other functions of traceIF_*
+  * @note   must be called only one time but after traceIF_init and before using any other functions of traceIF_*
   * @param  -
   * @retval -
   */
@@ -654,5 +533,3 @@ void traceIF_start(void)
 #endif /* SW_DEBUG_VERSION == 1 */
 #endif /* USE_CMD_CONSOLE == 1 */
 }
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -40,11 +39,6 @@ typedef uint8_t dbg_levels_t;
 #define DBL_LVL_ERR    (dbg_levels_t)0x10U
 #define DBL_LVL_VALID  (dbg_levels_t)0x20U
 
-/* following flags select debug interface(s) to use : to be defined in plf_sw_config.h
-  #define TRACE_IF_TRACES_ITM     (1)
-  #define TRACE_IF_TRACES_UART    (1)
-*/
-
 /* DEBUG MASK defines the allowed traces : to be defined in plf_sw_config.h */
 /* Full traces */
 /* #define TRACE_IF_MASK    (uint16_t)(DBL_LVL_P0 | DBL_LVL_P1 | DBL_LVL_P2 | DBL_LVL_WARN | DBL_LVL_ERR) */
@@ -57,7 +51,7 @@ typedef uint8_t dbg_levels_t;
 
 /* Exported types ------------------------------------------------------------*/
 
-/* Define here the list of 32 ITM channels (0 to 31) */
+/* Define here the list of channels */
 typedef enum
 {
   DBG_CHAN_MAIN = 0,
@@ -81,7 +75,6 @@ typedef enum
 /* Exported constants --------------------------------------------------------*/
 /* External variables --------------------------------------------------------*/
 extern uint8_t dbgIF_buf[DBG_CHAN_MAX_VALUE][DBG_IF_MAX_BUFFER_SIZE];
-extern uint8_t *traceIF_UartBusyFlag;
 
 /* Exported functions ------------------------------------------------------- */
 /**
@@ -99,43 +92,23 @@ void traceIF_trace_off(void);
 void traceIF_trace_on(void);
 
 /**
-  * @brief  Print a trace on ITM
-  * @param  port - component channel
-  * @param  lvl - trace level
-  * @param  pptr - pointer on the trace
-  * @param  len - length of the trace
-  * @retval -
-  */
-void traceIF_itmPrint(uint8_t port, uint8_t lvl, uint8_t *pptr, uint16_t len);
-
-/**
   * @brief  Print a trace on UART
-  * @param  port - component channel
+  * @param  chan - component channel
   * @param  lvl - trace level
   * @param  pptr - pointer on the trace
   * @param  len - length of the trace
   * @retval -
   */
-void traceIF_uartPrint(uint8_t port, uint8_t lvl, uint8_t *pptr, uint16_t len);
+void traceIF_uartPrint(uint8_t chan, uint8_t lvl, uint8_t *pptr, uint16_t len);
 
 /**
-  * @brief  Print a trace on ITM even if global or component trace is disable
-  * @param  port - component channel
+  * @brief  Print a trace on UART even if global or component trace is disable
+  * @param  chan - component channel (unused parameter)
   * @param  pptr - pointer on the trace
   * @param  len - length of the trace
   * @retval -
   */
-void traceIF_itmPrintForce(uint8_t port, uint8_t *pptr, uint16_t len);
-
-/**
-  * @brief  Print a trace on ITM even if global or component trace is disable
-  * @param  port - component channel
-  * @note   port is an unused parameter
-  * @param  pptr - pointer on the trace
-  * @param  len - length of the trace
-  * @retval -
-  */
-void traceIF_uartPrintForce(uint8_t port, uint8_t *pptr, uint16_t len);
+void traceIF_uartPrintForce(uint8_t chan, uint8_t *pptr, uint16_t len);
 
 /**
   * @brief  Print a trace in hexadecimal format
@@ -171,32 +144,18 @@ void traceIF_BufCharPrint(dbg_channels_t chan, dbg_levels_t level, const CRC_CHA
   */
 void traceIF_BufHexPrint(dbg_channels_t chan, dbg_levels_t level, const CRC_CHAR_t *buf, uint16_t size);
 
-#if ((TRACE_IF_TRACES_ITM == 1U) && (TRACE_IF_TRACES_UART == 1U))
+#if (TRACE_IF_TRACES_UART == 1U)
 #define TRACE_PRINT(chan, lvl, format, args...) \
   (void)sprintf((CRC_CHAR_t *)dbgIF_buf[(chan)], format "", ## args);\
-  traceIF_itmPrint((uint8_t)(chan), (uint8_t)lvl, (uint8_t *)dbgIF_buf[(chan)],\
-                   (uint16_t)crs_strlen(dbgIF_buf[(chan)]));\
   traceIF_uartPrint( (uint8_t)(chan), (uint8_t)lvl, (uint8_t *)dbgIF_buf[(chan)],\
                      (uint16_t)crs_strlen(dbgIF_buf[(chan)]));
-#elif (TRACE_IF_TRACES_ITM == 1U)
-#define TRACE_PRINT(chan, lvl, format, args...) \
-  (void)sprintf((CRC_CHAR_t *)dbgIF_buf[(chan)], format "", ## args);\
-  traceIF_itmPrint((uint8_t)(chan), (uint8_t)lvl, (uint8_t *)dbgIF_buf[(chan)],\
-                   (uint16_t)crs_strlen(dbgIF_buf[(chan)]));
-#elif (TRACE_IF_TRACES_UART == 1U)
-#define TRACE_PRINT(chan, lvl, format, args...) \
-  (void)sprintf((CRC_CHAR_t *)dbgIF_buf[(chan)], format "", ## args);\
-  traceIF_uartPrint((uint8_t)(chan), (uint8_t)lvl, (uint8_t *)dbgIF_buf[(chan)],\
-                    (uint16_t)crs_strlen(dbgIF_buf[(chan)]));
 #else
 #define TRACE_PRINT(...)      __NOP(); /* Nothing to do */
-#endif  /* ((TRACE_IF_TRACES_ITM == 1U) && (TRACE_IF_TRACES_UART == 1U)) */
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* To force traces even if they are deactivated (used in Boot Menu for example) */
 #define TRACE_PRINT_FORCE(chan, lvl, format, args...) \
   (void)sprintf((CRC_CHAR_t *)dbgIF_buf[(chan)], format "", ## args);\
-  traceIF_itmPrint((uint8_t)(chan), 1, (uint8_t *)dbgIF_buf[(chan)],\
-                   (uint16_t)crs_strlen(dbgIF_buf[(chan)]));\
   traceIF_uartPrintForce((uint8_t)(chan), (uint8_t *)dbgIF_buf[(chan)],\
                          (uint16_t)crs_strlen(dbgIF_buf[(chan)]));
 
@@ -223,9 +182,7 @@ void traceIF_init(void);
 
 /**
   * @brief  Component start
-  * @note   must be called only one time but
-            after traceIF_init
-            and before using any other functions of traceIF_*
+  * @note   must be called only one time but after traceIF_init and before using any other functions of traceIF_*
   * @param  -
   * @retval -
   */
@@ -236,5 +193,3 @@ void traceIF_start(void);
 #endif
 
 #endif /* TRACE_INTERFACE_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

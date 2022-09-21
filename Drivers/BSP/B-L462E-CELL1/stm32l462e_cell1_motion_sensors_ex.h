@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -43,12 +42,6 @@ extern "C" {
 /** @defgroup STM32L462E_CELL1_MOTION_SENSORS_EX_Exported_Types STM32L462E_CELL1 MOTION_SENSORS_EX Exported Types
   * @{
   */
-typedef enum
-{
-  STM32L462E_CELL1_MOTION_SENSOR_INT1_PIN = 0,
-  STM32L462E_CELL1_MOTION_SENSOR_INT2_PIN
-} STM32L462E_CELL1_MOTION_SENSOR_IntPin_t;
-
 /*
 typedef struct
 {
@@ -96,5 +89,3 @@ int32_t BSP_MOTION_SENSOR_Write_Register(uint32_t Instance, uint8_t Reg, uint8_t
 #endif /* __cplusplus */
 
 #endif /* STM32L462E_CELL1_MOTION_SENSOR_EX_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

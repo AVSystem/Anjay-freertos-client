@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -127,6 +126,9 @@ typedef struct
 int32_t BSP_ENV_SENSOR_Init_Temperature(void);
 int32_t BSP_ENV_SENSOR_Init_Pressure(void);
 int32_t BSP_ENV_SENSOR_Init_Humidity(void);
+int32_t BSP_ENV_SENSOR_DeInit_Temperature(void);
+int32_t BSP_ENV_SENSOR_DeInit_Pressure(void);
+int32_t BSP_ENV_SENSOR_DeInit_Humidity(void);
 int32_t BSP_ENV_SENSOR_Read_Temperature(float_t *temperature);
 int32_t BSP_ENV_SENSOR_Read_Pressure(float_t *pressure);
 int32_t BSP_ENV_SENSOR_ReadT_Humidity(float_t *humidity);
@@ -164,5 +166,3 @@ int32_t BSP_ENV_SENSOR_GetValue(uint32_t Instance, uint32_t Function, float_t *V
 #endif /* __cplusplus */
 
 #endif /* STM32L462E_CELL1_ENV_SENSORS_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

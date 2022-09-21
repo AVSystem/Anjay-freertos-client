@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -62,15 +61,18 @@
 /* Private typedef -----------------------------------------------------------*/
 typedef struct
 {
-  CSP_PowerState_t power_state;
-  CSP_PowerState_t target_power_state;
+  CSP_PowerState_t power_state;            /* Actual activated power state                     */
+  CSP_PowerState_t target_power_state;     /* Power state to reach, but not actually activated */
 }  CSP_Context_t;
 
 /* Private variables ---------------------------------------------------------*/
-static osTimerId         CSP_timeout_timer_handle;
+/* Timeout used for Modem low power activation. If this timer fire, CSP considered that the modem can not activate */
+/*   low power, and CSP reverts to the previous low power state                                                    */
+static osTimerId                  CSP_timeout_timer_handle;
 static dc_cellular_power_config_t csp_dc_power_config;
-static CSP_Context_t     CSP_Context;
-static const uint8_t *CSP_power_state_name[] =
+static CSP_Context_t              CSP_Context;
+/* string names associated with modem power states */
+static const uint8_t              *CSP_power_state_name[] =
 {
   ((uint8_t *)"CSP_LOW_POWER_DISABLED"),
   ((uint8_t *)"CSP_LOW_POWER_INACTIVE"),
@@ -86,6 +88,7 @@ typedef struct
   dc_cellular_power_edrx_config_t  edrx;   /* !< eDRX config         */
 } csp_cmd_power_config_t;
 
+/* initialize defaults values for PSM and eDRX config */
 static csp_cmd_power_config_t csp_cmd_power_config =
 {
   /* PSM config */
@@ -102,9 +105,10 @@ static csp_cmd_power_config_t csp_cmd_power_config =
   }
 };
 
+/* CMD label to prefix the CSP commands */
 static uint8_t *CSP_cmd_label = ((uint8_t *)"csp");
 
-
+/* string names associated with eDRX modes */
 static const uint8_t *CSP_edrx_act_type_name[] =
 {
   ((uint8_t *)"EDRX_ACT_NOT_USED"),
@@ -120,14 +124,45 @@ static const uint8_t *CSP_edrx_act_type_name[] =
 
 
 /* Private function prototypes -----------------------------------------------*/
+/**
+  * @brief  timer callback to check sleep activation
+  * @param  argument - argument (not used)
+  * @retval none
+  */
 static void CSP_TimeoutTimerCallback(void *argument);
+/**
+  * @brief  timer callback to check sleep activation
+  * @param  argument - argument (not used)
+  * @retval none
+  */
 static void CSP_ArmTimeout(uint32_t timeout);
+/**
+  * @brief  enter in low power mode
+  * @note  called by cellular service task automaton
+  * @param  none
+  * @retval error code
+  */
 static void CSP_SleepRequest(uint32_t timeout);
 
 #if (USE_CMD_CONSOLE == 1)
+/**
+  * @brief  Help command management. Display help for CSP commands
+  * @param  none
+  * @retval none
+  */
 static void CSP_HelpCmd(void);
+/**
+  * @brief  display the actual configuration of cellular service power
+  * @param  none
+  * @retval none
+  */
 static void CSP_get_config(void);
-static cmd_status_t CSP_cmd(uint8_t *cmd_line_p);
+/**
+  * @brief  Cellular Service Power command line management
+  * @param  cmd_line_p  command line
+  * @retval -
+  */
+static void CSP_cmd(uint8_t *cmd_line_p);
 #endif  /* (USE_CMD_CONSOLE == 1) */
 
 /* Private function Definition -----------------------------------------------*/
@@ -141,11 +176,11 @@ static void STM32_Wakeup(void);
 
 static void STM32_SleepRequest(void)
 {
-  PRINT_CELLULAR_SERVICE("STM32_SleepRequest\n\r")
+  PRINT_CELLULAR_SERVICE("CST: STM32_SleepRequest\n\r")
 }
 static void STM32_Wakeup(void)
 {
-  PRINT_CELLULAR_SERVICE("STM32_Wakeup\n\r")
+  PRINT_CELLULAR_SERVICE("CST: STM32_Wakeup\n\r")
 }
 /* ============================================================ */
 /* ==== STM32 STUB END ======= */
@@ -153,25 +188,28 @@ static void STM32_Wakeup(void)
 
 #if (USE_CMD_CONSOLE == 1)
 /**
-  * @brief  Help command management
+  * @brief  Help command management. Display help for CSP commands
   * @param  none
   * @retval none
   */
-
 static void CSP_HelpCmd(void)
 {
+  /* Display help header */
   CMD_print_help(CSP_cmd_label);
 
   PRINT_FORCE("%s help\n\r", (CRC_CHAR_t *)CSP_cmd_label)
+  /* General commands */
   PRINT_FORCE("%s state   (Displays the current power state)\n\r", CSP_cmd_label)
   PRINT_FORCE("%s mode [runrealtime|runinteractive|idle|ildllp|lp|ulp] (select power mode)\n\r", CSP_cmd_label)
   PRINT_FORCE("%s idle  (enter in low power)\n\r", CSP_cmd_label)
   PRINT_FORCE("%s wakeup  (leave low power)\n\r", CSP_cmd_label)
-
+  /* Low power configuration commands */
+  /* Introduction */
   PRINT_FORCE("\n\r")
   PRINT_FORCE("PSM and eDRX configuration can be modified using '%s config set'\n\r", CSP_cmd_label)
   PRINT_FORCE("and '%s config send' commands.\n\r", CSP_cmd_label)
   PRINT_FORCE("Update configuration is performed in two steps:\n\r")
+  /* 1st step commands for Low power configuration */
   PRINT_FORCE("- 1st step: set the configuration parameters using the following command:\n\r");
   PRINT_FORCE("%s config set psmrau|psmgprstimer|psmtau|psmactivetimer|edrxacttype|edrxvalue ", CSP_cmd_label)
   PRINT_FORCE(" <hexa value prefixed by '0x'>  (set power config value)\n\r")
@@ -179,6 +217,7 @@ static void CSP_HelpCmd(void)
   PRINT_FORCE("%s config set edrxacttype  NOT_USED|EC_GSM_IOT|GSM|UTRAN|UTRAN_WB_S1|UTRAN_NB_S1 ",
               CSP_cmd_label)
   PRINT_FORCE("(set edrx config value)\n\r")
+  /* 2nd step commands for Low power configuration */
   PRINT_FORCE("- 2nd step: send the new configuration to the modem\n\r");
   PRINT_FORCE("%s config send\n\r", (CRC_CHAR_t *)CSP_cmd_label)
   PRINT_FORCE("\n\r");
@@ -187,12 +226,18 @@ static void CSP_HelpCmd(void)
   PRINT_FORCE("      Current values of these parameters can be read using '%s config get' command\n\r", CSP_cmd_label)
   PRINT_FORCE("\n\r");
 
-
   PRINT_FORCE("\n\r");
 }
 
+/**
+  * @brief  display the actual configuration of cellular service power
+  * @param  none
+  * @retval none
+  */
 static void CSP_get_config(void)
 {
+  /* Display low power config */
+  /* PSM values */
   PRINT_FORCE("----------\n\r")
   PRINT_FORCE("PSM config\n\r")
   PRINT_FORCE("----------\n\r")
@@ -201,19 +246,20 @@ static void CSP_get_config(void)
   PRINT_FORCE("periodic TAU     0x%02x\n\r", csp_cmd_power_config.psm.req_periodic_TAU)
   PRINT_FORCE("active time      0x%02x\n\r", csp_cmd_power_config.psm.req_active_time)
   PRINT_FORCE("\n\r")
+  /* eDRX values */
   PRINT_FORCE("-----------\n\r")
   PRINT_FORCE("eDRX config\n\r")
   PRINT_FORCE("-----------\n\r")
   PRINT_FORCE("type %s\n\r", CSP_edrx_act_type_name[csp_cmd_power_config.edrx.act_type])
   PRINT_FORCE("value 0x%02x\n\r", csp_cmd_power_config.edrx.req_value)
 }
-/**
-  * @brief  Cellular Sercice Power command line management
-  * @param  cmd_line_p  command line
-  * @retval cmd_status_t command result
-  */
 
-static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
+/**
+  * @brief  Cellular Service Power command line management
+  * @param  cmd_line_p  command line
+  * @retval -
+  */
+static void CSP_cmd(uint8_t *cmd_line_p)
 {
   static dc_cellular_power_config_t csp_cmd_dc_power_config;
   static const uint8_t *CSP_power_mode_name[] =
@@ -238,14 +284,12 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
   uint8_t    *cmd_p;
   CS_Status_t status;
 
-  cmd_status_t cmd_status ;
-  cmd_status = CMD_OK;
-
   PRINT_FORCE("\n\r")
 
+  /* Get the first word of the command line */
   cmd_p = (uint8_t *)strtok((CRC_CHAR_t *)cmd_line_p, " \t");
 
-  /* verify that it is a cst command */
+  /* verify that it is a csp command : first word should be CSP_cmd_label */
   if (cmd_p != NULL)
   {
     if (memcmp((CRC_CHAR_t *)cmd_p,
@@ -253,7 +297,7 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
                crs_strlen(cmd_p))
         == 0)
     {
-      /* parameters parsing                     */
+      /* parameters parsing. Fill the array argv_p with all the found parameters */
       for (argc = 0U ; argc < CSP_CMD_PARAM_MAX ; argc++)
       {
         argv_p[argc] = (uint8_t *)strtok(NULL, " \t");
@@ -264,16 +308,19 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
         }
       }
 
+      /* if no parameters */
       if (argc == 0U)
       {
         /* no argument: displays help */
         CSP_HelpCmd();
       }
+      /* help command ------------------------------------------------------------------------------------------------*/
       else if (memcmp((CRC_CHAR_t *)argv_p[0],  "help",  crs_strlen(argv_p[0])) == 0)
       {
         /* help command: displays help */
         CSP_HelpCmd();
       }
+      /* config command ----------------------------------------------------------------------------------------------*/
       else if (memcmp((CRC_CHAR_t *)argv_p[0], "config", crs_strlen(argv_p[0])) == 0)
       {
         /* 'csp config' command */
@@ -281,6 +328,7 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
         {
           CSP_get_config();
         }
+        /* config set command ----------------------------------------------------------------------------------------*/
         else if (memcmp((CRC_CHAR_t *)argv_p[1], "set", crs_strlen(argv_p[1])) == 0)
         {
           /* 'csp config set ...' command */
@@ -315,26 +363,32 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
               /* 'csp config set edrxacttype ...' command */
               if (memcmp((CRC_CHAR_t *)argv_p[3], "NOT_USED", crs_strlen(argv_p[3])) == 0)
               {
+                /* eDRX Not used */
                 csp_cmd_power_config.edrx.act_type = CA_EIDRX_ACT_NOT_USED;
               }
               else if (memcmp((CRC_CHAR_t *)argv_p[3], "EC_GSM_IOT", crs_strlen(argv_p[3])) == 0)
               {
+                /* eDRX GSM IOT */
                 csp_cmd_power_config.edrx.act_type = CA_EIDRX_ACT_EC_GSM_IOT;
               }
               else if (memcmp((CRC_CHAR_t *)argv_p[3], "GSM", crs_strlen(argv_p[3])) == 0)
               {
+                /* eDRX GSM */
                 csp_cmd_power_config.edrx.act_type = CA_EIDRX_ACT_GSM;
               }
               else if (memcmp((CRC_CHAR_t *)argv_p[3], "UTRAN_WB_S1", crs_strlen(argv_p[3])) == 0)
               {
+                /* eDRX WBS1 */
                 csp_cmd_power_config.edrx.act_type = CA_EIDRX_ACT_E_UTRAN_WBS1;
               }
               else if (memcmp((CRC_CHAR_t *)argv_p[3], "UTRAN_NB_S1", crs_strlen(argv_p[3])) == 0)
               {
+                /* eDRX NBS1 */
                 csp_cmd_power_config.edrx.act_type = CA_EDRX_ACT_E_UTRAN_NBS1;
               }
               else if (memcmp((CRC_CHAR_t *)argv_p[3], "UTRAN", crs_strlen(argv_p[3])) == 0)
               {
+                /* eDRX UTRAN */
                 csp_cmd_power_config.edrx.act_type = CA_EIDRX_ACT_UTRAN;
               }
               else
@@ -343,7 +397,6 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
                 PRINT_FORCE("csp config set edrxacttype wrong value %s\n\r", argv_p[3])
                 PRINT_FORCE("Usage:\n\r")
                 CSP_HelpCmd();
-                cmd_status = CMD_SYNTAX_ERROR;
               }
             }
             else if (memcmp((CRC_CHAR_t *)argv_p[2], "edrxvalue", crs_strlen(argv_p[2])) == 0)
@@ -357,7 +410,6 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
               /* 'csp config set  ...' command : wrong parameters */
               PRINT_FORCE("Wrong syntax. Usage:\n\r")
               CSP_HelpCmd();
-              cmd_status = CMD_SYNTAX_ERROR;
             }
           }
           else
@@ -365,30 +417,33 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
             /* 'csp config   ...' command : wrong parameters */
             PRINT_FORCE("Wrong syntax. Usage:\n\r")
             CSP_HelpCmd();
-            cmd_status = CMD_SYNTAX_ERROR;
           }
         }
+        /* config get command ----------------------------------------------------------------------------------------*/
         else if (memcmp((CRC_CHAR_t *)argv_p[1], "get", crs_strlen(argv_p[1])) == 0)
         {
           /* 'csp config get' command */
           CSP_get_config();
         }
+        /* config send command ---------------------------------------------------------------------------------------*/
         else if (memcmp((CRC_CHAR_t *)argv_p[1], "send", crs_strlen(argv_p[1])) == 0)
         {
           /* 'csp config send' command */
+          /* Read actual parameters from data Cache */
           (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_CONFIG, (void *)&csp_cmd_dc_power_config,
                             sizeof(dc_cellular_power_config_t));
+          /* PSM parameters */
           csp_cmd_dc_power_config.power_cmd                 = CA_POWER_CMD_SETTING;
           csp_cmd_dc_power_config.psm_present               = true;
           csp_cmd_dc_power_config.psm.req_periodic_RAU      = csp_cmd_power_config.psm.req_periodic_RAU;
           csp_cmd_dc_power_config.psm.req_GPRS_READY_timer  = csp_cmd_power_config.psm.req_GPRS_READY_timer;
           csp_cmd_dc_power_config.psm.req_periodic_TAU      = csp_cmd_power_config.psm.req_periodic_TAU;
           csp_cmd_dc_power_config.psm.req_active_time       = csp_cmd_power_config.psm.req_active_time;
-
+          /* eDRX parameters */
           csp_cmd_dc_power_config.edrx_present              = true;
           csp_cmd_dc_power_config.edrx.act_type             = csp_cmd_power_config.edrx.act_type;
           csp_cmd_dc_power_config.edrx.req_value            = csp_cmd_power_config.edrx.req_value;
-
+          /* Write new parameters to Data Cache */
           (void)dc_com_write(&dc_com_db, DC_CELLULAR_POWER_CONFIG, (void *)&csp_cmd_dc_power_config,
                              sizeof(dc_cellular_power_config_t));
 
@@ -399,12 +454,13 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
         {
           PRINT_FORCE("Wrong syntax. Usage:\n\r")
           CSP_HelpCmd();
-          cmd_status = CMD_SYNTAX_ERROR;
         }
       }
+      /* state command -----------------------------------------------------------------------------------------------*/
       else if (memcmp((CRC_CHAR_t *)argv_p[0], "state", crs_strlen(argv_p[0])) == 0)
       {
         /* 'csp state' command */
+        /* Read data from data cache */
         (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_CONFIG, (void *)&csp_cmd_dc_power_config,
                           sizeof(dc_cellular_power_config_t));
         PRINT_FORCE("Current power mode: %s\n\r", CSP_power_mode_name[csp_cmd_dc_power_config.power_mode])
@@ -415,6 +471,7 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
         PRINT_FORCE("----------\n\r")
         if (csp_cmd_dc_power_config.psm_present == true)
         {
+          /* PSM parameter used, display PSM parameters */
           PRINT_FORCE("PSM config present\n\r")
           PRINT_FORCE("periodic_RAU     0x%02x\n\r", csp_cmd_dc_power_config.psm.req_periodic_RAU)
           PRINT_FORCE("GPRS ready timer 0x%02x\n\r", csp_cmd_dc_power_config.psm.req_GPRS_READY_timer)
@@ -423,6 +480,7 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
         }
         else
         {
+          /* PSM Power config not present */
           PRINT_FORCE("PSM config not present\n\r")
         }
         PRINT_FORCE("\n\r")
@@ -431,11 +489,13 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
         PRINT_FORCE("-----------\n\r")
         if (csp_cmd_dc_power_config.edrx_present == true)
         {
+          /* eDRX parameter used, display eDRX parameters */
           PRINT_FORCE("periodic_RAU %s\n\r", CSP_edrx_act_type_name[csp_cmd_dc_power_config.edrx.act_type])
           PRINT_FORCE("periodic_RAU 0x%02x\n\r", csp_cmd_dc_power_config.edrx.req_value)
         }
         else
         {
+          /* eDRX Power config not present */
           PRINT_FORCE("eDRX config not present\n\r")
         }
       }
@@ -456,6 +516,7 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
         }
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
       }
+      /* csp setmode command------------------------------------------------------------------------------------------*/
       else if (memcmp((CRC_CHAR_t *)argv_p[0], "setmode", crs_strlen(argv_p[0])) == 0)
       {
         /* 'csp setmode ...' command */
@@ -529,7 +590,6 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
             PRINT_FORCE("csp setmode wrong value %s\n\r", argv_p[1])
             PRINT_FORCE("Usage:\n\r")
             CSP_HelpCmd();
-            cmd_status = CMD_SYNTAX_ERROR;
           }
           (void)dc_com_write(&dc_com_db, DC_CELLULAR_POWER_CONFIG, (void *)&csp_cmd_dc_power_config,
                              sizeof(dc_cellular_power_config_t));
@@ -538,28 +598,30 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
         PRINT_FORCE("Current power mode: %s\n\r", CSP_power_mode_name[csp_cmd_dc_power_config.power_mode])
 
       }
+      /* idle command ------------------------------------------------------------------------------------------------*/
       else if (memcmp((CRC_CHAR_t *)argv_p[0], "idle", crs_strlen(argv_p[0])) == 0)
       {
         /* 'csp idle' command */
         status = CSP_DataIdle();
         if (status == CELLULAR_OK)
         {
+          /* DataIdle return OK */
           PRINT_FORCE("Data idle OK\n\r")
         }
         else
         {
+          /* DataIdle return KO */
           PRINT_FORCE("Data idle FAIL\n\r")
         }
       }
       else
       {
+        /* DataIdle bad parameter */
         PRINT_FORCE("Wrong syntax. Usage:\n\r")
         CSP_HelpCmd();
-        cmd_status = CMD_SYNTAX_ERROR;
       }
     }
   }
-  return cmd_status;
 }
 #endif  /* (USE_CMD_CONSOLE == 1) */
 
@@ -571,27 +633,15 @@ static cmd_status_t CSP_cmd(uint8_t *cmd_line_p)
   */
 static void CSP_TimeoutTimerCallback(void *argument)
 {
-  dc_cellular_power_status_t dc_power_status;
-
   UNUSED(argument);
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_TimeoutTimerCallback\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_TimeoutTimerCallback\n\r")
 
-  (void)osCS_SleepCancel();
-
-  CSP_Context.power_state = CSP_LOW_POWER_INACTIVE;
-  PRINT_FORCE("++++++++++++++++ Call back - power state %s\n\r", CSP_power_state_name[CSP_Context.power_state])
-
-  (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
-                    sizeof(dc_cellular_power_status_t));
-  dc_power_status.power_state = DC_POWER_LOWPOWER_INACTIVE;
-  (void)dc_com_write(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
-                     sizeof(dc_cellular_power_status_t));
-
+  /* Send message POWER_SLEEP_TIMEOUT_EVENT to automaton */
   CST_send_message(CST_MESSAGE_CS_EVENT, CST_POWER_SLEEP_TIMEOUT_EVENT);
 }
 
 /**
-  * @brief  low power leaved
+  * @brief  low power leaved. Wakeup is achieved, Update needed variables.
   * @param  none
   * @retval none
   */
@@ -599,16 +649,16 @@ void CSP_WakeupComplete(void)
 {
   dc_cellular_power_status_t dc_power_status;
 
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_WakeupComplete\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_WakeupComplete\n\r")
+  /* update CSP context power state */
   CSP_Context.power_state = CSP_LOW_POWER_INACTIVE;
 
+  /* update data cache power state */
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
                     sizeof(dc_cellular_power_status_t));
   dc_power_status.power_state = DC_POWER_LOWPOWER_INACTIVE;
   (void)dc_com_write(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
                      sizeof(dc_cellular_power_status_t));
-
-
 
   PRINT_FORCE("++++++++++++++++ power state %s\n\r", CSP_power_state_name[CSP_Context.power_state])
 }
@@ -622,15 +672,17 @@ void CSP_ResetPowerStatus(void)
 {
   dc_cellular_power_status_t dc_power_status;
 
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_ResetPowerStatus\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_ResetPowerStatus\n\r")
 
+  /* Reset low power status data in data cache */
+  /* Read low power status from data cache */
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
                     sizeof(dc_cellular_power_status_t));
-
+  /* reset status data */
   dc_power_status.power_state = DC_POWER_LOWPOWER_INACTIVE;
   dc_power_status.nwk_periodic_TAU = 0U;
   dc_power_status.nwk_active_time = 0U;
-
+  /* write new status data to data cache */
   (void)dc_com_write(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
                      sizeof(dc_cellular_power_status_t));
 }
@@ -642,7 +694,8 @@ void CSP_ResetPowerStatus(void)
   */
 static void CSP_ArmTimeout(uint32_t timeout)
 {
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_ArmTimeout\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_ArmTimeout\n\r")
+  /* On sleep request, arm timeout to be protected if modem do not answet to sleep request */
   (void)rtosalTimerStart(CSP_timeout_timer_handle, timeout);
 }
 
@@ -653,7 +706,8 @@ static void CSP_ArmTimeout(uint32_t timeout)
   */
 void CSP_StopTimeout(void)
 {
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_StopTimeout\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_StopTimeout\n\r")
+  /* Stop timer if modem answered to sleep request */
   (void)rtosalTimerStop(CSP_timeout_timer_handle);
 }
 
@@ -668,77 +722,95 @@ void CSP_SleepRequest(uint32_t timeout)
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
   CS_Status_t cs_status ;
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_SleepRequest\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_SleepRequest\n\r")
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
+  /* stop data mode (no data can be transmit un low power mode) */
+  PRINT_CELLULAR_SERVICE("CST: osCDS_suspend_data()\n\r")
   cs_status = osCDS_suspend_data();
   if (cs_status == CELLULAR_OK)
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
   {
+    /* arm timeout to protect from modem sleep request no response */
     CSP_ArmTimeout(timeout);
+    /* Send sleep request to modem */
+    PRINT_CELLULAR_SERVICE("CST: osCS_SleepRequest()\n\r")
     (void)osCS_SleepRequest();
+    /* send sleep request to STM32 */
     STM32_SleepRequest();
   }
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
   else
   {
+    /* If error while stop data mode, send POWER_SLEEP_ABORT_EVENT to automaton */
     CST_send_message(CST_MESSAGE_CMD, CST_POWER_SLEEP_ABORT_EVENT);
   }
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
 }
 
 /**
-  * @brief  enter in low power mode
+  * @brief  Prepare to enter in low power mode
   * @note  called by cellular service task automaton
   * @param  none
-  * @retval error code
+  * @retval none
   */
 void CSP_DataIdleManagment(void)
 {
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_DataIdleManagment\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_DataIdleManagment\n\r")
 
-  switch (csp_dc_power_config.power_mode)
+  if (CSP_Context.target_power_state == CSP_LOW_POWER_ACTIVE)
   {
-    case CA_POWER_RUN_REAL_TIME:
-      CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
-      break;
+    /* No low power activation is currently on going and low power is not established */
+    /* Update CSP context power state */
+    CSP_Context.power_state = CSP_LOW_POWER_ON_GOING;
+    PRINT_FORCE("CST: power state %s\n\r", CSP_power_state_name[CSP_Context.power_state])
 
-    case CA_POWER_RUN_INTERACTIVE_0:
-    case CA_POWER_RUN_INTERACTIVE_1:
-    case CA_POWER_RUN_INTERACTIVE_2:
-    case CA_POWER_RUN_INTERACTIVE_3:
-      CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
-      CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
-      break;
+    switch (csp_dc_power_config.power_mode)
+    {
+      case CA_POWER_RUN_REAL_TIME:
+        CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
+        break;
 
-    case CA_POWER_IDLE:
-      CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
-      CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
-      break;
+      case CA_POWER_RUN_INTERACTIVE_0:
+      case CA_POWER_RUN_INTERACTIVE_1:
+      case CA_POWER_RUN_INTERACTIVE_2:
+      case CA_POWER_RUN_INTERACTIVE_3:
+        CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
+        CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
+        break;
 
-    case CA_POWER_IDLE_LP:
-      CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
-      CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
-      break;
+      case CA_POWER_IDLE:
+        CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
+        CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
+        break;
 
-    case CA_POWER_LP:
-      CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
-      CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
-      break;
+      case CA_POWER_IDLE_LP:
+        CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
+        CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
+        break;
 
-    case CA_POWER_ULP:
-      CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
-      CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
-      break;
+      case CA_POWER_LP:
+        CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
+        CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
+        break;
 
-    default:
-      /* Nothing to do */
-      __NOP();
-      break;
+      case CA_POWER_ULP:
+        CST_set_state(CST_MODEM_POWER_DATA_IDLE_STATE);
+        CSP_SleepRequest(csp_dc_power_config.sleep_request_timeout);
+        break;
 
+      default:
+        /* Nothing to do */
+        __NOP();
+        break;
+
+    }
+  }
+  else
+  {
+    PRINT_FORCE("++++++++++++++++ No need to go to low power. Target state changed")
   }
 }
-
 
 /**
   * @brief  enter in low power mode request
@@ -749,11 +821,14 @@ CS_Status_t CSP_DataIdle(void)
 {
   dc_cellular_power_status_t dc_power_status;
 
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_DataIdle\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_DataIdle\n\r")
   CS_Status_t status;
   status = CELLULAR_OK;
+  /* update target state. It is not the actual state but, the target to reach */
+  PRINT_CELLULAR_SERVICE("CST: target power state CSP_LOW_POWER_ACTIVE\n\r")
   CSP_Context.target_power_state = CSP_LOW_POWER_ACTIVE;
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ power state %s\n\r", CSP_power_state_name[CSP_Context.power_state])
+  /* display actual power state */
+  PRINT_CELLULAR_SERVICE("CST: power state %s\n\r", CSP_power_state_name[CSP_Context.power_state])
 
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_CONFIG, (void *)&csp_dc_power_config,
                     sizeof(dc_cellular_power_config_t));
@@ -772,25 +847,26 @@ CS_Status_t CSP_DataIdle(void)
       /*      (void)rtosalMutexAcquire(CSP_mutex, RTOSAL_WAIT_FOREVER);  */
       if (CSP_Context.power_state == CSP_LOW_POWER_INACTIVE)
       {
-        CSP_Context.power_state = CSP_LOW_POWER_ON_GOING;
-        PRINT_FORCE("++++++++++++++++ power state %s\n\r", CSP_power_state_name[CSP_Context.power_state])
-
+        /* update power state in data cache */
         (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
                           sizeof(dc_cellular_power_status_t));
         dc_power_status.power_state = DC_POWER_LOWPOWER_ONGOING;
         (void)dc_com_write(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
                            sizeof(dc_cellular_power_status_t));
 
+        /* send message POWER_SLEEP_REQUEST_EVENT to automaton */
         CST_send_message(CST_MESSAGE_CMD, CST_POWER_SLEEP_REQUEST_EVENT);
       }
       else
       {
+        /* A low power activation or low power is already active. Raise an error. This case should not occur */
         status  = CELLULAR_ERROR;
       }
     }
   }
   else
   {
+    /* Data in data cache is not relevant, raise an error. This case should never occur */
     status  = CELLULAR_ERROR;
   }
 
@@ -804,7 +880,7 @@ CS_Status_t CSP_DataIdle(void)
   */
 CS_Status_t CSP_CSIdle(void)
 {
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_CSIdle\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_CSIdle\n\r")
   CS_Status_t status;
   status = CELLULAR_OK;
 
@@ -816,7 +892,20 @@ CS_Status_t CSP_CSIdle(void)
 }
 
 /**
-  * @brief  enter in low power mode request
+  * @brief  Cancel ongoing sleep request. Action to be done between CS_sleep_request and CS_sleepComplete
+  * @param  none
+  * @retval none
+  */
+void CSP_SleepCancel(void)
+{
+  PRINT_CELLULAR_SERVICE("CST: osCS_SleepCancel()\n\r")
+  (void)osCS_SleepCancel();
+  CSP_WakeupComplete();
+  CST_set_state(CST_MODEM_DATA_READY_STATE);
+}
+
+/**
+  * @brief  Update all needed data once sleep mode is enable
   * @param  none
   * @retval error code
   */
@@ -824,13 +913,18 @@ void CSP_SleepComplete(void)
 {
   dc_cellular_power_status_t dc_power_status;
 
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_SleepComplete\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_SleepComplete\n\r")
   if (CSP_Context.power_state == CSP_LOW_POWER_ON_GOING)
   {
+    /* update data only if actual state is LOW_POWER_ON_GOING. Any other state should be impossible */
+    /* Stop timeout timer that is armed to protect against modem not going to low power */
     (void)rtosalTimerStop(CSP_timeout_timer_handle);
+    /* Complete sleep procedure at modem side*/
+    PRINT_CELLULAR_SERVICE("CST: osCS_SleepComplete()\n\r")
     (void)osCS_SleepComplete();
+    /* Update CSP context data */
     CSP_Context.power_state = CSP_LOW_POWER_ACTIVE;
-
+    /* update data cache */
     (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
                       sizeof(dc_cellular_power_status_t));
     dc_power_status.power_state = DC_POWER_IN_LOWPOWER;
@@ -850,50 +944,82 @@ void CSP_SleepComplete(void)
 CS_Status_t CSP_DataWakeup(CS_wakeup_origin_t wakeup_origin)
 {
   CS_Status_t status;
+
+  /* Change CSP contest target state */
+  PRINT_CELLULAR_SERVICE("CST: CSP_DataWakeup\n\r")
+
+  PRINT_CELLULAR_SERVICE("CST: target power state CSP_LOW_POWER_INACTIVE\n\r")
+  CSP_Context.target_power_state = CSP_LOW_POWER_INACTIVE;
+
   /*      mutual exclusion  */
   /*  (void)rtosalMutexRelease(CSP_mutex); */
-
   if ((CSP_Context.power_state == CSP_LOW_POWER_ACTIVE) ||
       (CSP_Context.power_state == CSP_LOW_POWER_ON_GOING))
   {
+    /* Wake up process only if low power is on going or active */
+
+    /* Wakeup only if LOW POWER is on going or active */
     STM32_Wakeup();
 
     if (wakeup_origin == HOST_WAKEUP)
     {
-      PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_DataWakeup host wakeup\n\r")
-      CST_send_message(CST_MESSAGE_CMD, CST_POWER_WAKEUP_EVENT);
-      CSP_Context.target_power_state = CSP_LOW_POWER_INACTIVE;
-      PRINT_CELLULAR_SERVICE("++++++++++++++++ power state %s\n\r", CSP_power_state_name[CSP_Context.power_state])
-      while (CSP_Context.power_state == CSP_LOW_POWER_ON_GOING)
+      /* wakeup request from host, that is, no need to wake up the host */
+      PRINT_CELLULAR_SERVICE("CST: --> host wakeup\n\r")
+      if (CSP_Context.power_state == CSP_LOW_POWER_ON_GOING)
       {
-        PRINT_CELLULAR_SERVICE("++++++++++++++++ wait for wakeup completion: CSP_LOW_POWER_ON_GOING  \n\r")
-        (void)rtosalDelay(100) ;
+        /* If low power is ongoing, just cancel it */
+        PRINT_CELLULAR_SERVICE("CST: --> cancel on going low power\n\r")
+        /* stop the modem sleep request protection timer (to be sure it won't fire after) */
+        CSP_StopTimeout();
+        CSP_SleepCancel();
       }
-      CSP_StopTimeout();
-      while (CSP_Context.power_state == CSP_LOW_POWER_ACTIVE)
+
+      if (CSP_Context.power_state == CSP_LOW_POWER_ACTIVE)
       {
-        PRINT_CELLULAR_SERVICE("++++++++++++++++ wait for wakeup completion LOW POWER \n\r")
-        (void)rtosalDelay(100) ;
+        /* If low power is active, wake up the modem */
+        PRINT_CELLULAR_SERVICE("CST: --> Wake up established low power\n\r")
+        CSP_StopTimeout();
+        PRINT_CELLULAR_SERVICE("CST: osCS_PowerWakeup()\n\r")
+        (void)osCS_PowerWakeup(HOST_WAKEUP);
       }
     }
     else
     {
-      PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_DataWakeup modem wakeup\n\r")
+      /* wakeup request from modem, that is, no need to wake up the modem */
+      PRINT_CELLULAR_SERVICE("CST: --> modem wakeup\n\r")
       CSP_StopTimeout();
-      CST_send_message(CST_MESSAGE_CMD, CST_POWER_MODEM_WAKEUP_EVENT);
+      /* stop the modem sleep request protection timer (to be sure it won't fire after) */
+      CSP_StopTimeout();
+      PRINT_CELLULAR_SERVICE("CST: osCS_PowerWakeup()\n\r")
+      (void)osCS_PowerWakeup(MODEM_WAKEUP);
     }
+  }
+  else
+  {
+    PRINT_CELLULAR_SERVICE("CST: --> nothing to do, already wake up\n\r")
   }
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
+  /* resume data mode */
+  PRINT_CELLULAR_SERVICE("CST: osCDS_resume_data()\n\r")
   status = osCDS_resume_data();
 #else
   status = CELLULAR_OK;
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
+
+  if ((CSP_Context.power_state == CSP_LOW_POWER_ACTIVE) ||
+      (CSP_Context.power_state == CSP_LOW_POWER_ON_GOING))
+  {
+    /* Set needed variables to the values corresponding to low power inactive */
+    CSP_WakeupComplete();
+    CST_set_state(CST_MODEM_DATA_READY_STATE);
+  }
+
   return status;
 }
 
 /**
-  * @brief  set power config
+  * @brief  set power config in cellular service structure, and send to the modem
   * @param  none
   * @retval error code
   */
@@ -901,15 +1027,19 @@ CS_Status_t CSP_DataWakeup(CS_wakeup_origin_t wakeup_origin)
 void CSP_SetPowerConfig(void)
 {
   CS_set_power_config_t cs_power_config;
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_SetPowerConfig\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_SetPowerConfig\n\r")
   if (CSP_Context.power_state != CSP_LOW_POWER_DISABLED)
   {
+    /* Setup only if low power is enabled or ongoing */
+    /* Read dada cache data to get the low power values to send to the modem */
     (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_CONFIG, (void *)&csp_dc_power_config,
                       sizeof(dc_cellular_power_config_t));
     if ((csp_dc_power_config.rt_state == DC_SERVICE_ON) && (csp_dc_power_config.power_cmd == CA_POWER_CMD_SETTING))
     {
+      /* Continue if data cache data are relevant */
       if (csp_dc_power_config.psm_present == true)
       {
+        /* Copy PSM values */
         cs_power_config.psm_present              = CELLULAR_TRUE;
         cs_power_config.psm.req_periodic_RAU     = csp_dc_power_config.psm.req_periodic_RAU;
         cs_power_config.psm.req_GPRS_READY_timer = csp_dc_power_config.psm.req_GPRS_READY_timer;
@@ -918,28 +1048,34 @@ void CSP_SetPowerConfig(void)
       }
       else
       {
+        /* If PSM values are not present, inform the modem */
         cs_power_config.psm_present = CELLULAR_FALSE;
       }
 
       if (csp_dc_power_config.edrx_present == true)
       {
+        /* copy eDRX values */
         cs_power_config.edrx_present      = CELLULAR_TRUE;
         cs_power_config.edrx.act_type     = (uint8_t)csp_dc_power_config.edrx.act_type;
         cs_power_config.edrx.req_value    = csp_dc_power_config.edrx.req_value;
       }
       else
       {
+        /* If eDRX values are not preesent, inform the modem */
         cs_power_config.edrx_present = CELLULAR_FALSE;
       }
 
       switch (csp_dc_power_config.power_mode)
       {
+        /* depending on the power mode value, set or unset PSM or eDRX */
         case CA_POWER_RUN_REAL_TIME:
           /*  eDRX disable */
           cs_power_config.edrx_mode = EDRX_MODE_DISABLE;
           /*  PSM disable */
           cs_power_config.psm_mode  = PSM_MODE_DISABLE;
           CSP_ResetPowerStatus();
+          /* Send power config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
@@ -949,6 +1085,8 @@ void CSP_SetPowerConfig(void)
           /*  PSM disable */
           cs_power_config.psm_mode  = PSM_MODE_DISABLE;
           CSP_ResetPowerStatus();
+          /* Send power config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
@@ -957,6 +1095,8 @@ void CSP_SetPowerConfig(void)
           cs_power_config.edrx_mode = EDRX_MODE_DISABLE;
           /*  PSM enable */
           cs_power_config.psm_mode  = PSM_MODE_ENABLE;
+          /* Send power config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
@@ -965,6 +1105,8 @@ void CSP_SetPowerConfig(void)
           cs_power_config.edrx_mode = PSM_MODE_ENABLE;
           /*  PSM enable */
           cs_power_config.psm_mode  = PSM_MODE_ENABLE;
+          /* Send power config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
@@ -974,6 +1116,8 @@ void CSP_SetPowerConfig(void)
           /*  PSM disable */
           cs_power_config.psm_mode  = EDRX_MODE_DISABLE;
           CSP_ResetPowerStatus();
+          /* Send power config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
@@ -983,41 +1127,39 @@ void CSP_SetPowerConfig(void)
           /*  PSM disable */
           cs_power_config.psm_mode  = PSM_MODE_DISABLE;
           CSP_ResetPowerStatus();
+          /* Send power config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
         case CA_POWER_IDLE_LP:
           /*  eDRX enable */
           cs_power_config.edrx_mode = EDRX_MODE_ENABLE;
-          /* set eDRX parameters*/
-
           /*  PSM disable */
           cs_power_config.psm_mode  = PSM_MODE_DISABLE;
           CSP_ResetPowerStatus();
+          /* Send power config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
         case CA_POWER_LP:
           /*  eDRX enable */
           cs_power_config.edrx_mode = EDRX_MODE_ENABLE;
-          /* set eDRX parameters*/
-
           /*  PSM enable */
           cs_power_config.psm_mode  = PSM_MODE_ENABLE;
-          /* set PSM parameters */
-
+          /* Send powedr config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
         case CA_POWER_ULP:
           /*  eDRX enable */
           cs_power_config.edrx_mode = EDRX_MODE_ENABLE;
-          /* set eDRX parameters*/
-
           /*  PSM enable */
           cs_power_config.psm_mode  = PSM_MODE_ENABLE;
-          /* set PSM parameters */
-
+          /* Send power config data to modem */
+          PRINT_CELLULAR_SERVICE("CST: osCS_SetPowerConfig()\n\r")
           (void)osCS_SetPowerConfig(&cs_power_config);
           break;
 
@@ -1041,7 +1183,7 @@ void CSP_Init(void)
   /* register all cellular entries of Data Cache */
   CSP_Context.power_state = CSP_LOW_POWER_DISABLED;
 
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_Init\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_Init\n\r")
 
   /* register default values in data cache */
   /* Note: these values can be overloaded by application between cellular_init()
@@ -1077,19 +1219,22 @@ void CSP_InitPowerConfig(void)
   CS_init_power_config_t cs_power_config;
   CS_Status_t status;
 
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_InitPowerConfig\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_InitPowerConfig\n\r")
 
+  /* Read power config data from data cache */
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_CONFIG, (void *)&csp_dc_power_config,
                     sizeof(dc_cellular_power_config_t));
   if ((csp_dc_power_config.rt_state != DC_SERVICE_ON)
       || (csp_dc_power_config.psm_present  != true)
       || (csp_dc_power_config.edrx_present != true))
   {
+    /* Neither PSM or eRDX is present. Reset the low power status values in data cache */
     CSP_Context.power_state = CSP_LOW_POWER_DISABLED;
     CSP_ResetPowerStatus();
   }
   else
   {
+    /* PSM or eDRX is present, initialize data for the modem */
     cs_power_config.low_power_enable         = CELLULAR_TRUE;
     cs_power_config.psm.req_periodic_RAU     = csp_dc_power_config.psm.req_periodic_RAU;
     cs_power_config.psm.req_GPRS_READY_timer = csp_dc_power_config.psm.req_GPRS_READY_timer;
@@ -1097,11 +1242,15 @@ void CSP_InitPowerConfig(void)
     cs_power_config.psm.req_active_time      = csp_dc_power_config.psm.req_active_time;
     cs_power_config.edrx.act_type            = (uint8_t)csp_dc_power_config.edrx.act_type;
     cs_power_config.edrx.req_value           = csp_dc_power_config.edrx.req_value;
+    /* Send init power config data to the modem */
+    PRINT_CELLULAR_SERVICE("CST: osCS_InitPowerConfig()\n\r")
     status = osCS_InitPowerConfig(&cs_power_config, CST_cellular_power_status_callback);
     if (status == CELLULAR_OK)
     {
+      /* reset context data*/
       CSP_Context.power_state = CSP_LOW_POWER_INACTIVE;
       CSP_Context.target_power_state = CSP_LOW_POWER_INACTIVE;
+      /* reset low power status values in data cache */
       CSP_ResetPowerStatus();
     }
   }
@@ -1115,13 +1264,14 @@ void CSP_InitPowerConfig(void)
 
 void CSP_Start(void)
 {
-  PRINT_CELLULAR_SERVICE("++++++++++++++++ CSP_Start\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CSP_Start\n\r")
 #if (USE_CMD_CONSOLE == 1)
   CMD_Declare(CSP_cmd_label, CSP_cmd, (uint8_t *)"power management");
 #endif  /*  (USE_CMD_CONSOLE == 1) */
   /* init timer for timeout management */
   /* creates timer */
-  CSP_timeout_timer_handle = rtosalTimerNew(NULL, (os_ptimer)CSP_TimeoutTimerCallback, osTimerOnce, NULL);
+  CSP_timeout_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CSP_TIM_TIMEOUT",
+                                            (os_ptimer)CSP_TimeoutTimerCallback, osTimerOnce, NULL);
 }
 #endif  /* (USE_LOW_POWER == 1) */
 
@@ -1136,6 +1286,4 @@ CSP_PowerState_t CSP_GetTargetPowerState(void)
   return CSP_Context.target_power_state;
 }
 #endif /* (USE_LOW_POWER == 1) */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

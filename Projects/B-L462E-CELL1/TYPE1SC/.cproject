@@ -75,7 +75,6 @@
 									<listOptionValue builtIn="false" value="../../../../Middlewares/ST/STM32_Cellular/Interface/Cellular_Ctrl/Inc"/>
 									<listOptionValue builtIn="false" value="../../../../Application/Inc"/>
 									<listOptionValue builtIn="false" value="../../../../Middlewares/ST/STM32_Cellular/Interface/Com/Inc"/>
-									<listOptionValue builtIn="false" value="../../Inc"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Inc"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/ssd1315"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/Common"/>
@@ -85,6 +84,7 @@
 									<listOptionValue builtIn="false" value="../../../../Utilities/Fonts"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/B-L462E-CELL1"/>
 									<listOptionValue builtIn="false" value="../../../../Application/Inc/plf"/>
+									<listOptionValue builtIn="false" value="../../Core/Inc"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.461928950" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -112,18 +112,21 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Application"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/B-L462E-CELL1"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/Common"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/hts221"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/lps22hh"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/lsm303agr"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/CMSIS"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/STM32L4xx_HAL_Driver"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/ST/STM32_Cellular"/>
 						<entry excluding="cmake/|demo/|doc/|example_configs/|examples/|tests/|tools/|travis/|.dockerignore|.git|.gitignore|.gitmodules|.travis.yml|CMakeLists.txt|CONTRIBUTING.rst|covconfig|devconfig|Dockerfile|Doxyfile.in|LICENSE|ltoconfig|NOTICE|README.md|README.Windows.md|valgrind_test.supp|deps/avs_coap/cmake/|deps/avs_coap/deps/avs_commons/|deps/avs_coap/examples/|deps/avs_coap/tests/|deps/avs_coap/tools/|deps/avs_commons/cmake/|deps/avs_commons/doc/|deps/avs_commons/tests/|deps/avs_commons/tools/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/Anjay"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS"/>
+						<entry excluding="Source/portable/GCC/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"/>
 						<entry excluding="doc/|test/|CHANGELOG|CMakeLists.txt|COPYING|FEATURES|FILES|README|st_readme.txt|UPGRADING|src/apps/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/LwIP"/>
 						<entry excluding=".github/|3rdparty/|ChangeLog.d/|docs/|doxygen/|programs/|scripts/|tests/|visualc/|.git|.gitignore|.globalrc|.pylintrc|.travis.yml|ChangeLog|CMakeLists.txt|CONTRIBUTING.md|DartConfiguration.tcl|dco.txt|LICENSE|Makefile|README.md" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/mbedtls"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Src"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Startup"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="app_compat"/>
 					</sourceEntries>
 				</configuration>
@@ -201,7 +204,6 @@
 									<listOptionValue builtIn="false" value="../../../../Middlewares/ST/STM32_Cellular/Interface/Cellular_Ctrl/Inc"/>
 									<listOptionValue builtIn="false" value="../../../../Application/Inc"/>
 									<listOptionValue builtIn="false" value="../../../../Middlewares/ST/STM32_Cellular/Interface/Com/Inc"/>
-									<listOptionValue builtIn="false" value="../../Inc"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Inc"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/ssd1315"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/Common"/>
@@ -211,6 +213,7 @@
 									<listOptionValue builtIn="false" value="../../../../Utilities/Fonts"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/B-L462E-CELL1"/>
 									<listOptionValue builtIn="false" value="../../../../Application/Inc/plf"/>
+									<listOptionValue builtIn="false" value="../../Core/Inc"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.609139091" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -238,18 +241,21 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Application"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Core"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/B-L462E-CELL1"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/Common"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/hts221"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/lps22hh"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/lsm303agr"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/CMSIS"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/STM32L4xx_HAL_Driver"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/ST/STM32_Cellular"/>
 						<entry excluding="cmake/|demo/|doc/|example_configs/|examples/|tests/|tools/|travis/|.dockerignore|.git|.gitignore|.gitmodules|.travis.yml|CMakeLists.txt|CONTRIBUTING.rst|covconfig|devconfig|Dockerfile|Doxyfile.in|LICENSE|ltoconfig|NOTICE|README.md|README.Windows.md|valgrind_test.supp|deps/avs_coap/cmake/|deps/avs_coap/deps/avs_commons/|deps/avs_coap/examples/|deps/avs_coap/tests/|deps/avs_coap/tools/|deps/avs_commons/cmake/|deps/avs_commons/doc/|deps/avs_commons/tests/|deps/avs_commons/tools/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/Anjay"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS"/>
+						<entry excluding="Source/portable/GCC/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS"/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"/>
 						<entry excluding="doc/|test/|CHANGELOG|CMakeLists.txt|COPYING|FEATURES|FILES|README|st_readme.txt|UPGRADING|src/apps/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/LwIP"/>
 						<entry excluding=".github/|3rdparty/|ChangeLog.d/|docs/|doxygen/|programs/|scripts/|tests/|visualc/|.git|.gitignore|.globalrc|.pylintrc|.travis.yml|ChangeLog|CMakeLists.txt|CONTRIBUTING.md|DartConfiguration.tcl|dco.txt|LICENSE|Makefile|README.md" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/mbedtls"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Src"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Startup"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="app_compat"/>
 					</sourceEntries>
 				</configuration>
@@ -271,6 +277,13 @@
 			<autodiscovery enabled="false" problemReportingEnabled="true" selectedProfileId=""/>
 		</scannerConfigBuildInfo>
 	</storageModule>
-	<storageModule moduleId="refreshScope"/>
+	<storageModule moduleId="refreshScope" versionNumber="2">
+		<configuration configurationName="Debug">
+			<resource resourceType="PROJECT" workspacePath="/Anjay-freertos-client-B-L462E-CELL1-TYPE1SC"/>
+		</configuration>
+		<configuration configurationName="Release">
+			<resource resourceType="PROJECT" workspacePath="/Anjay-freertos-client-B-L462E-CELL1-TYPE1SC"/>
+		</configuration>
+	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
 </cproject>

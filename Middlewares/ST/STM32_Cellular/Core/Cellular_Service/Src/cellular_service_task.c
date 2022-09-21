@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -87,6 +86,53 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+/* Event names to display */
+#if (USE_TRACE_CELLULAR_SERVICE == 1U)
+static const uint8_t *cst_event_name[CST_MAX_EVENT] =
+{
+  ((uint8_t *)"BOOT_EVENT"),
+  ((uint8_t *)"MODEM_INIT_EVENT"),
+  ((uint8_t *)"MODEM_READY_EVENT"),
+  ((uint8_t *)"SIGNAL_QUALITY_TO_CHECK_EVENT"),
+  ((uint8_t *)"NETWORK_STATUS_TO_CHECK_EVENT"),
+  ((uint8_t *)"NETWORK_STATUS_OK_EVENT"),
+  ((uint8_t *)"MODEM_ATTACHED_EVENT"),
+  ((uint8_t *)"PDP_ACTIVATED_EVENT"),
+  ((uint8_t *)"PDN_STATUS_TO_CHECK_EVENT"),
+  ((uint8_t *)"MODEM_PDN_ACTIVATE_RETRY_TIMER_EVENT"),
+  ((uint8_t *)"CELLULAR_DATA_FAIL_EVENT"),
+  ((uint8_t *)"POLLING_TIMER_EVENT"),
+  ((uint8_t *)"MODEM_URC_EVENT"),
+  ((uint8_t *)"NO_EVENT"),
+  ((uint8_t *)"CMD_UNKWOWN_EVENT"),
+  ((uint8_t *)"TARGET_STATE_CMD_EVENT"),
+  ((uint8_t *)"APN_CONFIG_EVENT"),
+  ((uint8_t *)"REBOOT_MODEM_EVENT"),
+  ((uint8_t *)"MODEM_POWER_ON_ONLY_EVENT"),
+  ((uint8_t *)"NETWORK_CALLBACK_EVENT"),
+  ((uint8_t *)"NW_REG_TIMEOUT_TIMER_EVENT"),
+  ((uint8_t *)"FOTA_START_EVENT"),
+  ((uint8_t *)"FOTA_END_EVENT"),
+  ((uint8_t *)"FOTA_TIMEOUT_EVENT"),
+  ((uint8_t *)"MODEM_RESET_EVENT"),
+  ((uint8_t *)"MODEM_REBOOT_EVENT"),
+  ((uint8_t *)"PPP_OPENED_EVENT"),
+  ((uint8_t *)"PPP_CLOSED_EVENT"),
+  ((uint8_t *)"MODEM_POWER_DOWN_EVENT"),
+  ((uint8_t *)"SIM_RESET_EVENT"),
+  ((uint8_t *)"POWER_STATUS_CALLBACK_EVENT"),
+#if (USE_LOW_POWER == 1)
+  ((uint8_t *)"POWER_SLEEP_TIMEOUT_EVENT"),
+  ((uint8_t *)"POWER_SLEEP_REQUEST_EVENT"),
+  ((uint8_t *)"POWER_SLEEP_COMPLETE_EVENT"),
+  ((uint8_t *)"POWER_WAKEUP_EVENT"),
+  ((uint8_t *)"POWER_MODEM_WAKEUP_EVENT"),
+  ((uint8_t *)"POWER_SLEEP_ABORT_EVENT"),
+  ((uint8_t *)"CST_LP_INACTIVITY_TIMER_EVENT"),
+#endif /* (USE_LOW_POWER == 1) */
+};
+#endif /* (USE_TRACE_CELLULAR_SERVICE == 1) */
+
 /* Event queue */
 static osMessageQId      cst_queue_id;
 
@@ -95,6 +141,8 @@ static osTimerId         cst_pdn_activate_retry_timer_handle;  /* pdn activation
 static osTimerId         cst_network_status_timer_handle;      /* waiting for network status OK timer */
 static osTimerId         cst_register_retry_timer_handle;      /* registering to network timer        */
 static osTimerId         cst_fota_timer_handle;                /* FOTA timer                          */
+static osTimerId         cst_polling_timer_handle;             /* Pooling timer                       */
+
 #if (USE_LOW_POWER == 1)
 static osTimerId         cst_lp_inactivity_timer_handle;       /* Inactivity timer to check if there is data */
 /* activity before to enter in low power mode */
@@ -225,6 +273,7 @@ const uint8_t *CST_StateName[CST_MAX_STATE] =
   */
 void  CST_send_message(CST_message_type_t type, cst_autom_event_t event)
 {
+  PRINT_CELLULAR_SERVICE("CST: CST_send_message: %s\n\r", cst_event_name[event])
   cst_message_t cmd_message;
 
   cmd_message = 0U;
@@ -233,7 +282,7 @@ void  CST_send_message(CST_message_type_t type, cst_autom_event_t event)
 
   if (rtosalMessageQueuePut((osMessageQId)cst_queue_id, cmd_message, 0U) != osOK)
   {
-    PRINT_CELLULAR_SERVICE_ERR("CST queue msg %ld can NOT be added. (Queue full ?)\n\r", cmd_message)
+    PRINT_CELLULAR_SERVICE_ERR("CST: CST queue msg %ld can NOT be added. (Queue full ?)\n\r", cmd_message)
   }
 }
 
@@ -258,7 +307,7 @@ static void CST_pdn_event_callback(CS_PDN_conf_id_t cid, CS_PDN_event_t pdn_even
   UNUSED(cid);
 #endif /* USE_TRACE_CELLULAR_SERVICE == 0 */
 
-  PRINT_CELLULAR_SERVICE("====================================CST_pdn_event_callback (cid=%d / event=%d)\n\r",
+  PRINT_CELLULAR_SERVICE("CST: CST_pdn_event_callback (cid=%d / event=%d)\n\r",
                          cid, pdn_event)
   /* sends a message to automaton */
   cst_context.pdn_status = pdn_event;
@@ -276,7 +325,7 @@ static void CST_notif_callback(dc_com_event_id_t dc_event_id, const void *privat
 {
   UNUSED(private_data);
 
-  PRINT_CELLULAR_SERVICE("=====>CST_notif_callback (Data Cache event=%d)\n\r", dc_event_id)
+  PRINT_CELLULAR_SERVICE("CST: CST_notif_callback (Data Cache event=%d)\n\r", dc_event_id)
   if ((dc_event_id == DC_CELLULAR_DATA_INFO)
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
       || (dc_event_id == DC_CELLULAR_INFO)
@@ -296,7 +345,6 @@ static void CST_notif_callback(dc_com_event_id_t dc_event_id, const void *privat
     {
       /* reset value of apnChanged will be done when receiving the event CST_APN_CONFIG_EVENT */
       /* Can't write a new value in Data Cache as we actually treat the callback of Data Cache write */
-      CST_set_state(CST_APN_CONFIG_STATE);
       /* sends a message to automaton */
       CST_send_message(CST_MESSAGE_CS_EVENT, CST_APN_CONFIG_EVENT);
     }
@@ -338,7 +386,7 @@ static void CST_polling_timer_callback(void *argument)
     /*
         else
         {
-          PRINT_CELLULAR_SERVICE("Discard pooling timer message, another pooling message is already on going\n\r")
+          PRINT_CELLULAR_SERVICE("CST: Discard pooling timer message, another pooling message is already on going\n\r")
         }
     */
   }
@@ -352,7 +400,7 @@ static void CST_polling_timer_callback(void *argument)
 static void CST_pdn_activate_retry_timer_callback(void *argument)
 {
   UNUSED(argument);
-  PRINT_CELLULAR_SERVICE("*********** CST_pdn_activate_retry_timer_callback ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_pdn_activate_retry_timer_callback\n\r")
   if (cst_context.current_state == CST_MODEM_PDN_ACTIVATING_STATE)
   {
     /* something to do in this state: sends a message to automaton */
@@ -371,7 +419,6 @@ static void CST_register_retry_timer_callback(void *argument)
   /* automaton to reinitialize : sends a message to automaton */
   cst_nfmc_context.nfmc_timer_on_going = false;
 
-  CST_set_state(CST_MODEM_INIT_STATE);
   CST_send_message(CST_MESSAGE_CS_EVENT, CST_MODEM_INIT_EVENT);
 }
 
@@ -409,9 +456,8 @@ static void CST_fota_timer_callback(void *argument)
   */
 static void CST_SimEventsCallback(CS_SimEvent_status_t sim_event)
 {
-  PRINT_CELLULAR_SERVICE("*********** CST_SimEventsCallback ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_SimEventsCallback\n\r")
   /* Modem reset to be reconfigured with new SIM information */
-  CST_set_state(CST_MODEM_INIT_STATE);
   CST_send_message(CST_MESSAGE_CS_EVENT, CST_SIM_RESET_EVENT);
 
 
@@ -420,28 +466,28 @@ static void CST_SimEventsCallback(CS_SimEvent_status_t sim_event)
     if (sim_event.param1 == CS_SIMINFOS_CARD_INSERTED)
     {
       /* SIM CARD insertion detected */
-      PRINT_CELLULAR_SERVICE("*********** --> SIM CARD insertion detected ****\n\r")
+      PRINT_CELLULAR_SERVICE("CST: --> SIM CARD insertion detected\n\r")
     }
     else if (sim_event.param1 == CS_SIMINFOS_CARD_REMOVED)
     {
       /* SIM CARD ejection detected */
-      PRINT_CELLULAR_SERVICE("*********** --> SIM CARD ejection detected ****\n\r")
+      PRINT_CELLULAR_SERVICE("CST: --> SIM CARD ejection detected\n\r")
     }
     else
     {
       /* SIM detect parameter unknown */
-      PRINT_CELLULAR_SERVICE("*********** --> SIM CARD detect parameter unknown ****\n\r")
+      PRINT_CELLULAR_SERVICE("CST: --> SIM CARD detect parameter unknown\n\r")
     }
   }
   else if (sim_event.event == CS_SIMEVENT_SIM_REFRESH)
   {
     /* SIM REFRESH event detected */
-    PRINT_CELLULAR_SERVICE("*********** --> SIM REFRESH event detected ****\n\r")
+    PRINT_CELLULAR_SERVICE("CST: --> SIM REFRESH event detected\n\r")
   }
   else
   {
     /* SIM event unknown */
-    PRINT_CELLULAR_SERVICE("*********** --> SIM CARD event unknown ****\n\r")
+    PRINT_CELLULAR_SERVICE("CST: --> SIM CARD event unknown\n\r")
   }
 }
 
@@ -455,8 +501,9 @@ static void CST_lp_inactivity_timer_callback(void *argument)
 {
   UNUSED(argument);
   /* Netwok inactivity timeout has occurred: enter in low power mode */
-  PRINT_CELLULAR_SERVICE("*********** CST_lp_inactivity_timer_callback ********\n\r")
-  (void)CSP_CSIdle();
+  PRINT_CELLULAR_SERVICE("CST: CST_lp_inactivity_timer_callback\n\r")
+  CST_send_message(CST_MESSAGE_CS_EVENT, CST_LP_INACTIVITY_TIMER_EVENT);
+
 }
 #endif /* (USE_LOW_POWER == 1) */
 /* ===================================================================
@@ -474,7 +521,7 @@ static void CST_lp_inactivity_timer_callback(void *argument)
   */
 static void CST_boot_power_on_only_modem_mngt(void)
 {
-  PRINT_CELLULAR_SERVICE("*********** CST_boot_modem_power_on_only_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_boot_modem_power_on_only_mngt\n\r")
   CST_set_modem_state(&dc_com_db, CA_MODEM_POWER_OFF, (uint8_t *)"CA_MODEM_POWER_OFF");
 
   /* Set new state and sends a message to automaton */
@@ -489,8 +536,9 @@ static void CST_boot_power_on_only_modem_mngt(void)
   */
 static void CST_init_power_on_only_modem_mngt(void)
 {
-  PRINT_CELLULAR_SERVICE("*********** CST_power_on_only_modem_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_power_on_only_modem_mngt\n\r")
   /* Modem is powered on */
+  PRINT_CELLULAR_SERVICE("CST: osCDS_power_on()\n\r")
   (void)osCDS_power_on();
 
   CST_set_modem_state(&dc_com_db, CA_MODEM_STATE_POWERED_ON, (uint8_t *)"CA_MODEM_STATE_POWERED_ON");
@@ -505,7 +553,7 @@ static void CST_init_power_on_only_modem_mngt(void)
   */
 static void CST_boot_event_mngt(void)
 {
-  PRINT_CELLULAR_SERVICE("*********** CST_boot_event_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_boot_event_mngt\n\r")
   CST_set_modem_state(&dc_com_db, CA_MODEM_POWER_OFF, (uint8_t *)"CA_MODEM_POWER_OFF");
 
   CST_set_state(CST_MODEM_INIT_STATE);
@@ -519,7 +567,7 @@ static void CST_off_state_target_cmd_state_mngt(void)
   dc_cellular_target_state_t target_state;
   CS_Status_t                cs_status;
 
-  PRINT_CELLULAR_SERVICE("*********** CST_init_state_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_off_state_target_cmd_state_mngt\n\r")
 
   /* Set modem target state to the actual target state for value coherency */
   if (dc_com_read(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state)) == DC_COM_OK)
@@ -536,6 +584,7 @@ static void CST_off_state_target_cmd_state_mngt(void)
   }
   else if (cst_cellular_params.target_state == DC_TARGET_STATE_MODEM_ONLY)
   {
+    PRINT_CELLULAR_SERVICE("CST: osCDS_power_on()\n\r")
     (void)osCDS_power_on();
   }
   else
@@ -548,6 +597,7 @@ static void CST_off_state_target_cmd_state_mngt(void)
       /* Modem to power on */
       /* Before powering up the modem, subscribe to modem SIM events : Sim detect (inserted or remove) or Sim refresh */
       (void)CS_subscribe_sim_event(CST_SimEventsCallback);
+      PRINT_CELLULAR_SERVICE("CST: osCDS_power_on()\n\r")
       cs_status = osCDS_power_on();
 
       if (cs_status != CELLULAR_OK)
@@ -582,7 +632,7 @@ static void CST_init_state_mngt(void)
   dc_cellular_target_state_t target_state;
   CS_Status_t                cs_status;
 
-  PRINT_CELLULAR_SERVICE("*********** CST_init_state_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_init_state_mngt\n\r")
 
   /* Set modem target state to the actual target state for value coherency */
   if (dc_com_read(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state)) == DC_COM_OK)
@@ -609,6 +659,7 @@ static void CST_init_state_mngt(void)
       /* Modem to power on */
       /* Before powering up the modem, subscribe to modem SIM events : Sim detect (inserted or remove) or Sim refresh */
       (void)CS_subscribe_sim_event(CST_SimEventsCallback);
+      PRINT_CELLULAR_SERVICE("CST: osCDS_power_on()\n\r")
       cs_status = osCDS_power_on();
 
       if (cs_status != CELLULAR_OK)
@@ -642,7 +693,7 @@ static void CST_init_state_sim_reset_mngt(void)
 {
   dc_cellular_target_state_t target_state;
 
-  PRINT_CELLULAR_SERVICE("*********** CST_init_state_sim_reset_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_init_state_sim_reset_mngt\n\r")
 
   /* Set modem target state to the actual target state for value coherency */
   if (dc_com_read(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state)) == DC_COM_OK)
@@ -680,14 +731,20 @@ static void CST_init_state_sim_reset_mngt(void)
   */
 static void CST_reboot_modem_event_mngt(void)
 {
+  PRINT_CELLULAR_SERVICE("CST: CST_reboot_modem_event_mngt\n\r")
   /* if current_state == CST_MODEM_INIT_STATE then nothing to do (nominal case) */
   if (cst_context.current_state != CST_MODEM_INIT_STATE)
   {
+#if (USE_LOW_POWER == 1)
+    /* stop the modem sleep request protection timer (to be sure it won't fire after) */
+    CSP_StopTimeout();
+#endif /* (USE_LOW_POWER == 1) */
+
     /* modem power off */
     (void)CST_modem_power_off();
 
     /* something to do in this state: sends a message to automaton */
-    PRINT_CELLULAR_SERVICE("Modem event received: CS_MDMEVENT_BOOT\n\r")
+    PRINT_CELLULAR_SERVICE("CST: Modem event received: CS_MDMEVENT_BOOT\n\r")
     CST_set_state(CST_MODEM_INIT_STATE);
     CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
     CST_set_modem_state(&dc_com_db, CA_MODEM_REBOOTING, (uint8_t *)"CA_MODEM_REBOOTING");
@@ -703,8 +760,9 @@ static void CST_reboot_modem_event_mngt(void)
   */
 static void CST_fota_start_event_mngt(void)
 {
+  PRINT_CELLULAR_SERVICE("CST: CST_fota_start_event_mngt\n\r")
   /* FOTA event: FOTA start */
-  PRINT_CELLULAR_SERVICE("Modem event received:  CS_MDMEVENT_FOTA_START\n\r")
+  PRINT_CELLULAR_SERVICE("CST: Modem event received:  CS_MDMEVENT_FOTA_START\n\r")
   /* DC_CELLULAR_DATA_INFO, is used for call back management on IP or rt_state modification. */
   /* So, update this Data Cache structure */
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_DATA_INFO, (void *)&cst_cellular_data_info,
@@ -733,13 +791,14 @@ static void CST_fota_start_event_mngt(void)
   */
 static void CST_fota_end_event_mngt(void)
 {
+  PRINT_CELLULAR_SERVICE("CST: CST_fota_end_event_mngt\n\r")
   /* FOTA event: FOTA end */
   /* stops FOTA timeout timer */
   (void)rtosalTimerStop(cst_fota_timer_handle);
-  PRINT_CELLULAR_SERVICE("Modem event received:  CS_MDMEVENT_FOTA_END\n\r")
+  PRINT_CELLULAR_SERVICE("CST: Modem event received:  CS_MDMEVENT_FOTA_END\n\r")
 
   /* TRIGGER PLATFORM RESET after a delay  */
-  PRINT_CELLULAR_SERVICE("TRIGGER PLATFORM REBOOT AFTER FOTA UPDATE ...\n\r")
+  PRINT_CELLULAR_SERVICE("CST: TRIGGER PLATFORM REBOOT AFTER FOTA UPDATE ...\n\r")
   CST_set_modem_state(&dc_com_db, CA_MODEM_REBOOTING, (uint8_t *)"CA_MODEM_REBOOTING");
 
   ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 3, ERROR_FATAL);
@@ -752,9 +811,10 @@ static void CST_fota_end_event_mngt(void)
   */
 static void CST_fota_timeout_event_mngt(void)
 {
+  PRINT_CELLULAR_SERVICE("CST: CST_fota_timeout_event_mngt\n\r")
   /* FOTA timeout has occurred : FAIL */
 
-  PRINT_CELLULAR_SERVICE("CST FOTA FAIL : Timeout expired RESTART\n\r")
+  PRINT_CELLULAR_SERVICE("CST: FOTA FAIL : Timeout expired RESTART\n\r")
 
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(dc_cellular_info_t));
   cst_cellular_info.modem_state = CA_MODEM_REBOOTING;
@@ -770,7 +830,7 @@ static void CST_fota_timeout_event_mngt(void)
   */
 static void CST_modem_reset_mngt(void)
 {
-  PRINT_CELLULAR_SERVICE("*********** CST_modem_reset_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_modem_reset_mngt\n\r")
 
   /* Data Cache -> Data transfer off */
   CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
@@ -794,7 +854,7 @@ static void CST_modem_reset_mngt(void)
 static void CST_modem_reboot_mngt(void)
 {
   CS_Status_t cs_status;
-  PRINT_CELLULAR_SERVICE("*********** CST_modem_reboot_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_modem_reboot_mngt\n\r")
 
   /* modem power off */
   cs_status = CST_modem_power_off();
@@ -831,7 +891,7 @@ static void  CST_net_register_mngt(void)
   /* operator context */
   static CS_OperatorSelector_t    ctxt_operator ;
 
-  PRINT_CELLULAR_SERVICE("=== CST_net_register_mngt ===\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_net_register_mngt\n\r")
 
   /* Read data from data cache to initialize ctxt_operator */
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params));
@@ -852,6 +912,7 @@ static void  CST_net_register_mngt(void)
   ctxt_operator.AcT = (CS_AccessTechno_t)cst_cellular_params.operator_selector.access_techno;
 
   /* find network and register when found */
+  PRINT_CELLULAR_SERVICE("CST: osCDS_register_net()\n\r")
   cs_status = osCDS_register_net(&ctxt_operator, &cst_ctxt_reg_status);
   if (cs_status == CELLULAR_OK)
   {
@@ -861,6 +922,7 @@ static void  CST_net_register_mngt(void)
     cst_context.current_CS_NetworkRegState   = cst_ctxt_reg_status.CS_NetworkRegState;
     /*   to force to attach to PS domain by default (in case the Modem does not perform automatic PS attach.) */
     /*   need to check target state in future. */
+    PRINT_CELLULAR_SERVICE("CST: osCDS_attach_PS_domain()\n\r")
     (void)osCDS_attach_PS_domain();
 
     CST_set_modem_state(&dc_com_db, CA_MODEM_NETWORK_REGISTERED, (uint8_t *)"CA_MODEM_NETWORK_REGISTERED");
@@ -895,12 +957,13 @@ static void  CST_signal_quality_test_mngt(void)
   CS_Status_t cs_status;
   cs_status = CST_set_signal_quality();
 
+  PRINT_CELLULAR_SERVICE("CST: CST_signal_quality_test_mngt\n\r")
   if (cs_status == CELLULAR_OK)
   {
     /* Signal Quality is OK */
     /* Start attachment timeout */
     (void)rtosalTimerStart(cst_network_status_timer_handle, cst_cellular_params.attachment_timeout);
-    PRINT_CELLULAR_SERVICE("-----> Start NW REG TIMEOUT TIMER   : %ld\n\r", cst_cellular_params.attachment_timeout)
+    PRINT_CELLULAR_SERVICE("CST: --> Start NW REG TIMEOUT TIMER : %ld\n\r", cst_cellular_params.attachment_timeout)
 
     /* current state changes */
     CST_set_state(CST_WAITING_FOR_NETWORK_STATUS_STATE);
@@ -919,8 +982,7 @@ static void  CST_network_status_test_mngt(void)
   CS_Status_t cs_status;
   cst_network_status_t ret;
 
-  PRINT_CELLULAR_SERVICE("*********** CST_network_status_test_mngt ********\n\r")
-
+  PRINT_CELLULAR_SERVICE("CST: CST_network_status_test_mngt\n\r")
 
   ret = CST_get_network_status();
 
@@ -928,7 +990,7 @@ static void  CST_network_status_test_mngt(void)
   {
     /* When registered then stop the NW REG TIMER */
     (void)rtosalTimerStop(cst_network_status_timer_handle);
-    PRINT_CELLULAR_SERVICE("-----> Stop NW REG TIMEOUT TIMER\n\r")
+    PRINT_CELLULAR_SERVICE("CST: --> Stop NW REG TIMEOUT TIMER\n\r")
     cst_context.register_retry_tempo_count = 0U;
 
     CST_set_modem_state(&dc_com_db, CA_MODEM_NETWORK_REGISTERED, (uint8_t *)"CA_MODEM_NETWORK_REGISTERED");
@@ -946,7 +1008,7 @@ static void  CST_network_status_test_mngt(void)
     {
       /* When registered then stop the NW REG TIMER */
       (void)rtosalTimerStop(cst_network_status_timer_handle);
-      PRINT_CELLULAR_SERVICE("-----> BAD SIGNAL : Stop NW REG TIMEOUT TIMER\n\r")
+      PRINT_CELLULAR_SERVICE("CST: --> BAD SIGNAL : Stop NW REG TIMEOUT TIMER\n\r")
       cst_context.register_retry_tempo_count = 0U;
 
       CST_set_modem_state(&dc_com_db, CA_MODEM_NETWORK_SEARCHING, (uint8_t *)"CA_MODEM_NETWORK_SEARCHING");
@@ -981,7 +1043,7 @@ static void  CST_pdn_event_nw_detach_mngt(void)
 {
   cst_network_status_t ret;
 
-  PRINT_CELLULAR_SERVICE("*********** CST_pdn_event_nw_detach_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_pdn_event_nw_detach_mngt\n\r")
   if (cst_context.current_state == CST_MODEM_DATA_READY_STATE)
   {
     /* if current state is data ready then close data transfer service */
@@ -992,6 +1054,7 @@ static void  CST_pdn_event_nw_detach_mngt(void)
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
   osCCS_get_wait_cs_resource();
+  PRINT_CELLULAR_SERVICE("CST: osCDS_suspend_data()\n\r")
   (void)osCDS_suspend_data();
 #endif  /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
 
@@ -1019,7 +1082,7 @@ static void  CST_pdn_event_nw_detach_mngt(void)
     CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
 
     CST_set_modem_state(&dc_com_db, CA_MODEM_STATE_POWERED_ON, (uint8_t *)"CA_MODEM_STATE_POWERED_ON");
-    PRINT_CELLULAR_SERVICE("******** CST_pdn_event_nw_detach_mngt: osCDS_get_net_status FAIL ****\n\r")
+    PRINT_CELLULAR_SERVICE("CST: osCDS_get_net_status FAIL\n\r")
   }
 
   /* current state changes */
@@ -1066,7 +1129,7 @@ static void  CST_network_event_mngt(void)
   {
     /* network status not available : set data transfer service off */
     CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
-    PRINT_CELLULAR_SERVICE("******** CST_network_event_mngt: osCDS_get_net_status FAIL ****\n\r")
+    PRINT_CELLULAR_SERVICE("CST: osCDS_get_net_status FAIL\n\r")
     /* unrecoverable error : fail */
     CST_config_fail(((uint8_t *)"CST_network_status_test_mngt"),
                     CST_MODEM_NETWORK_FAIL,
@@ -1116,7 +1179,7 @@ static void  CST_data_ready_state_network_event_mngt(void)
   {
     /* network status not available : set data transfer service off */
     CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
-    PRINT_CELLULAR_SERVICE("******** CST_network_event_mngt: osCDS_get_net_status FAIL ****\n\r")
+    PRINT_CELLULAR_SERVICE("CST: osCDS_get_net_status FAIL\n\r")
     /* unrecoverable error : fail */
     CST_config_fail(((uint8_t *)"CST_network_status_test_mngt"),
                     CST_MODEM_NETWORK_FAIL,
@@ -1133,7 +1196,8 @@ static void  CST_data_ready_state_network_event_mngt(void)
 
 static void CST_nw_reg_timeout_expiration_mngt(void)
 {
-  PRINT_CELLULAR_SERVICE("-----> NW REG TIMEOUT TIMER EXPIRY WE PWDN THE MODEM \n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_nw_reg_timeout_expiration_mngt\n\r")
+  PRINT_CELLULAR_SERVICE("CST: --> NW REG TIMEOUT TIMER EXPIRY WE PWDN THE MODEM \n\r")
   if (cst_nfmc_context.active == true)
   {
     cst_nfmc_context.nfmc_timer_on_going = true;
@@ -1147,7 +1211,7 @@ static void CST_nw_reg_timeout_expiration_mngt(void)
     /* start retry NFMC tempo */
     (void)rtosalTimerStart(cst_register_retry_timer_handle,
                            cst_nfmc_context.tempo[cst_context.register_retry_tempo_count]);
-    PRINT_CELLULAR_SERVICE("-----> CST_waiting_for_network_status NOK - retry tempo %d : %ld\n\r",
+    PRINT_CELLULAR_SERVICE("CST: --> CST_waiting_for_network_status NOK - retry tempo %d : %ld\n\r",
                            cst_context.register_retry_tempo_count + 1U,
                            cst_nfmc_context.tempo[cst_context.register_retry_tempo_count])
 
@@ -1171,11 +1235,12 @@ static void  CST_attach_modem_mngt(void)
   CS_PSattach_t            cst_ctxt_attach_status;
   CS_RegistrationStatus_t  reg_status;
 
-  PRINT_CELLULAR_SERVICE("*********** CST_attach_modem_mngt ********\n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_attach_modem_mngt\n\r")
 
   (void)memset((void *)&reg_status, 0, sizeof(CS_RegistrationStatus_t));
 
   /* gets net status */
+  PRINT_CELLULAR_SERVICE("CST: osCDS_get_net_status()\n\r")
   cs_status = osCDS_get_net_status(&reg_status);
   if (cs_status == CELLULAR_OK)
   {
@@ -1189,15 +1254,16 @@ static void  CST_attach_modem_mngt(void)
       cst_cellular_info.rt_state              = DC_SERVICE_ON;
       (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info));
 
-      PRINT_CELLULAR_SERVICE(" ->operator_name = %s\n\r", reg_status.operator_name)
+      PRINT_CELLULAR_SERVICE("CST: --> operator_name = %s\n\r", reg_status.operator_name)
     }
   }
 
+  PRINT_CELLULAR_SERVICE("CST: osCDS_get_attach_status()\n\r")
   cs_status = osCDS_get_attach_status(&cst_ctxt_attach_status);
   if (cs_status != CELLULAR_OK)
   {
     /* service not available : FAIL */
-    PRINT_CELLULAR_SERVICE("*********** CST_attach_modem_mngt fail ********\n\r")
+    PRINT_CELLULAR_SERVICE("CST: --> attach modem fail\n\r")
 
     CST_set_modem_state(&dc_com_db, CA_MODEM_NETWORK_SEARCHING, (uint8_t *)"CA_MODEM_NETWORK_SEARCHING");
 
@@ -1212,7 +1278,7 @@ static void  CST_attach_modem_mngt(void)
     if (cst_ctxt_attach_status == CS_PS_ATTACHED)
     {
       /* modem attached */
-      PRINT_CELLULAR_SERVICE("*********** CST_attach_modem_mngt OK ********\n\r")
+      PRINT_CELLULAR_SERVICE("CST: --> attach modem OK\n\r")
 
       CST_set_modem_state(&dc_com_db, CA_MODEM_NETWORK_REGISTERED, (uint8_t *)"CA_MODEM_NETWORK_REGISTERED");
 
@@ -1223,12 +1289,12 @@ static void  CST_attach_modem_mngt(void)
     else
     {
       /* modem not attached */
-      PRINT_CELLULAR_SERVICE("===CST_attach_modem_mngt - NOT ATTACHED !!! ===\n\r")
+      PRINT_CELLULAR_SERVICE("CST: --> NOT ATTACHED !!!\n\r")
 
       CST_set_modem_state(&dc_com_db, CA_MODEM_NETWORK_SEARCHING, (uint8_t *)"CA_MODEM_NETWORK_SEARCHING");
 
       /* We propose to simply wait network event at "waiting for signal quality OK" state */
-      PRINT_CELLULAR_SERVICE("===>CST_WAITING_FOR_SIGNAL_QUALITY_OK_STATE <===\n\r")
+      PRINT_CELLULAR_SERVICE("CST: --> wait for quality state OK\n\r")
       CST_set_state(CST_WAITING_FOR_SIGNAL_QUALITY_OK_STATE);
     }
   }
@@ -1320,10 +1386,15 @@ static void CST_data_ready_mngt(void)
                    ((uint32_t)cs_ip_addr[1] <<  8) +
                    ((uint32_t)cs_ip_addr[2] << 16) +
                    ((uint32_t)cs_ip_addr[3] << 24);
+    /* Display trace even in release binary. Used for tests */
+    PRINT_FORCE("Network is up with IP %d.%d.%d.%d\r\n",
+                cs_ip_addr[0], cs_ip_addr[1], cs_ip_addr[2], cs_ip_addr[3])
   }
   else
   {
     ip_addr.addr = 0;
+    /* Display trace even in release binary. Used for tests */
+    PRINT_FORCE("Network is up with no IP\r\n")
   }
 
   CST_data_cache_cellular_info_set(DC_SERVICE_ON, &ip_addr);
@@ -1353,14 +1424,18 @@ static void CST_modem_activate_pdn_mngt(void)
 {
   CS_Status_t cs_status;
 
+  PRINT_CELLULAR_SERVICE("CST: CST_modem_activate_pdn_mngt\n\r")
   CST_set_state(CST_MODEM_PDN_ACTIVATING_STATE);
 
+  PRINT_CELLULAR_SERVICE("CST: osCDS_set_default_pdn()\n\r")
   (void)osCDS_set_default_pdn(cst_get_cid_value(cst_cellular_params.sim_slot[cst_context.sim_slot_index].cid));
 
   /* register to PDN events for this CID*/
+  PRINT_CELLULAR_SERVICE("CST: osCDS_register_pdn_event()\n\r")
   (void)osCDS_register_pdn_event(cst_get_cid_value(cst_cellular_params.sim_slot[cst_context.sim_slot_index].cid),
                                  CST_pdn_event_callback);
 
+  PRINT_CELLULAR_SERVICE("CST: osCDS_activate_pdn()\n\r")
   cs_status = osCDS_activate_pdn(CS_PDN_CONFIG_DEFAULT);
 
   if (cs_status != CELLULAR_OK)
@@ -1368,14 +1443,14 @@ static void CST_modem_activate_pdn_mngt(void)
     if (cst_nfmc_context.active == false)
     {
       (void)rtosalTimerStart(cst_pdn_activate_retry_timer_handle, CST_PDN_ACTIVATE_RETRY_DELAY);
-      PRINT_CELLULAR_SERVICE("-----> CST_modem_activate_pdn_mngt NOK - retry tempo  : %d\n\r",
+      PRINT_CELLULAR_SERVICE("CST: --> NOK - retry tempo  : %d\n\r",
                              CST_PDN_ACTIVATE_RETRY_DELAY)
     }
     else
     {
       (void)rtosalTimerStart(cst_pdn_activate_retry_timer_handle,
                              cst_nfmc_context.tempo[cst_context.activate_pdn_nfmc_tempo_count]);
-      PRINT_CELLULAR_SERVICE("-----> CST_modem_activate_pdn_mngt NOK - retry tempo %d : %ld\n\r",
+      PRINT_CELLULAR_SERVICE("CST: --> NOK - retry tempo %d : %ld\n\r",
                              cst_context.activate_pdn_nfmc_tempo_count + 1U,
                              cst_nfmc_context.tempo[cst_context.activate_pdn_nfmc_tempo_count])
     }
@@ -1409,6 +1484,7 @@ static void CST_cellular_data_fail_mngt(void)
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
     osCCS_get_wait_cs_resource();
+    PRINT_CELLULAR_SERVICE("CST: osCDS_suspend_data()\n\r")
     (void)osCDS_suspend_data(); /* osCDS_stop_data should be the called */
     osCCS_get_release_cs_resource();
 #endif  /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
@@ -1424,6 +1500,7 @@ static void CST_cellular_data_fail_mngt(void)
   */
 static void CST_pdn_event_mngt(void)
 {
+  PRINT_CELLULAR_SERVICE("CST: CST_pdn_event_mngt\n\r")
   CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
 #if (USE_LOW_POWER == 1)
   /* need to exit the low power state. COM is in charge of configuration to enter in low power when registered */
@@ -1439,7 +1516,7 @@ static void CST_pdn_event_mngt(void)
     (cst_context.pdn_status == CS_PDN_EVENT_NW_DEACT)
     || (cst_context.pdn_status == CS_PDN_EVENT_NW_PDN_DEACT))
   {
-    PRINT_CELLULAR_SERVICE("=========CST_pdn_event_mngt CS_PDN_EVENT_NW_DEACT\n\r")
+    PRINT_CELLULAR_SERVICE("CST: CS_PDN_EVENT_NW_DEACT\n\r")
     CST_set_state(CST_MODEM_REGISTERED_STATE);
     CST_send_message(CST_MESSAGE_CS_EVENT, CST_MODEM_ATTACHED_EVENT);
   }
@@ -1460,8 +1537,9 @@ static void CST_target_state_cmd_event_mngt(void)
   if (cst_cellular_params.target_state == DC_TARGET_STATE_SIM_ONLY)
   {
     /* new Modem target state 'SIM ONLY' requested*/
-    PRINT_CELLULAR_SERVICE("****** Transition to CST_MODEM_SIM_ONLY_STATE Ongoing *****\n\r")
+    PRINT_CELLULAR_SERVICE("CST: Transition to CST_MODEM_SIM_ONLY_STATE Ongoing\n\r")
     /* reinit the mode with SIM_ONLY mode */
+    PRINT_CELLULAR_SERVICE("CST: osCDS_init_modem()\n\r")
     (void) osCDS_init_modem(CS_CMI_SIM_ONLY, CELLULAR_FALSE, PLF_CELLULAR_SIM_PINCODE);
 
     /* set 'SIM_CONNECTED in Data Cache to inform application */
@@ -1470,7 +1548,7 @@ static void CST_target_state_cmd_event_mngt(void)
     /* set the automaton to SIM_ONLY_STATE (no event to send because the automation remain in this state
        until a new modem target state will be required  */
     CST_set_state(CST_MODEM_SIM_ONLY_STATE);
-    PRINT_CELLULAR_SERVICE("****** CST_MODEM_SIM_ONLY_STATE *****\n\r")
+    PRINT_CELLULAR_SERVICE("CST: Transition to CST_MODEM_SIM_ONLY_STATE\n\r")
   }
   else if (cst_cellular_params.target_state == DC_TARGET_STATE_OFF)
   {
@@ -1504,6 +1582,7 @@ static void CST_target_state_cmd_event_mngt(void)
   */
 static void CST_polling_timer_mngt(void)
 {
+
 #if (CST_MODEM_POLLING_PERIOD != 0)
   if (CST_polling_active == true)
   {
@@ -1513,11 +1592,13 @@ static void CST_polling_timer_mngt(void)
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
       osCCS_get_wait_cs_resource();
       /* we should read the status if connection lost while changing to at command mode */
-      cs_status = osCDS_suspend_data();
+      PRINT_CELLULAR_SERVICE("CST: osCDS_suspend_data()\n\r")
+      CS_Status_t cs_status = osCDS_suspend_data();
 
       /* For instance disable the signal polling to test suspend resume  */
       (void)CST_set_signal_quality();
       /* we should read the status if connection lost while resuming data */
+      PRINT_CELLULAR_SERVICE("CST: osCDS_resume_data()\n\r")
       cs_status = osCDS_resume_data();
       osCCS_get_release_cs_resource();
       if (cs_status != CELLULAR_OK)
@@ -1533,7 +1614,7 @@ static void CST_polling_timer_mngt(void)
     }
     else
     {
-      PRINT_CELLULAR_SERVICE("Discard pooling timer, another one is already on going\n\r")
+      PRINT_CELLULAR_SERVICE("CST: Discard pooling timer, another one is already on going\n\r")
     }
   }
 #endif /* CST_MODEM_POLLING_PERIOD != 0) */
@@ -1745,7 +1826,7 @@ static void CST_modem_ready_state(cst_autom_event_t autom_event)
   */
 static void CST_waiting_for_signal_quality_ok_state(cst_autom_event_t autom_event)
 {
-  PRINT_CELLULAR_SERVICE("\n\r ====> CST_waiting_for_signal_quality_ok_state <===== \n\r")
+  PRINT_CELLULAR_SERVICE("CST: CST_waiting_for_signal_quality_ok_state\n\r")
 #if (USE_LOW_POWER == 1)
   (void)rtosalTimerStop(cst_lp_inactivity_timer_handle);
 #endif /* (USE_LOW_POWER == 1) */
@@ -1950,7 +2031,7 @@ static void CST_data_ready_state(cst_autom_event_t autom_event)
       (autom_event != CST_POWER_SLEEP_REQUEST_EVENT))
   {
     (void)rtosalTimerStart(cst_lp_inactivity_timer_handle, cst_cellular_params.lp_inactivity_timeout);
-    PRINT_CELLULAR_SERVICE("-----> Start LP INACTIVITY TIMEOUT TIMER   : %ld\n\r",
+    PRINT_CELLULAR_SERVICE("CST: --> Start LP INACTIVITY TIMEOUT TIMER : %ld\n\r",
                            cst_cellular_params.lp_inactivity_timeout)
   }
 #endif /* (USE_LOW_POWER == 1) */
@@ -1961,7 +2042,7 @@ static void CST_data_ready_state(cst_autom_event_t autom_event)
       if (CSP_GetTargetPowerState() == CSP_LOW_POWER_ACTIVE)
       {
         (void)rtosalTimerStart(cst_lp_inactivity_timer_handle, cst_cellular_params.lp_inactivity_timeout);
-        PRINT_CELLULAR_SERVICE("-----> Receive network data, RE-Start LP INACTIVITY TIMEOUT TIMER   : %ld\n\r",
+        PRINT_CELLULAR_SERVICE("CST: --> Receive network data, RE-Start LP INACTIVITY TIMEOUT TIMER   : %ld\n\r",
                                cst_cellular_params.lp_inactivity_timeout)
       }
 #endif /* (USE_LOW_POWER == 1) */
@@ -2156,16 +2237,12 @@ static void CST_apn_config_state(cst_autom_event_t autom_event)
 #if (USE_LOW_POWER == 1)
 static void CST_power_idle_state(cst_autom_event_t autom_event)
 {
-#if (USE_LOW_POWER == 1)
   (void)rtosalTimerStop(cst_lp_inactivity_timer_handle);
-#endif /* (USE_LOW_POWER == 1) */
   switch (autom_event)
   {
     case CST_POWER_SLEEP_TIMEOUT_EVENT:
-      CSP_WakeupComplete();
-      CST_set_state(CST_MODEM_DATA_READY_STATE);
+      CSP_SleepCancel();
       break;
-
     case CST_POWER_SLEEP_ABORT_EVENT:
       CSP_WakeupComplete();
       CST_set_state(CST_MODEM_DATA_READY_STATE);
@@ -2176,22 +2253,22 @@ static void CST_power_idle_state(cst_autom_event_t autom_event)
       break;
 
     case CST_POWER_WAKEUP_EVENT:
-#if (USE_LOW_POWER == 1)
       (void)rtosalTimerStop(cst_lp_inactivity_timer_handle);
-#endif /* (USE_LOW_POWER == 1) */
+      PRINT_CELLULAR_SERVICE("CST: osCS_PowerWakeup()\n\r")
       (void)osCS_PowerWakeup(HOST_WAKEUP);
       CSP_WakeupComplete();
       CST_set_state(CST_MODEM_DATA_READY_STATE);
       break;
+
     case CST_POWER_MODEM_WAKEUP_EVENT:
-#if (USE_LOW_POWER == 1)
       (void)rtosalTimerStop(cst_lp_inactivity_timer_handle);
-#endif /* (USE_LOW_POWER == 1) */
+      /* stop the modem sleep request protection timer (to be sure it won't fire after) */
+      CSP_StopTimeout();
+      PRINT_CELLULAR_SERVICE("CST: osCS_PowerWakeup()\n\r")
       (void)osCS_PowerWakeup(MODEM_WAKEUP);
       CSP_WakeupComplete();
       CST_set_state(CST_MODEM_DATA_READY_STATE);
       break;
-
 
     case CST_REBOOT_MODEM_EVENT:
       /* If low power is in use, modem has been wake up before CST_REBOOT_MODEM_EVENT event */
@@ -2254,6 +2331,7 @@ static void CST_ppp_closed_event_mngt(void)
 #endif /* (USE_LOW_POWER == 1) */
   /* back to modem command mode */
   osCCS_get_wait_cs_resource();
+  PRINT_CELLULAR_SERVICE("CST: osCDS_suspend_data()\n\r")
   (void)osCDS_suspend_data();
   osCCS_get_release_cs_resource();
 
@@ -2435,52 +2513,12 @@ static void CST_ppp_close_on_going_state(cst_autom_event_t autom_event)
 static void CST_cellular_service_task(void *argument)
 {
   UNUSED(argument);
-  /* Event names to display */
-#if (USE_TRACE_CELLULAR_SERVICE == 1U)
-  static const uint8_t *cst_event_name[CST_MAX_EVENT] =
-  {
-    ((uint8_t *)"BOOT_EVENT"),
-    ((uint8_t *)"MODEM_INIT_EVENT"),
-    ((uint8_t *)"MODEM_READY_EVENT"),
-    ((uint8_t *)"SIGNAL_QUALITY_TO_CHECK_EVENT"),
-    ((uint8_t *)"NETWORK_STATUS_TO_CHECK_EVENT"),
-    ((uint8_t *)"NETWORK_STATUS_OK_EVENT"),
-    ((uint8_t *)"MODEM_ATTACHED_EVENT"),
-    ((uint8_t *)"PDP_ACTIVATED_EVENT"),
-    ((uint8_t *)"PDN_STATUS_TO_CHECK_EVENT"),
-    ((uint8_t *)"MODEM_PDN_ACTIVATE_RETRY_TIMER_EVENT"),
-    ((uint8_t *)"CELLULAR_DATA_FAIL_EVENT"),
-    ((uint8_t *)"POLLING_TIMER_EVENT"),
-    ((uint8_t *)"MODEM_URC_EVENT"),
-    ((uint8_t *)"NO_EVENT"),
-    ((uint8_t *)"CMD_UNKWOWN_EVENT"),
-    ((uint8_t *)"TARGET_STATE_CMD_EVENT"),
-    ((uint8_t *)"APN_CONFIG_EVENT"),
-    ((uint8_t *)"REBOOT_MODEM_EVENT"),
-    ((uint8_t *)"MODEM_POWER_ON_ONLY_EVENT"),
-    ((uint8_t *)"NETWORK_CALLBACK_EVENT"),
-    ((uint8_t *)"NW_REG_TIMEOUT_TIMER_EVENT"),
-    ((uint8_t *)"FOTA_START_EVENT"),
-    ((uint8_t *)"FOTA_END_EVENT"),
-    ((uint8_t *)"FOTA_TIMEOUT_EVENT"),
-    ((uint8_t *)"MODEM_RESET_EVENT"),
-    ((uint8_t *)"PPP_OPENED_EVENT"),
-    ((uint8_t *)"PPP_CLOSED_EVENT"),
-    ((uint8_t *)"MODEM_POWER_DOWN_EVENT"),
-    ((uint8_t *)"SIM_RESET_EVENT"),
-#if (USE_LOW_POWER == 1)
-    ((uint8_t *)"POWER_SLEEP_TIMEOUT_EVENT"),
-    ((uint8_t *)"POWER_SLEEP_REQUEST_EVENT"),
-    ((uint8_t *)"POWER_SLEEP_COMPLETE_EVENT"),
-    ((uint8_t *)"POWER_WAKEUP_EVENT"),
-    ((uint8_t *)"POWER_MODEM_WAKEUP_EVENT"),
-    ((uint8_t *)"POWER_SLEEP_ABORT_EVENT"),
-#endif /* (USE_LOW_POWER == 1) */
-  };
-#endif /* (USE_TRACE_CELLULAR_SERVICE == 1) */
-  uint32_t event;
 
-  cst_autom_event_t autom_event;
+  uint32_t                   event;
+  cst_autom_event_t          autom_event;
+#if (USE_LOW_POWER == 1)
+  dc_cellular_power_status_t dc_power_status;
+#endif /* (USE_LOW_POWER == 1) */
 
   /* Automation infinite loop */
   for (;;)
@@ -2489,15 +2527,64 @@ static void CST_cellular_service_task(void *argument)
     /* waiting for an automaton event */
     (void)rtosalMessageQueueGet((osMessageQId)cst_queue_id, &event, RTOSAL_WAIT_FOREVER);
     autom_event = CST_get_autom_event(event);
-    if ((cst_context.current_state < CST_MAX_STATE) && (autom_event < CST_MAX_EVENT))
-    {
-      PRINT_CELLULAR_SERVICE("AUTOM TASK:  %s - %s\n\r", CST_StateName[cst_context.current_state],
-                             cst_event_name[autom_event])
-    }
 
     if (autom_event != CST_NO_EVENT)
     {
-      /* Call the right function according to the  automaton current state */
+      /* Generic events, to manage whatever the current state and results in a state change */
+      switch (autom_event)
+      {
+        /* New APN to be taken in account */
+        case CST_APN_CONFIG_EVENT:
+          CST_set_state(CST_APN_CONFIG_STATE);
+          break;
+
+        /* Ask for Modem int */
+        case CST_MODEM_INIT_EVENT:
+          if ((cst_context.current_state != CST_MODEM_INIT_STATE) &&
+              (cst_context.current_state != CST_MODEM_OFF_STATE))
+          {
+            /* If current state is not a state to manage modem init, change current state */
+            CST_set_state(CST_MODEM_INIT_STATE);
+          }
+          break;
+
+        /* Ask for a sim reset (insert SIM - eject SIM - SIM refersh - ...) */
+        case CST_SIM_RESET_EVENT:
+          CST_set_state(CST_MODEM_INIT_STATE);
+          break;
+
+#if (USE_LOW_POWER == 1)
+        /* Enter in low power mode on network network inactivity timeout */
+        case CST_LP_INACTIVITY_TIMER_EVENT:
+          (void)CSP_CSIdle();
+          break;
+
+        case CST_POWER_STATUS_CALLBACK_EVENT:
+          /* Read power status from data cache */
+          (void)dc_com_read(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
+                            sizeof(dc_cellular_power_status_t));
+          /* update data cache values with the one coming from network */
+          dc_power_status.nwk_periodic_TAU = cst_lp_status.nwk_periodic_TAU;
+          dc_power_status.nwk_active_time = cst_lp_status.nwk_active_time;
+          /* Write back new values to data cache */
+          (void)dc_com_write(&dc_com_db, DC_CELLULAR_POWER_STATUS, (void *)&dc_power_status,
+                             sizeof(dc_cellular_power_status_t));
+          break;
+#endif /* (USE_LOW_POWER == 1) */
+
+        default:
+          /* Nothing to do */
+          break;
+      }
+
+      /* Display the actual state and the received event to manage */
+      if ((cst_context.current_state < CST_MAX_STATE) && (autom_event < CST_MAX_EVENT))
+      {
+        PRINT_CELLULAR_SERVICE("CST: AUTOM TASK: %s - %s\n\r", CST_StateName[cst_context.current_state],
+                               cst_event_name[autom_event])
+      }
+
+      /* Call the right function according to the automaton current state */
       switch (cst_context.current_state)
       {
         /* ===================================================== */
@@ -2606,7 +2693,7 @@ static void CST_cellular_service_task(void *argument)
     }
     else
     {
-      PRINT_CELLULAR_SERVICE("============ CST_cellular_service_task : autom_event = no event \n\r")
+      PRINT_CELLULAR_SERVICE("CST: autom_event = no event \n\r")
     }
   }
 }
@@ -2620,8 +2707,26 @@ static void CST_cellular_service_task(void *argument)
   */
 void CST_set_state(CST_autom_state_t new_state)
 {
+  if (cst_context.current_state == CST_MODEM_PDN_ACTIVATING_STATE)
+  {
+    /* Exit from CST_MODEM_PDN_ACTIVATING_STATE state : stop possibly armed and no more used timers */
+    /* Stop timer pdn_activate_retry */
+    (void)rtosalTimerStop(cst_pdn_activate_retry_timer_handle);
+  }
+  else if (cst_context.current_state == CST_WAITING_FOR_NETWORK_STATUS_STATE)
+  {
+    /* Exit from CST_WAITING_FOR_NETWORK_STATUS_STATE state : stop possibly armed and no more used timers */
+    /* stop retry NFMC tempo */
+    (void)rtosalTimerStop(cst_register_retry_timer_handle);
+  }
+  else
+  {
+    __NOP(); /* Nothing to do */
+  }
+
+  /* set new state */
   cst_context.current_state = new_state;
-  PRINT_CELLULAR_SERVICE("-----> New State: %s <-----\n\r", CST_StateName[new_state])
+  PRINT_CELLULAR_SERVICE("CST: New State: %s\n\r", CST_StateName[new_state])
 
 #if (USE_CELLULAR_SERVICE_TASK_TEST == 1)
   /* instrumentation code to test automaton */
@@ -2675,6 +2780,7 @@ CS_Status_t  CST_modem_power_on(void)
   */
 CS_Status_t CST_get_dev_IP_address(CS_IPaddrType_t *ip_addr_type, CS_CHAR_t *p_ip_addr_value)
 {
+  PRINT_CELLULAR_SERVICE("CST: osCDS_get_dev_IP_address()\n\r")
   return osCDS_get_dev_IP_address(cst_get_cid_value(cst_cellular_params.sim_slot[cst_context.sim_slot_index].cid),
                                   ip_addr_type,
                                   p_ip_addr_value);
@@ -2697,6 +2803,10 @@ CS_Status_t CST_cellular_service_init(void)
 
   /* request modem init to Cellular Service */
   ret = CS_init();
+  if (ret != CELLULAR_OK)
+  {
+    ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 6, ERROR_WARNING);
+  }
 
   if (ret == CELLULAR_OK)
   {
@@ -2705,6 +2815,7 @@ CS_Status_t CST_cellular_service_init(void)
     CSTE_cellular_test_init();
 #endif  /* (USE_CELLULAR_SERVICE_TASK_TEST == 1) */
 
+    PRINT_CELLULAR_SERVICE("CST: osCDS_cellular_service_init()\n\r")
     (void)osCDS_cellular_service_init();
     cst_context.csq_count_fail = 0U;
 
@@ -2731,12 +2842,44 @@ CS_Status_t CST_cellular_service_init(void)
     CSP_Init();
 #endif /* (USE_LOW_POWER == 1) */
 
-    cst_queue_id = rtosalMessageQueueNew(NULL, CST_QUEUE_SIZE);
+    cst_queue_id = rtosalMessageQueueNew((const rtosal_char_t *)"CST_QUE_MAIN", CST_QUEUE_SIZE);
     if (cst_queue_id == NULL)
     {
       ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 5, ERROR_FATAL);
       ret = CELLULAR_ERROR;
     }
+
+    /* creates timers */
+    /* initializes modem polling timer */
+    cst_polling_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_POOLING",
+                                              (os_ptimer)CST_polling_timer_callback, osTimerPeriodic, NULL);
+
+    /* initializes pdn activation timer */
+    cst_pdn_activate_retry_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_PDN_ACTIVATE_RETRY",
+                                                         (os_ptimer)CST_pdn_activate_retry_timer_callback,
+                                                         osTimerOnce, NULL);
+
+    /* initializes network monitoring state timer */
+    cst_network_status_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_NET_STATUS",
+                                                     (os_ptimer)CST_network_status_timer_callback, osTimerOnce,
+                                                     NULL);
+
+    /* initializes register timer */
+    cst_register_retry_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_REGISTER_RETRY",
+                                                     (os_ptimer)CST_register_retry_timer_callback, osTimerOnce,
+                                                     NULL);
+
+    /* initializes FOTA timer */
+    cst_fota_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_FOTA",
+                                           (os_ptimer)CST_fota_timer_callback, osTimerOnce, NULL);
+
+#if (USE_LOW_POWER == 1)
+    /* initializes low power inactivity timer */
+    cst_lp_inactivity_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_LP_INACTIVITY",
+                                                    (os_ptimer)CST_lp_inactivity_timer_callback, osTimerOnce,
+                                                    NULL);
+#endif /* (USE_LOW_POWER == 1) */
+
   }
   return ret;
 }
@@ -2760,8 +2903,6 @@ CS_Status_t CST_cellular_service_start(void)
   dc_ret  = DC_COM_OK;
   cst_ret = CELLULAR_OK;
   cs_ret  = 0U;
-
-  osTimerId         cst_polling_timer_handle;
 
 #if (USE_CMD_CONSOLE == 1)
   (void)CST_cmd_cellular_service_start();
@@ -2803,13 +2944,9 @@ CS_Status_t CST_cellular_service_start(void)
     dc_ret = DC_COM_ERROR;
   }
 
-  /* request AT core to start */
-  if (atcore_task_start(ATCORE_THREAD_STACK_PRIO, ATCORE_THREAD_STACK_SIZE) != ATSTATUS_OK)
-  {
-    /* at core start fails */
-    cs_ret |= (uint32_t)CELLULAR_ERROR;
-    ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 6, ERROR_WARNING);
-  }
+#if (USE_LOW_POWER == 1)
+  CSP_Start();
+#endif  /* (USE_LOW_POWER == 1) */
 
   /* register component to Data Cache  */
   if (dc_com_core_register_gen_event_cb(&dc_com_db, CST_notif_callback, (const void *)NULL) == DC_COM_INVALID_ENTRY)
@@ -2845,8 +2982,7 @@ CS_Status_t CST_cellular_service_start(void)
     ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 7, ERROR_FATAL);
   }
 
-  /* creates and start modem polling timer */
-  cst_polling_timer_handle = rtosalTimerNew(NULL, (os_ptimer)CST_polling_timer_callback, osTimerPeriodic, NULL);
+  /* start modem polling timer */
 #if (CST_MODEM_POLLING_PERIOD == 0)
   cst_polling_period = CST_MODEM_POLLING_PERIOD_DEFAULT;
 #else
@@ -2859,26 +2995,10 @@ CS_Status_t CST_cellular_service_start(void)
     cs_ret |= (uint32_t)CELLULAR_ERROR;
   }
 
-  /* creates timers */
-
-  /* initializes pdn activation timer */
-  cst_pdn_activate_retry_timer_handle = rtosalTimerNew(NULL, (os_ptimer)CST_pdn_activate_retry_timer_callback,
-                                                       osTimerOnce, NULL);
-
-  /* initializes network monitoring state timer */
-  cst_network_status_timer_handle = rtosalTimerNew(NULL, (os_ptimer)CST_network_status_timer_callback, osTimerOnce,
-                                                   NULL);
-
-  /* initializes register timer */
-  cst_register_retry_timer_handle = rtosalTimerNew(NULL, (os_ptimer)CST_register_retry_timer_callback, osTimerOnce,
-                                                   NULL);
-
-  /* initializes FOTA timer */
-  cst_fota_timer_handle = rtosalTimerNew(NULL, (os_ptimer)CST_fota_timer_callback, osTimerOnce, NULL);
-
 #if (USE_LOW_POWER == 1)
   /* initializes low power inactivity timer */
-  cst_lp_inactivity_timer_handle = rtosalTimerNew(NULL, (os_ptimer)CST_lp_inactivity_timer_callback, osTimerOnce,
+  cst_lp_inactivity_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_LP_INACTIVITY",
+                                                  (os_ptimer)CST_lp_inactivity_timer_callback, osTimerOnce,
                                                   NULL);
 #endif /* (USE_LOW_POWER == 1) */
 
@@ -2890,5 +3010,3 @@ CS_Status_t CST_cellular_service_start(void)
 
   return cst_ret;
 }
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

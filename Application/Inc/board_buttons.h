@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,15 +35,15 @@
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef BOARD_BUTTONS_H
-#    define BOARD_BUTTONS_H
+#define BOARD_BUTTONS_H
 
-#    ifdef __cplusplus
+#ifdef __cplusplus
 extern "C" {
-#    endif
+#endif
 
 /* Includes ------------------------------------------------------------------*/
-#    include "dc_common.h"
-#    include "plf_config.h"
+#include "dc_common.h"
+#include "plf_config.h"
 
 /* Exported types ------------------------------------------------------------*/
 /* Data Cache structure for button entries */
@@ -74,9 +74,9 @@ void board_button_joy_sel_release(void);
 board_buttons_status_t board_buttons_init(void);
 board_buttons_status_t board_buttons_start(void);
 
-#    ifdef __cplusplus
+#ifdef __cplusplus
 }
-#    endif
+#endif
 
 #endif /* BOARD_BUTTONS_H */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

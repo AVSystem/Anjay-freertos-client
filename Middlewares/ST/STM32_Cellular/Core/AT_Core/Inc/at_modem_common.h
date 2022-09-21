@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -33,13 +32,28 @@ extern "C" {
 #include "cellular_service_int.h"
 #include "ipc_common.h"
 
-/* Exported constants --------------------------------------------------------*/
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
+
+/** @addtogroup AT_CORE_COMMON AT_CORE COMMON
+  * @{
+  */
+
+/** @defgroup AT_CORE_COMMON_Exported_Defines AT_CORE COMMON Exported Defines
+  * @{
+  */
 #define MODEM_DEFAULT_TIMEOUT      ((uint32_t) 10000U)
 #define MODEM_PDP_MAX_TYPE_SIZE    ((uint32_t) 8U)
 #define MODEM_PDP_MAX_APN_SIZE     ((uint32_t) 64U)
 #define MODEM_MAX_NB_PDP_CTXT      ((uint8_t) CS_PDN_CONFIG_MAX + 1U) /* max. nbr of local PDP context configs */
+/**
+  * @}
+  */
 
-/* Exported types ------------------------------------------------------------*/
+/** @defgroup AT_CORE_COMMON_Exported_Types AT_CORE COMMON Exported Types
+  * @{
+  */
 typedef enum
 {
   /*  WAITING FOR  /  COMMAND FORMAT */
@@ -126,9 +140,13 @@ typedef enum
 typedef struct
 {
   uint8_t     socket_connId_value;        /* modem value corresponding to this index */
-  at_bool_t   socket_connected;           /* is socket connected ? */
-  at_bool_t   socket_data_pending_urc;    /* is there a pending data urc for this connID ? */
-  at_bool_t   socket_closed_pending_urc;  /* is there a pending closed urc for this connID ?*/
+  at_bool_t   socket_connected;           /* indicates if a socket is connected */
+  at_bool_t   socket_data_pending_urc;    /* indicates if there is a pending data urc for this connID.
+                                           * This flag is used to report URC to client */
+  at_bool_t   socket_data_available;      /* indicates if an URC indicating that socket data are available for this
+                                           * connID has been received. */
+  at_bool_t   socket_closed_pending_urc;  /* indicates if there is a pending closed socket urc for this connID,
+                                           * This flag is used to report URC to client */
 } atcustom_persistent_SOCKET_context_t;
 
 /* atcustom_persistent_context_t is a structure to save data
@@ -237,10 +255,10 @@ typedef struct
   /* list of parameters used for SID */
   CS_ModemConfig_t            modem_config;           /* SID_CS_MODEM_CONFIG */
   csint_modemInit_t           modem_init;             /* SID_CS_INIT_MODEM */
-  CS_DeviceInfo_t             *device_info;           /* SID_CS_GET_DEVICE_INFO */
+  CS_DeviceInfo_t             *p_device_info;         /* SID_CS_GET_DEVICE_INFO */
   CS_OperatorSelector_t       write_operator_infos;   /* SID_CS_REGISTER_NET */
   CS_RegistrationStatus_t     read_operator_infos;    /* SID_CS_REGISTER_NET, SID_CS_GET_NETSTATUS */
-  CS_SignalQuality_t          *signal_quality;        /* SID_CS_GET_SIGNAL_QUALITY */
+  CS_SignalQuality_t          *p_signal_quality;        /* SID_CS_GET_SIGNAL_QUALITY */
   CS_UrcEvent_t               urcEvent;               /* SID_CS_SUSBCRIBE_NET_EVENT, SID_CS_UNSUSBCRIBE_NET_EVENT */
   CS_PSattach_t               attach_status;          /* SID_CS_GET_ATTACHSTATUS */
   CS_ModemInit_t              cfun_status;
@@ -249,10 +267,10 @@ typedef struct
   csint_socket_data_buffer_t  socketSendData_struct;  /* SID_CS_SEND_DATA */
   CS_Reset_t                  reset_type;             /* SID_CS_RESET */
   CS_PDN_conf_id_t            pdn_conf_id;            /* SID_CS_ACTIVATE_PDN, SID_CS_DEACTIVATE_PDN */
-  csint_dns_request_t         *dns_request_infos;     /* SID_CS_DNS_REQ */
+  csint_dns_request_t         *p_dns_request_infos;     /* SID_CS_DNS_REQ */
   csint_ping_params_t         ping_infos;             /* SID_CS_PING_IP_ADDRESS */
 
-  CS_direct_cmd_tx_t          *direct_cmd_tx;         /* SID_CS_DIRECT_CMD */
+  CS_direct_cmd_tx_t          *p_direct_cmd_tx;         /* SID_CS_DIRECT_CMD */
   CS_init_power_config_t      init_power_config;      /* SID_CS_INIT_POWER_CONFIG */
   CS_set_power_config_t       set_power_config;       /* SID_CS_SET_POWER_CONFIG */
   CS_wakeup_origin_t          wakeup_origin;          /* SID_CS_WAKEUP */
@@ -282,12 +300,12 @@ typedef struct
 typedef struct
 {
   /* SOCKET command data mode : SID or cmd data */
-  csint_socket_infos_t      *socket_info;        /* current socket infos */
+  csint_socket_infos_t      *p_socket_info;        /* current socket infos */
   csint_socket_data_buffer_t socketReceivedata;  /* for RX data buffer */
   uint32_t                   socket_current_connId;  /* connection ID for current command (only for received cmd) */
   uint32_t                   socket_rx_expected_buf_size; /* expected size of buffer to receive */
   uint32_t                   socket_rx_count_bytes_received; /* count number of char received actually for input buf */
-  csint_socket_cnx_infos_t   *socket_cnx_infos;   /* SID_CS_SOCKET_CNX_STATUS */
+  csint_socket_cnx_infos_t   *p_socket_cnx_infos;   /* SID_CS_SOCKET_CNX_STATUS */
 
   /* variables used for socket strings analyze */
   atcustom_socket_send_state_t     socket_send_state;
@@ -325,8 +343,7 @@ typedef at_action_rsp_t (*CmdAnalyzeFuncTypeDef)(at_context_t *p_at_ctxt,
                                                  const IPC_RxMessage_t *p_msg_in,
                                                  at_element_info_t *element_infos);
 
-struct atcm_pdp_type_LUT_struct;
-typedef struct atcm_pdp_type_LUT_struct
+typedef struct
 {
   CS_PDPtype_t      pdp_type;
   AT_CHAR_t         pdp_type_string[16];
@@ -341,12 +358,13 @@ typedef struct atcustom_LUT_struct
   CmdBuildFuncTypeDef   cmd_BuildFunc;
   CmdAnalyzeFuncTypeDef rsp_AnalyzeFunc;
 } atcustom_LUT_t;
+/**
+  * @}
+  */
 
-/* External variables --------------------------------------------------------*/
-
-/* Exported macros -----------------------------------------------------------*/
-
-/* Exported functions ------------------------------------------------------- */
+/** @defgroup AT_CORE_COMMON_Exported_Functions AT_CORE COMMON Exported Functions
+  * @{
+  */
 const AT_CHAR_t       *atcm_get_CmdStr(const atcustom_modem_context_t *p_modem_ctxt, uint32_t cmd_id);
 uint32_t               atcm_get_CmdTimeout(const atcustom_modem_context_t *p_modem_ctxt, uint32_t cmd_id);
 CmdBuildFuncTypeDef    atcm_get_CmdBuildFunc(const atcustom_modem_context_t *p_modem_ctxt, uint32_t cmd_id);
@@ -415,11 +433,20 @@ void reset_pdn_event(atcustom_persistent_context_t *p_persistent_ctxt);
 void atcm_report_urc_sim_event(atcustom_modem_context_t *p_modem_ctxt, CS_SimEvent_status_t *sim_event);
 void atcm_set_error_report(csint_error_type_t err_type, atcustom_modem_context_t *p_modem_ctxt);
 
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_MODEM_COMMON_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

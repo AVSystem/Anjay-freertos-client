@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -26,16 +25,22 @@
 #include "at_modem_signalling.h"
 #include "at_datapack.h"
 #include "at_util.h"
-#include "sysctrl.h"
+#include "at_sysctrl.h"
 #include "cellular_runtime_standard.h"
 #include "cellular_runtime_custom.h"
 #include "plf_config.h"
 
-/* Private typedef -----------------------------------------------------------*/
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
 
-/* Private defines -----------------------------------------------------------*/
+/** @addtogroup AT_CORE_COMMON AT_CORE COMMON
+  * @{
+  */
 
-/* Private macros ------------------------------------------------------------*/
+/** @defgroup AT_CORE_COMMON_Private_Macros AT_CORE COMMON Private Macros
+  * @{
+  */
 #if (USE_TRACE_ATCUSTOM_MODEM == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -55,103 +60,30 @@
 #define PRINT_API(...)   __NOP(); /* Nothing to do */
 #define PRINT_ERR(...)   __NOP(); /* Nothing to do */
 #endif /* USE_TRACE_ATCUSTOM_MODEM */
+/**
+  * @}
+  */
 
-/* Private variables ---------------------------------------------------------*/
-
-/* Global variables ----------------------------------------------------------*/
-
-/* Private function prototypes -----------------------------------------------*/
+/** @defgroup AT_CORE_COMMON_Private_Functions_Prototypes AT_CORE COMMON Private Functions Prototypes
+  * @{
+  */
 static void reserve_user_modem_cid(atcustom_persistent_context_t *p_persistent_ctxt,
                                    CS_PDN_conf_id_t conf_id,
                                    uint8_t reserved_modem_cid);
 static void affect_modem_cid(atcustom_persistent_context_t *p_persistent_ctxt,
                              CS_PDN_conf_id_t conf_id);
-
-/* Private function Definition -----------------------------------------------*/
-/*
-*  Reserve a modem modem cid (normally used only for PDN_PREDEF_CONFIG at startup time)
-*/
-static void reserve_user_modem_cid(atcustom_persistent_context_t *p_persistent_ctxt, CS_PDN_conf_id_t conf_id,
-                                   uint8_t reserved_user_modem_cid)
-{
-  /* User PDP CID and Modem CID are matching */
-  UNUSED(conf_id);
-
-  CS_PDN_conf_id_t user_pdn_conf = atcm_convert_index_to_PDN_conf(reserved_user_modem_cid);
-  /* valid only for CS_PDN_USER_CONFIG_1 to CS_PDN_USER_CONFIG_5 */
-  if ((user_pdn_conf == CS_PDN_USER_CONFIG_1) ||
-      (user_pdn_conf == CS_PDN_USER_CONFIG_2) ||
-      (user_pdn_conf == CS_PDN_USER_CONFIG_3) ||
-      (user_pdn_conf == CS_PDN_USER_CONFIG_4) ||
-      (user_pdn_conf == CS_PDN_USER_CONFIG_5))
-  {
-    bool leave_loop = false;
-    uint8_t i = 0U;
-    do
-    {
-      atcustom_modem_cid_table_t *p_tmp;
-      p_tmp = &p_persistent_ctxt->modem_cid_table[i];
-      if (reserved_user_modem_cid == p_tmp->mdm_cid_value)
-      {
-        /* reserve this modem cid */
-        p_tmp->pdn_defined = AT_TRUE;
-        leave_loop = true;
-      }
-      i++;
-    } while ((leave_loop == false) && (i < MODEM_MAX_NB_PDP_CTXT));
-  }
-  else
-  {
-    PRINT_ERR("Trying to affect a non-valid modem CID")
-  }
-
-  return;
-}
-
-/*
-*  Affect a modem cid to the specified user PDP config
-*/
-static void affect_modem_cid(atcustom_persistent_context_t *p_persistent_ctxt, CS_PDN_conf_id_t conf_id)
-{
-  /* User PDP CID and Modem CID are matching */
-
-  /* only for CS_PDN_USER_CONFIG_1 to CS_PDN_USER_CONFIG_5 */
-  if ((conf_id == CS_PDN_USER_CONFIG_1) ||
-      (conf_id == CS_PDN_USER_CONFIG_2) ||
-      (conf_id == CS_PDN_USER_CONFIG_3) ||
-      (conf_id == CS_PDN_USER_CONFIG_4) ||
-      (conf_id == CS_PDN_USER_CONFIG_5))
-  {
-    /* reserve this modem cid */
-    bool leave_loop = false;
-    uint8_t i = 0U;
-    do
-    {
-      atcustom_modem_cid_table_t *p_tmp;
-      p_tmp = &p_persistent_ctxt->modem_cid_table[i];
-      if (conf_id == p_tmp->affected_config)
-      {
-        /* reserve this modem cid */
-        p_tmp->pdn_defined = AT_TRUE;
-        leave_loop = true;
-      }
-      i++;
-    } while ((leave_loop == false) && (i < MODEM_MAX_NB_PDP_CTXT));
-  }
-  else
-  {
-    PRINT_ERR("Trying to affect a non-valid modem CID")
-  }
-
-  return;
-}
-
-/* Functions Definition ------------------------------------------------------*/
 /**
-  * @brief  Put IP Address infos for the selected PDP config
-  * @param  p_persistent_ctxt
-  * @param  modem_cid
-  * @param  ip_addr_info
+  * @}
+  */
+
+/** @defgroup AT_CORE_COMMON_Exported_Functions  AT_CORE COMMON Exported Functions
+  * @{
+  */
+/**
+  * @brief  Put IP Address infos for the selected PDP config.
+  * @param  p_persistent_ctxt Pointer to persistent context.
+  * @param  modem_cid Modem CID.
+  * @param  ip_addr_info Pointer to IP address information buffer.
   * @retval none
   */
 void atcm_put_IP_address_infos(atcustom_persistent_context_t *p_persistent_ctxt,
@@ -160,6 +92,7 @@ void atcm_put_IP_address_infos(atcustom_persistent_context_t *p_persistent_ctxt,
 {
   bool leave_loop = false;
   uint8_t i = 0U;
+  /* parse modem cid table to find matching value */
   do
   {
     atcustom_modem_cid_table_t *p_tmp;
@@ -180,9 +113,9 @@ void atcm_put_IP_address_infos(atcustom_persistent_context_t *p_persistent_ctxt,
 
 /**
   * @brief  Get IP Address infos for the selected PDP config
-  * @param  p_persistent_ctxt
-  * @param  conf_id
-  * @param  ip_addr_info
+  * @param  p_persistent_ctxt Pointer to persistent context.
+  * @param  conf_id PDN configuration ID.
+  * @param  ip_addr_info Pointer to IP address information buffer.
   * @retval none
   */
 void atcm_get_IP_address_infos(atcustom_persistent_context_t *p_persistent_ctxt,
@@ -191,6 +124,7 @@ void atcm_get_IP_address_infos(atcustom_persistent_context_t *p_persistent_ctxt,
 {
   bool leave_loop = false;
   uint8_t i = 0U;
+  /* parse modem cid table to find matching value */
   do
   {
     atcustom_modem_cid_table_t *p_tmp;
@@ -210,8 +144,9 @@ void atcm_get_IP_address_infos(atcustom_persistent_context_t *p_persistent_ctxt,
 }
 
 /**
-  * @brief  Get IP Address type
-  * @param  p_addr_str
+  * @brief  Get IP Address type.
+  * @note   Analyze IP address buffer to identify IP address type (IPv4 or IPv6).
+  * @param  p_addr_str Pointer to IP address buffer.
   * @retval CS_IPaddrType_t
   */
 CS_IPaddrType_t atcm_get_ip_address_type(AT_CHAR_t *p_addr_str)
@@ -237,12 +172,15 @@ CS_IPaddrType_t atcm_get_ip_address_type(AT_CHAR_t *p_addr_str)
     uint8_t count_colons = 0U;
     const AT_CHAR_t *pTmp = p_addr_str;
 
+    /* start parsing of the IP address */
     do
     {
+      /* count '.' characters */
       if (*pTmp == ((AT_CHAR_t)'.'))
       {
         count_dots++;
       }
+      /* count ':' characters */
       else if (*pTmp == ((AT_CHAR_t)':'))
       {
         count_colons++;
@@ -256,18 +194,21 @@ CS_IPaddrType_t atcm_get_ip_address_type(AT_CHAR_t *p_addr_str)
       str_size_cpt--;
     }  while (str_size_cpt > 0U);
 
-    /* analyze result */
+    /* analyze result to determine IP address type */
     if ((count_dots >= 1U) && (count_dots <= 3U))
     {
+      /* IPv4 type */
       retval = CS_IPAT_IPV4;
     }
     else if (((count_colons >= 1U) && (count_colons <= 7U)) ||
              (count_dots > 3U))
     {
+      /* IPv6 type */
       retval = CS_IPAT_IPV6;
     }
     else
     {
+      /* can't find a valid type */
       retval = CS_IPAT_INVALID;
     }
   }
@@ -281,9 +222,9 @@ CS_IPaddrType_t atcm_get_ip_address_type(AT_CHAR_t *p_addr_str)
 
 /**
   * @brief  Extract IP address from a p_Src buffer, remove double quotes ""
-  *         and recopy the IP  address to p_Dst buffer
-  * @param  p_Src ptr to source buffer (IP address + quotes)
-  * @param  size of p_Src buffer
+  *         and recopy the IP  address to p_Dst buffer.
+  * @param  p_Src ptr to source buffer (IP address + quotes).
+  * @param  size of p_Src buffer.
   * @param  p_Dst ptr to Destination Buffer !!! this buffer has to be defined
   *               with buffer[MAX_IP_ADDR_SIZE] !!!
   * @retval at_status_t.
@@ -310,9 +251,9 @@ void atcm_extract_IP_address(const uint8_t *p_Src, uint16_t size, uint8_t *p_Dst
 }
 
 /**
-  * @brief  Selection of the SIM slot to use
-  * @param  sim
-  * @retval at_status_t
+  * @brief  Selection of the SIM slot to use.
+  * @param  sim SIM slot.
+  * @retval at_status_t.
   */
 at_status_t atcm_select_hw_simslot(CS_SimSlot_t sim)
 {
@@ -353,7 +294,7 @@ at_status_t atcm_select_hw_simslot(CS_SimSlot_t sim)
 
 /**
   * @brief  Get conf_ig in current SID context (interpret default if needed)
-  * @param  p_modem_ctxt
+  * @param  p_modem_ctxt Pointer to modem context.
   * @retval CS_PDN_conf_id_t
   */
 CS_PDN_conf_id_t atcm_get_cid_current_SID(atcustom_modem_context_t *p_modem_ctxt)
@@ -371,12 +312,11 @@ CS_PDN_conf_id_t atcm_get_cid_current_SID(atcustom_modem_context_t *p_modem_ctxt
   return (current_conf_id);
 }
 
-/* functions ------------------------------------------------------------------ */
 /**
   * @brief  Search command string corresponding to a command Id
   *
-  * @param  p_modem_ctxt modem context
-  * @param  cmd_id Id of the command to find
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  cmd_id Id of the command to find.
   * @retval string of the command name
   */
 const AT_CHAR_t *atcm_get_CmdStr(const atcustom_modem_context_t *p_modem_ctxt, uint32_t cmd_id)
@@ -406,7 +346,7 @@ const AT_CHAR_t *atcm_get_CmdStr(const atcustom_modem_context_t *p_modem_ctxt, u
 /**
   * @brief  Search timeout corresponding to a command Id
   *
-  * @param  p_modem_ctxt modem context
+  * @param  p_modem_ctxt Pointer to modem context.
   * @param  cmd_id Id of the command to find
   * @retval timeout for this command
   */
@@ -437,7 +377,7 @@ uint32_t atcm_get_CmdTimeout(const atcustom_modem_context_t *p_modem_ctxt, uint3
 /**
   * @brief  Search Build Function corresponding to a command Id
   *
-  * @param  p_modem_ctxt modem context
+  * @param  p_modem_ctxt Pointer to modem context.
   * @param  cmd_id Id of the command to find
   * @retval BuildFunction
   */
@@ -467,7 +407,7 @@ CmdBuildFuncTypeDef atcm_get_CmdBuildFunc(const atcustom_modem_context_t *p_mode
 /**
   * @brief  Search Analyze Function corresponding to a command Id
   *
-  * @param  p_modem_ctxt modem context
+  * @param  p_modem_ctxt Pointer to modem context.
   * @param  cmd_id Id of the command to find
   * @retval AnalyzeFunction
   */
@@ -503,7 +443,9 @@ const AT_CHAR_t *atcm_get_PDPtypeStr(CS_PDPtype_t pdp_type)
 {
   const AT_CHAR_t *retval = ((uint8_t *)"");
 
-  /* LUT: correspondence between PDPTYPE enum and string (for CGDCONT) */
+  /* LUT definition:
+   * correspondence between PDPTYPE enum and string (for CGDCONT)
+   */
   static const atcm_pdp_type_LUT_t ACTM_PDP_TYPE_LUT[] =
   {
     {CS_PDPTYPE_IP,     "IP"},
@@ -528,14 +470,12 @@ const AT_CHAR_t *atcm_get_PDPtypeStr(CS_PDPtype_t pdp_type)
   return (retval);
 }
 
-/* --------------------------------------------------------------------------------------------------------- */
-
 /**
   * @brief  Program an AT command: answer is mandatory, an error will be raised if no answer received before timeout
-  * @param  p_modem_ctxt
-  * @param  p_atp_ctxt
-  * @param  cmd_type
-  * @param  final
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  p_atp_ctxt Pointer to parser context.
+  * @param  cmd_type Type of AT command.
+  * @param  final Indicates it this is the last command for current Service ID.
   * @retval none
   */
 void atcm_program_AT_CMD(atcustom_modem_context_t *p_modem_ctxt,
@@ -550,7 +490,7 @@ void atcm_program_AT_CMD(atcustom_modem_context_t *p_modem_ctxt,
   p_atp_ctxt->current_atcmd.id = cmd_id;
   /* is it final command ? */
   p_atp_ctxt->is_final_cmd = (final == FINAL_CMD) ? 1U : 0U;
-  /* an answer is expected */
+  /* is an answer is expected ? */
   p_atp_ctxt->answer_expected = CMD_MANDATORY_ANSWER_EXPECTED;
 
   /* set command timeout according to LUT */
@@ -559,10 +499,10 @@ void atcm_program_AT_CMD(atcustom_modem_context_t *p_modem_ctxt,
 
 /**
   * @brief  Program an AT command: answer is optional, no error will be raised if no answer received before timeout
-  * @param  p_modem_ctxt
-  * @param  p_atp_ctxt
-  * @param  cmd_type
-  * @param  final
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  p_atp_ctxt Pointer to parser context.
+  * @param  cmd_type Type of AT command.
+  * @param  final Indicates it this is the last command for current Service ID.
   * @retval none
   */
 void atcm_program_AT_CMD_ANSWER_OPTIONAL(atcustom_modem_context_t *p_modem_ctxt,
@@ -577,7 +517,7 @@ void atcm_program_AT_CMD_ANSWER_OPTIONAL(atcustom_modem_context_t *p_modem_ctxt,
   p_atp_ctxt->current_atcmd.id = cmd_id;
   /* is it final command ? */
   p_atp_ctxt->is_final_cmd = (final == FINAL_CMD) ? 1U : 0U;
-  /* an answer is expected */
+  /* is an answer is expected ? */
   p_atp_ctxt->answer_expected = CMD_OPTIONAL_ANSWER_EXPECTED;
 
   /* set command timeout according to LUT */
@@ -586,8 +526,8 @@ void atcm_program_AT_CMD_ANSWER_OPTIONAL(atcustom_modem_context_t *p_modem_ctxt,
 
 /**
   * @brief  Allow to specify a command timeout different from the default one.
-  * @param  p_modem_ctxt
-  * @param  new_timeout
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  new_timeout Timeout to apply for the command.
   * @retval none
   */
 void atcm_program_CMD_TIMEOUT(atcustom_modem_context_t *p_modem_ctxt,
@@ -601,39 +541,50 @@ void atcm_program_CMD_TIMEOUT(atcustom_modem_context_t *p_modem_ctxt,
   }
   else
   {
+    /* set timeout value to provided value */
     p_atp_ctxt->cmd_timeout = new_timeout;
   }
 }
 
 /**
   * @brief  Program an event to wait: if event does not occur before the specified time, an error will be raised
-  * @param  p_atp_ctxt
-  * @param  tempo_value
-  * @param  final
+  * @param  p_atp_ctxt Pointer to parser context.
+  * @param  tempo_value Timeout value to apply.
+  * @param  final Indicates it this is the last command for current Service ID.
   * @retval none
   */
 void atcm_program_WAIT_EVENT(atparser_context_t *p_atp_ctxt, uint32_t tempo_value, atcustom_FinalCmd_t final)
 {
+  /* command type */
   p_atp_ctxt->current_atcmd.type = ATTYPE_NO_CMD;
+  /* command id */
   p_atp_ctxt->current_atcmd.id = CMD_AT_INVALID;
+  /* is it final command ? */
   p_atp_ctxt->is_final_cmd = (final == FINAL_CMD) ? 1U : 0U;
+  /* is an answer is expected ? */
   p_atp_ctxt->answer_expected = CMD_MANDATORY_ANSWER_EXPECTED;
+  /* set command timeout */
   p_atp_ctxt->cmd_timeout = tempo_value;
 }
 
 /**
   * @brief  Program a tempo: nothing special expected, if no event there is no error raised
-  * @param  p_atp_ctxt
-  * @param  tempo_value
-  * @param  final
+  * @param  p_atp_ctxt Pointer to parser context.
+  * @param  tempo_value Timeout to apply for the command.
+  * @param  final Indicates it this is the last command for current Service ID.
   * @retval none
   */
 void atcm_program_TEMPO(atparser_context_t *p_atp_ctxt, uint32_t tempo_value, atcustom_FinalCmd_t final)
 {
+  /* command type */
   p_atp_ctxt->current_atcmd.type = ATTYPE_NO_CMD;
+  /* command id */
   p_atp_ctxt->current_atcmd.id = CMD_AT_INVALID;
+  /* is it final command ? */
   p_atp_ctxt->is_final_cmd = (final == FINAL_CMD) ? 1U : 0U;
+  /* is an answer is expected ? */
   p_atp_ctxt->answer_expected = CMD_OPTIONAL_ANSWER_EXPECTED;
+  /* set command timeout */
   p_atp_ctxt->cmd_timeout = tempo_value;
 
   PRINT_INFO("Tempo started (%ld ms)...", tempo_value)
@@ -641,36 +592,45 @@ void atcm_program_TEMPO(atparser_context_t *p_atp_ctxt, uint32_t tempo_value, at
 
 /**
   * @brief  No command to send: nothing to send or to wait, last command
-  * @param  p_atp_ctxt
+  * @param  p_atp_ctxt Pointer to parser context.
   * @retval none
   */
 void atcm_program_NO_MORE_CMD(atparser_context_t *p_atp_ctxt)
 {
+  /* command type */
   p_atp_ctxt->current_atcmd.type = ATTYPE_NO_CMD;
+  /* command id */
   p_atp_ctxt->current_atcmd.id = CMD_AT_INVALID;
+  /* is it final command ? */
   p_atp_ctxt->is_final_cmd = 1U;
+  /* is an answer is expected ? */
   p_atp_ctxt->answer_expected = CMD_OPTIONAL_ANSWER_EXPECTED;
+  /* set command timeout */
   p_atp_ctxt->cmd_timeout = 0U;
 }
 
 /**
   * @brief  Skip command to send: nothing to send or to wait, not the last command
-  * @param  p_atp_ctxt
+  * @param  p_atp_ctxt Pointer to parser context.
   * @retval none
   */
 void atcm_program_SKIP_CMD(atparser_context_t *p_atp_ctxt)
 {
+  /* command type */
   p_atp_ctxt->current_atcmd.type = ATTYPE_NO_CMD;
+  /* command id */
   p_atp_ctxt->current_atcmd.id = CMD_AT_INVALID;
+  /* is it final command ? */
   p_atp_ctxt->is_final_cmd = 0U;
+  /* is an answer is expected ? */
   p_atp_ctxt->answer_expected = CMD_OPTIONAL_ANSWER_EXPECTED;
+  /* set command timeout */
   p_atp_ctxt->cmd_timeout = 0U;
 }
 
-/* --------------------------------------------------------------------------------------------------------- */
 /**
   * @brief  atcm_modem_init
-  * @param  p_modem_ctxt
+  * @param  p_modem_ctxt Pointer to modem context.
   * @retval none
   */
 void atcm_modem_init(atcustom_modem_context_t *p_modem_ctxt)
@@ -687,7 +647,7 @@ void atcm_modem_init(atcustom_modem_context_t *p_modem_ctxt)
 
 /**
   * @brief  atcm_modem_reset
-  * @param  p_modem_ctxt
+  * @param  p_modem_ctxt Pointer to modem context.
   * @retval none
   */
 void atcm_modem_reset(atcustom_modem_context_t *p_modem_ctxt)
@@ -703,9 +663,9 @@ void atcm_modem_reset(atcustom_modem_context_t *p_modem_ctxt)
 
 /**
   * @brief  atcm_modem_build_cmd
-  * @param  p_modem_ctxt
-  * @param  p_atp_ctxt
-  * @param  p_ATcmdTimeout
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  p_atp_ctxt Pointer to parser context.
+  * @param  p_ATcmdTimeout Pointer to Timetout value defined for this command.
   * @retval at_status_t
   */
 at_status_t atcm_modem_build_cmd(atcustom_modem_context_t *p_modem_ctxt,
@@ -760,14 +720,14 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
 {
   at_status_t retval = ATSTATUS_OK;
 
-  /* prepare response for a SID
+  /* prepare response buffer for a SID
   *  all common behaviors for SID which are returning data in rsp_buf have to be implemented here
   */
 
   switch (p_atp_ctxt->current_SID)
   {
     case SID_CS_GET_ATTACHSTATUS:
-      /* PACK data to response buffer */
+      /* Prepare response buffer to send back to Cellular Service */
       if (DATAPACK_writeStruct(p_rsp_buf,
                                (uint16_t) CSMT_ATTACHSTATUS,
                                (uint16_t) sizeof(CS_PSattach_t),
@@ -779,7 +739,7 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
       break;
 
     case SID_CS_RECEIVE_DATA:
-      /* PACK data to response buffer */
+      /* Prepare response buffer to send back to Cellular Service */
       if (DATAPACK_writeStruct(p_rsp_buf,
                                (uint16_t) CSMT_SOCKET_RXDATA,
                                (uint16_t) sizeof(uint32_t),
@@ -792,6 +752,7 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
 
     case SID_CS_RECEIVE_DATA_FROM:
     {
+      /* Initialize the local data structure used to create response buffer */
       csint_socket_rxdata_from_t  rxdata_from;
       (void) memset((void *)&rxdata_from, 0, sizeof(csint_socket_rxdata_from_t));
       /* recopy info received */
@@ -800,6 +761,7 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
                     (void *)p_modem_ctxt->socket_ctxt.socketReceivedata.ip_addr_value,
                     strlen((CRC_CHAR_t *)p_modem_ctxt->socket_ctxt.socketReceivedata.ip_addr_value));
       rxdata_from.remote_port = p_modem_ctxt->socket_ctxt.socketReceivedata.remote_port;
+      /* Prepare response buffer to send back to Cellular Service */
       if (DATAPACK_writeStruct(p_rsp_buf,
                                (uint16_t) CSMT_SOCKET_RXDATA_FROM,
                                (uint16_t) sizeof(csint_socket_rxdata_from_t),
@@ -817,7 +779,7 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
       p_modem_ctxt->SID_ctxt.read_operator_infos.EPS_NetworkRegState = p_modem_ctxt->persist.eps_network_state;
       p_modem_ctxt->SID_ctxt.read_operator_infos.GPRS_NetworkRegState = p_modem_ctxt->persist.gprs_network_state;
       p_modem_ctxt->SID_ctxt.read_operator_infos.CS_NetworkRegState = p_modem_ctxt->persist.cs_network_state;
-      /* PACK data to response buffer */
+      /* Prepare response buffer to send back to Cellular Service */
       if (DATAPACK_writeStruct(p_rsp_buf,
                                (uint16_t) CSMT_REGISTRATIONSTATUS,
                                (uint16_t) sizeof(CS_RegistrationStatus_t),
@@ -831,12 +793,13 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
     case SID_CS_GET_IP_ADDRESS:
     {
       CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
+      /* Initialize the local data structure used to create response buffer */
       csint_ip_addr_info_t ip_addr_info;
       (void) memset((void *)&ip_addr_info, 0, sizeof(csint_ip_addr_info_t));
       /* retrieve IP infos for request config_id */
       atcm_get_IP_address_infos(&p_modem_ctxt->persist, current_conf_id, &ip_addr_info);
       PRINT_DBG("retrieve IP address for cid %d = %s", current_conf_id, ip_addr_info.ip_addr_value)
-      /* PACK data to response buffer */
+      /* Prepare response buffer to send back to Cellular Service */
       if (DATAPACK_writeStruct(p_rsp_buf,
                                (uint16_t) CSMT_GET_IP_ADDRESS,
                                (uint16_t) sizeof(csint_ip_addr_info_t),
@@ -850,7 +813,7 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
 
     case SID_CS_SIM_GENERIC_ACCESS:
     {
-      /* recopy info received for cellular service in p_rsp_buf */
+      /* Prepare response buffer to send back to Cellular Service */
       if (DATAPACK_writeStruct(p_rsp_buf,
                                (uint16_t) CSMT_SIM_GENERIC_ACCESS,
                                (uint16_t) sizeof(csint_sim_generic_access_t),
@@ -894,6 +857,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
   if (p_modem_ctxt->persist.urc_avail_eps_network_registration == AT_TRUE)
   {
     PRINT_DBG("urc_avail_eps_network_registration")
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_EPS_NETWORK_REGISTRATION_STATUS,
                              (uint16_t) sizeof(CS_NetworkRegState_t),
@@ -909,6 +873,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
   else if (p_modem_ctxt->persist.urc_avail_gprs_network_registration == AT_TRUE)
   {
     PRINT_DBG("urc_avail_gprs_network_registration")
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_GPRS_NETWORK_REGISTRATION_STATUS,
                              (uint16_t) sizeof(CS_NetworkRegState_t),
@@ -924,6 +889,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
   else if (p_modem_ctxt->persist.urc_avail_cs_network_registration == AT_TRUE)
   {
     PRINT_DBG("urc_avail_cs_network_registration")
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_CS_NETWORK_REGISTRATION_STATUS,
                              (uint16_t) sizeof(CS_NetworkRegState_t),
@@ -941,6 +907,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
   {
     PRINT_DBG("urc_avail_eps_location_info_tac or urc_avail_eps_location_info_ci")
 
+    /* Initialize the local data structure used to create response buffer */
     csint_location_info_t loc_struct = { .ci_updated = CELLULAR_FALSE, .lac_updated = CELLULAR_FALSE, };
     if (p_modem_ctxt->persist.urc_avail_eps_location_info_tac == AT_TRUE)
     {
@@ -952,6 +919,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
       loc_struct.ci = p_modem_ctxt->persist.eps_location_info.ci;
       loc_struct.ci_updated = CELLULAR_TRUE;
     }
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_EPS_LOCATION_INFO,
                              (uint16_t) sizeof(csint_location_info_t),
@@ -976,6 +944,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
   {
     PRINT_DBG("urc_avail_gprs_location_info_tac or urc_avail_gprs_location_info_ci")
 
+    /* Initialize the local data structure used to create response buffer */
     csint_location_info_t loc_struct = { .ci_updated = CELLULAR_FALSE, .lac_updated = CELLULAR_FALSE, };
     if (p_modem_ctxt->persist.urc_avail_gprs_location_info_lac == AT_TRUE)
     {
@@ -987,6 +956,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
       loc_struct.ci = p_modem_ctxt->persist.gprs_location_info.ci;
       loc_struct.ci_updated = CELLULAR_TRUE;
     }
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_GPRS_LOCATION_INFO,
                              (uint16_t) sizeof(csint_location_info_t),
@@ -1011,6 +981,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
   {
     PRINT_DBG("urc_avail_cs_location_info_lac or urc_avail_cs_location_info_ci")
 
+    /* Initialize the local data structure used to create response buffer */
     csint_location_info_t loc_struct = { .ci_updated = CELLULAR_FALSE, .lac_updated = CELLULAR_FALSE, };
     if (p_modem_ctxt->persist.urc_avail_cs_location_info_lac == AT_TRUE)
     {
@@ -1022,6 +993,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
       loc_struct.ci = p_modem_ctxt->persist.cs_location_info.ci;
       loc_struct.ci_updated = CELLULAR_TRUE;
     }
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_CS_LOCATION_INFO,
                              (uint16_t) sizeof(csint_location_info_t),
@@ -1045,9 +1017,11 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
   {
     PRINT_DBG("urc_avail_signal_quality")
 
+    /* Initialize the local data structure used to create response buffer */
     CS_SignalQuality_t signal_quality_struct;
     signal_quality_struct.rssi = p_modem_ctxt->persist.signal_quality.rssi;
     signal_quality_struct.ber = p_modem_ctxt->persist.signal_quality.ber;
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_SIGNAL_QUALITY,
                              (uint16_t) sizeof(CS_SignalQuality_t),
@@ -1059,11 +1033,15 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag  (systematically to avoid never ending URC) */
     p_modem_ctxt->persist.urc_avail_signal_quality = AT_FALSE;
   }
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  /* URC for Pending Socket Data */
   else if (p_modem_ctxt->persist.urc_avail_socket_data_pending == AT_TRUE)
   {
     PRINT_DBG("urc_avail_socket_data_pending")
 
+    /* Initialize the local data structure used to create response buffer */
     socket_handle_t sockHandle = atcm_socket_get_hdle_urc_data_pending(p_modem_ctxt);
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_SOCKET_DATA_PENDING,
                              (uint16_t) sizeof(socket_handle_t),
@@ -1075,11 +1053,14 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag if no more socket data pending */
     p_modem_ctxt->persist.urc_avail_socket_data_pending = atcm_socket_remaining_urc_data_pending(p_modem_ctxt);
   }
+  /* URC for Socket Closed by Remote */
   else if (p_modem_ctxt->persist.urc_avail_socket_closed_by_remote == AT_TRUE)
   {
     PRINT_DBG("urc_avail_socket_closed_by_remote")
 
-    socket_handle_t sockHandle = atcm_socket_get_hdlr_urc_closed_by_remote(p_modem_ctxt);
+    /* Initialize the local data structure used to create response buffer */
+    socket_handle_t sockHandle = atcm_socket_get_hdle_urc_closed_by_remote(p_modem_ctxt);
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_SOCKET_CLOSED,
                              (uint16_t) sizeof(socket_handle_t),
@@ -1091,6 +1072,8 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag if no more socket data pending */
     p_modem_ctxt->persist.urc_avail_socket_closed_by_remote = atcm_socket_remaining_urc_closed_by_remote(p_modem_ctxt);
   }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
+  /* URC for PDN event */
   else if (p_modem_ctxt->persist.urc_avail_pdn_event == AT_TRUE)
   {
     PRINT_DBG("urc_avail_pdn_event")
@@ -1108,6 +1091,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
           /*  we are in the case:
           *  +CGEV: NW DETACH
           */
+          /* Prepare response buffer to send back to Cellular Service */
           if (DATAPACK_writeStruct(p_rsp_buf,
                                    (uint16_t) CSMT_URC_PACKET_DOMAIN_EVENT,
                                    (uint16_t) sizeof(csint_PDN_event_desc_t),
@@ -1123,6 +1107,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
             /* we are in the case:
             *   +CGEV: NW PDN DEACT <cid>[,<WLAN_Offload>]
             */
+            /* Prepare response buffer to send back to Cellular Service */
             if (DATAPACK_writeStruct(p_rsp_buf,
                                      (uint16_t) CSMT_URC_PACKET_DOMAIN_EVENT,
                                      (uint16_t) sizeof(csint_PDN_event_desc_t),
@@ -1136,6 +1121,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
             /* we are in the case:
             *   +CGEV: NW DEACT <PDP_type>, <PDP_addr>, [<cid>]
             */
+            /* Prepare response buffer to send back to Cellular Service */
             if (DATAPACK_writeStruct(p_rsp_buf,
                                      (uint16_t) CSMT_URC_PACKET_DOMAIN_EVENT,
                                      (uint16_t) sizeof(csint_PDN_event_desc_t),
@@ -1162,10 +1148,11 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     reset_pdn_event(&p_modem_ctxt->persist);
     p_modem_ctxt->persist.urc_avail_pdn_event = AT_FALSE;
   }
-  /* PING response */
+  /* URC for PING response */
   else if (p_modem_ctxt->persist.urc_avail_ping_rsp == AT_TRUE)
   {
     PRINT_DBG("urc_avail_ping_rsp")
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_PING_RSP,
                              (uint16_t) sizeof(CS_Ping_response_t),
@@ -1177,15 +1164,17 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag (systematically to avoid never ending URC) */
     p_modem_ctxt->persist.urc_avail_ping_rsp = AT_FALSE;
   }
-  /* Sim refresh event */
+  /* URC for Sim refresh event */
   else if (p_modem_ctxt->persist.urc_avail_sim_refresh_event == AT_TRUE)
   {
     PRINT_DBG("urc_avail_sim_refresh_event")
 
+    /* Initialize the local data structure used to create response buffer */
     CS_SimEvent_status_t sim_status_struct;
     (void) memcpy((void *)&sim_status_struct,
                   (void *)&p_modem_ctxt->persist.sim_refresh_infos,
                   sizeof(CS_SimEvent_status_t));
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_SIM_EVENT,
                              (uint16_t) sizeof(CS_SimEvent_status_t),
@@ -1197,15 +1186,17 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag (systematically to avoid never ending URC) */
     p_modem_ctxt->persist.urc_avail_sim_refresh_event = AT_FALSE;
   }
-  /* Sim detect event */
+  /* URC for Sim detect event */
   else if (p_modem_ctxt->persist.urc_avail_sim_detect_event == AT_TRUE)
   {
     PRINT_DBG("urc_avail_sim_detect_event")
 
+    /* Initialize the local data structure used to create response buffer */
     CS_SimEvent_status_t sim_status_struct;
     (void) memcpy((void *)&sim_status_struct,
                   (void *)&p_modem_ctxt->persist.sim_detect_infos,
                   sizeof(CS_SimEvent_status_t));
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_SIM_EVENT,
                              (uint16_t) sizeof(CS_SimEvent_status_t),
@@ -1217,15 +1208,17 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag (systematically to avoid never ending URC) */
     p_modem_ctxt->persist.urc_avail_sim_detect_event = AT_FALSE;
   }
-  /* Sim state event */
+  /* URC for Sim state event */
   else if (p_modem_ctxt->persist.urc_avail_sim_state_event == AT_TRUE)
   {
     PRINT_DBG("urc_avail_sim_state_event")
 
+    /* Initialize the local data structure used to create response buffer */
     CS_SimEvent_status_t sim_status_struct;
     (void) memcpy((void *)&sim_status_struct,
                   (void *)&p_modem_ctxt->persist.sim_state,
                   sizeof(CS_SimEvent_status_t));
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_SIM_EVENT,
                              (uint16_t) sizeof(CS_SimEvent_status_t),
@@ -1237,14 +1230,16 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag (systematically to avoid never ending URC) */
     p_modem_ctxt->persist.urc_avail_sim_state_event = AT_FALSE;
   }
-  /* Low Power status event */
+  /* URC for Low Power status event */
   else if (p_modem_ctxt->persist.urc_avail_lp_status == AT_TRUE)
   {
     PRINT_DBG("urc_avail_lp_status")
 
+    /* Initialize the local data structure used to create response buffer */
     CS_LowPower_status_t lp_status_struct;
     lp_status_struct.nwk_periodic_TAU = p_modem_ctxt->persist.low_power_status.nwk_periodic_TAU;
     lp_status_struct.nwk_active_time = p_modem_ctxt->persist.low_power_status.nwk_active_time;
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_LP_STATUS_EVENT,
                              (uint16_t) sizeof(CS_LowPower_status_t),
@@ -1256,9 +1251,11 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag (systematically to avoid never ending URC) */
     p_modem_ctxt->persist.urc_avail_lp_status = AT_FALSE;
   }
+  /* URC for Modem event */
   else if (p_modem_ctxt->persist.urc_avail_modem_events != CS_MDMEVENT_NONE)
   {
     PRINT_DBG("urc_avail_modem_events")
+    /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
                              (uint16_t) CSMT_URC_MODEM_EVENT,
                              (uint16_t) sizeof(CS_ModemEvent_t),
@@ -1276,7 +1273,9 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     retval = ATSTATUS_ERROR;
   }
 
-  /* still some pending URC ? */
+  /* Check if there are still some pending URC.
+   * If still some pending URC, return the information to caller.
+   */
   if ((p_modem_ctxt->persist.urc_avail_eps_network_registration == AT_TRUE) ||
       (p_modem_ctxt->persist.urc_avail_gprs_network_registration == AT_TRUE) ||
       (p_modem_ctxt->persist.urc_avail_gprs_location_info_lac == AT_TRUE) ||
@@ -1297,6 +1296,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
       (p_modem_ctxt->persist.urc_avail_sim_state_event == AT_TRUE) ||
       (p_modem_ctxt->persist.urc_avail_modem_events != CS_MDMEVENT_NONE))
   {
+    /* there is at least one pending URC */
     retval = ATSTATUS_OK_PENDING_URC;
   }
 
@@ -1318,7 +1318,7 @@ at_status_t atcm_modem_get_error(atcustom_modem_context_t *p_modem_ctxt,
   UNUSED(p_atp_ctxt);
   at_status_t retval = ATSTATUS_OK;
 
-  /* prepare error report */
+  /* prepare error report to send back to Cellular Service */
   if (DATAPACK_writeStruct(p_rsp_buf,
                            (uint16_t) CSMT_ERROR_REPORT,
                            (uint16_t) sizeof(csint_error_report_t),
@@ -1332,6 +1332,7 @@ at_status_t atcm_modem_get_error(atcustom_modem_context_t *p_modem_ctxt,
 
 /**
   * @brief  atcm_subscribe_net_event
+  * @note   Subscribe to a network event.
   * @param  p_modem_ctxt  pointer to modem context
   * @param  p_atp_ctxt    pointer to parser context
   * @retval at_status_t
@@ -1445,6 +1446,7 @@ at_status_t atcm_subscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, atp
 
 /**
   * @brief  atcm_unsubscribe_net_event
+  * @note   Unsubscribe to a network event previoulsy subscribed.
   * @param  p_modem_ctxt  pointer to modem context
   * @param  p_atp_ctxt    pointer to parser context
   * @retval at_status_t
@@ -1567,7 +1569,7 @@ void atcm_validate_ping_request(atcustom_modem_context_t *p_modem_ctxt)
 /**
   * @brief  atcm_modem_event_received
   * @param  p_modem_ctxt  pointer to modem context
-  * @param  mdm_evt
+  * @param  mdm_evt Modem event.
   * @retval at_bool_t
   */
 at_bool_t atcm_modem_event_received(atcustom_modem_context_t *p_modem_ctxt, CS_ModemEvent_t mdm_evt)
@@ -1587,7 +1589,8 @@ at_bool_t atcm_modem_event_received(atcustom_modem_context_t *p_modem_ctxt, CS_M
 
 /**
   * @brief  atcm_reset_persistent_context
-  * @param  p_persistent_ctxt
+  * @note   Reset the persistent context.
+  * @param  p_persistent_ctxt Pointer to persistent context.
   * @retval none
   */
 void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_ctxt)
@@ -1678,6 +1681,7 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
                                                      * if a modem does not support this range => need to adapt */
     p_tmp->socket_connected = AT_FALSE;
     p_tmp->socket_data_pending_urc = AT_FALSE;
+    p_tmp->socket_data_available = AT_FALSE;
     p_tmp->socket_closed_pending_urc = AT_FALSE;
   }
 
@@ -1716,7 +1720,8 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
 
 /**
   * @brief  atcm_reset_SID_context
-  * @param  p_sid_ctxt
+  * @note   Reset the current Service ID (SID) context.
+  * @param  p_sid_ctxt Pointer to Service ID (SID) context.
   * @retval none
   */
 void atcm_reset_SID_context(atcustom_SID_context_t *p_sid_ctxt)
@@ -1743,10 +1748,10 @@ void atcm_reset_SID_context(atcustom_SID_context_t *p_sid_ctxt)
   p_sid_ctxt->modem_init.reset = CELLULAR_FALSE;
   (void) memset((void *)&p_sid_ctxt->modem_init.pincode.pincode, 0, sizeof(csint_pinCode_t));
 
-  p_sid_ctxt->device_info = NULL;
-  p_sid_ctxt->signal_quality = NULL;
-  p_sid_ctxt->dns_request_infos = NULL;
-  p_sid_ctxt->direct_cmd_tx = NULL;
+  p_sid_ctxt->p_device_info = NULL;
+  p_sid_ctxt->p_signal_quality = NULL;
+  p_sid_ctxt->p_dns_request_infos = NULL;
+  p_sid_ctxt->p_direct_cmd_tx = NULL;
   p_sid_ctxt->sim_generic_access.data = NULL;
   p_sid_ctxt->sim_generic_access.bytes_received = 0U;
 
@@ -1767,7 +1772,8 @@ void atcm_reset_SID_context(atcustom_SID_context_t *p_sid_ctxt)
 
 /**
   * @brief  atcm_reset_CMD_context
-  * @param  p_cmd_ctxt
+  * @note   Reset the current AT command context.
+  * @param  p_cmd_ctxt Pointer to AT command context.
   * @retval none
   */
 void atcm_reset_CMD_context(atcustom_CMD_context_t *p_cmd_ctxt)
@@ -1792,14 +1798,15 @@ void atcm_reset_CMD_context(atcustom_CMD_context_t *p_cmd_ctxt)
 
 /**
   * @brief  atcm_reset_SOCKET_context
-  * @param  p_modem_ctxt
+  * @note   Reset the current Socket context.
+  * @param  p_modem_ctxt Pointer to modem context.
   * @retval none
   */
 void atcm_reset_SOCKET_context(atcustom_modem_context_t *p_modem_ctxt)
 {
   PRINT_API("enter atcm_reset_SOCKET_context()")
 
-  p_modem_ctxt->socket_ctxt.socket_info = NULL;
+  p_modem_ctxt->socket_ctxt.p_socket_info = NULL;
   (void) memset((void *)&p_modem_ctxt->socket_ctxt.socketReceivedata, 0, sizeof(csint_socket_data_buffer_t));
   p_modem_ctxt->socket_ctxt.socket_current_connId = 0U;
   p_modem_ctxt->socket_ctxt.socket_rx_expected_buf_size = 0U;
@@ -1812,9 +1819,11 @@ void atcm_reset_SOCKET_context(atcustom_modem_context_t *p_modem_ctxt)
 
 /**
   * @brief  atcm_searchCmdInLUT
-  * @param  p_modem_ctxt
-  * @param  p_atp_ctxt
-  * @param  p_msg_in
+  * @note   Search if the received AT command exists in the modem LookUp table (LUT)
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  p_atp_ctxt Pointer to parser context.
+  * @param  p_msg_in Buffer which contains the received AT command.
+  * @param  element_infos Pointer to buffer with information about current element.
   * @retval at_status_t
   */
 at_status_t atcm_searchCmdInLUT(atcustom_modem_context_t *p_modem_ctxt,
@@ -1870,9 +1879,10 @@ at_status_t atcm_searchCmdInLUT(atcustom_modem_context_t *p_modem_ctxt,
 
 /**
   * @brief  atcm_check_text_line_cmd
-  * @param  p_modem_ctxt
-  * @param  p_atp_ctxt
-  * @param  p_msg_in
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  p_atp_ctxt Pointer to parser context.
+  * @param  p_msg_in Buffer which contains the received AT command.
+  * @param  element_infos Pointer to buffer with information about current element.
   * @retval at_action_rsp_t
   */
 at_action_rsp_t atcm_check_text_line_cmd(atcustom_modem_context_t *p_modem_ctxt,
@@ -1968,8 +1978,8 @@ at_action_rsp_t atcm_check_text_line_cmd(atcustom_modem_context_t *p_modem_ctxt,
 
 /**
   * @brief  atcm_searchCmdInLUT
-  * @param  p_modem_ctxt
-  * @param  p_atp_ctxt
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  p_atp_ctxt Pointer to parser context.
   * @retval at_status_t
   */
 at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt, atparser_context_t *p_atp_ctxt)
@@ -2007,7 +2017,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         /* retrieve pointer on client structure */
         if (DATAPACK_readPtr(p_atp_ctxt->p_cmd_input,
                              (uint16_t) CSMT_DEVICE_INFO,
-                             (void **)&p_modem_ctxt->SID_ctxt.device_info) != DATAPACK_OK)
+                             (void **)&p_modem_ctxt->SID_ctxt.p_device_info) != DATAPACK_OK)
         {
           retval = ATSTATUS_ERROR;
         }
@@ -2017,7 +2027,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         /* retrieve pointer on client structure */
         if (DATAPACK_readPtr(p_atp_ctxt->p_cmd_input,
                              (uint16_t) CSMT_SIGNAL_QUALITY,
-                             (void **)&p_modem_ctxt->SID_ctxt.signal_quality) != DATAPACK_OK)
+                             (void **)&p_modem_ctxt->SID_ctxt.p_signal_quality) != DATAPACK_OK)
         {
           retval = ATSTATUS_ERROR;
         }
@@ -2060,7 +2070,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         /* retrieve pointer on client structure */
         if (DATAPACK_readPtr(p_atp_ctxt->p_cmd_input,
                              (uint16_t) CSMT_SOCKET_INFO,
-                             (void **)&p_modem_ctxt->socket_ctxt.socket_info) != DATAPACK_OK)
+                             (void **)&p_modem_ctxt->socket_ctxt.p_socket_info) != DATAPACK_OK)
         {
           retval = ATSTATUS_ERROR;
         }
@@ -2093,7 +2103,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         /* retrieve pointer on client structure */
         if (DATAPACK_readPtr(p_atp_ctxt->p_cmd_input,
                              (uint16_t) CSMT_SOCKET_INFO,
-                             (void **)&p_modem_ctxt->socket_ctxt.socket_info) != DATAPACK_OK)
+                             (void **)&p_modem_ctxt->socket_ctxt.p_socket_info) != DATAPACK_OK)
         {
           retval = ATSTATUS_ERROR;
         }
@@ -2182,10 +2192,10 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         /* retrieve pointer on client structure */
         if (DATAPACK_readPtr(p_atp_ctxt->p_cmd_input,
                              (uint16_t) CSMT_DNS_REQ,
-                             (void **)&p_modem_ctxt->SID_ctxt.dns_request_infos) == DATAPACK_OK)
+                             (void **)&p_modem_ctxt->SID_ctxt.p_dns_request_infos) == DATAPACK_OK)
         {
           /* set SID ctxt pdn conf id */
-          p_modem_ctxt->SID_ctxt.pdn_conf_id = p_modem_ctxt->SID_ctxt.dns_request_infos->conf_id;
+          p_modem_ctxt->SID_ctxt.pdn_conf_id = p_modem_ctxt->SID_ctxt.p_dns_request_infos->conf_id;
         }
         else
         {
@@ -2197,7 +2207,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         /* retrieve pointer on client structure */
         if (DATAPACK_readPtr(p_atp_ctxt->p_cmd_input,
                              (uint16_t) CSMT_SOCKET_CNX_STATUS,
-                             (void **)&p_modem_ctxt->socket_ctxt.socket_cnx_infos) != DATAPACK_OK)
+                             (void **)&p_modem_ctxt->socket_ctxt.p_socket_cnx_infos) != DATAPACK_OK)
         {
           retval = ATSTATUS_ERROR;
         }
@@ -2234,7 +2244,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         /* retrieve pointer on client structure */
         if (DATAPACK_readPtr(p_atp_ctxt->p_cmd_input,
                              (uint16_t) CSMT_DIRECT_CMD,
-                             (void **)&p_modem_ctxt->SID_ctxt.direct_cmd_tx) != DATAPACK_OK)
+                             (void **)&p_modem_ctxt->SID_ctxt.p_direct_cmd_tx) != DATAPACK_OK)
         {
           retval = ATSTATUS_ERROR;
         }
@@ -2271,11 +2281,13 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
       case SID_DETACH_PS_DOMAIN:
       case SID_CS_DATA_SUSPEND:
       case SID_CS_DATA_RESUME:
+        /* no client data to retrieve */
         PRINT_DBG("No data to unpack for SID %d", p_atp_ctxt->current_SID)
         break;
 
       case SID_CS_REGISTER_PDN_EVENT:
       case SID_CS_DEREGISTER_PDN_EVENT:
+        /* no client data to retrieve */
         PRINT_DBG("No data to unpack for SID %d", p_atp_ctxt->current_SID)
         break;
 
@@ -2305,6 +2317,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
       case SID_CS_SLEEP_REQUEST:
       case SID_CS_SLEEP_COMPLETE:
       case SID_CS_SLEEP_CANCEL:
+        /* no client data to retrieve */
         PRINT_DBG("No data to unpack for SID %d", p_atp_ctxt->current_SID)
         break;
 
@@ -2345,7 +2358,7 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
 
 /**
   * @brief  Get modem cid affected to requested PDP config
-  * @param  p_persistent_ctxt
+  * @param  p_persistent_ctxt Pointer to persistent context.
   * @param  conf_id
   * @retval uint8_t affected modem CID
   */
@@ -2364,6 +2377,7 @@ uint8_t atcm_get_affected_modem_cid(atcustom_persistent_context_t *p_persistent_
 
   bool leave_loop = false;
   uint8_t i = 0U;
+  /* parse modem cid table to find matching value */
   do
   {
     const atcustom_modem_cid_table_t *p_tmp;
@@ -2382,7 +2396,7 @@ uint8_t atcm_get_affected_modem_cid(atcustom_persistent_context_t *p_persistent_
 
 /**
   * @brief  Get user Config ID corresponding to this modem cid
-  * @param  p_persistent_ctxt
+  * @param  p_persistent_ctxt Pointer to persistent context.
   * @param  modem_cid
   * @retval CS_PDN_conf_id_t
   */
@@ -2392,6 +2406,7 @@ CS_PDN_conf_id_t atcm_get_configID_for_modem_cid(const atcustom_persistent_conte
   CS_PDN_conf_id_t retval = CS_PDN_NOT_DEFINED;
   bool leave_loop = false;
   uint8_t i = 0U;
+  /* parse modem cid table to find matching value */
   do
   {
     const atcustom_modem_cid_table_t *p_tmp;
@@ -2416,6 +2431,7 @@ CS_PDN_conf_id_t atcm_get_configID_for_modem_cid(const atcustom_persistent_conte
 CS_PDN_conf_id_t atcm_convert_index_to_PDN_conf(uint8_t index)
 {
   CS_PDN_conf_id_t PDNconf;
+  /* convert provided index to a PDN configuration (enum) */
   switch (index)
   {
     case 0:
@@ -2445,7 +2461,7 @@ CS_PDN_conf_id_t atcm_convert_index_to_PDN_conf(uint8_t index)
 
 /**
   * @brief  reset_pdn_event
-  * @param  p_persistent_ctxt
+  * @param  p_persistent_ctxt Pointer to persistent context.
   * @retval none
   */
 void reset_pdn_event(atcustom_persistent_context_t *p_persistent_ctxt)
@@ -2459,7 +2475,7 @@ void reset_pdn_event(atcustom_persistent_context_t *p_persistent_ctxt)
 /**
   * @brief  atcm_report_urc_sim_event is used to report a modem SIM event
   * @note   User of this function has to fill CS_SimEvent_status_t structure
-  * @param  p_modem_ctxt
+  * @param  p_modem_ctxt Pointer to modem context.
   * @param  sim_event
   * @retval none
   */
@@ -2473,6 +2489,7 @@ void atcm_report_urc_sim_event(atcustom_modem_context_t *p_modem_ctxt, CS_SimEve
     /* recopy sim event info to the good structure */
     if (sim_event->event == CS_SIMEVENT_SIM_REFRESH)
     {
+      /* SIM REFRESH event */
       (void) memcpy((void *)&p_modem_ctxt->persist.sim_refresh_infos,
                     (void *)sim_event,
                     sizeof(CS_SimEvent_status_t));
@@ -2480,6 +2497,7 @@ void atcm_report_urc_sim_event(atcustom_modem_context_t *p_modem_ctxt, CS_SimEve
     }
     else if (sim_event->event == CS_SIMEVENT_SIM_DETECT)
     {
+      /* SIM DETECT event */
       (void) memcpy((void *)&p_modem_ctxt->persist.sim_detect_infos,
                     (void *)sim_event,
                     sizeof(CS_SimEvent_status_t));
@@ -2487,6 +2505,7 @@ void atcm_report_urc_sim_event(atcustom_modem_context_t *p_modem_ctxt, CS_SimEve
     }
     else if (sim_event->event == CS_SIMEVENT_SIM_STATE)
     {
+      /* SIM STATE event */
       (void) memcpy((void *)&p_modem_ctxt->persist.sim_state_infos,
                     (void *)sim_event,
                     sizeof(CS_SimEvent_status_t));
@@ -2494,14 +2513,18 @@ void atcm_report_urc_sim_event(atcustom_modem_context_t *p_modem_ctxt, CS_SimEve
     }
     else
     {
+      /* undefined SIM event */
       PRINT_ERR("SIM event not supported")
     }
   }
 }
 
-/*
- * Update error report that will be sent to Cellular Service
- */
+/**
+  * @brief  atcm_set_error_report is used to report a modem ERROR.
+  * @param  err_type
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @retval none
+  */
 void atcm_set_error_report(csint_error_type_t err_type, atcustom_modem_context_t *p_modem_ctxt)
 {
   p_modem_ctxt->SID_ctxt.error_report.error_type = err_type;
@@ -2517,4 +2540,108 @@ void atcm_set_error_report(csint_error_type_t err_type, atcustom_modem_context_t
       break;
   }
 }
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+
+/** @defgroup AT_CORE_COMMON_Private_Functions_Prototypes AT_CORE COMMON Private Functions Prototypes
+  * @{
+  */
+
+/**
+  * @brief  Reserve a modem modem cid (normally used only for PDN_PREDEF_CONFIG at startup time)
+  * @param  p_persistent_ctxt Pointer to persistent context.
+  * @param  conf_id
+  * @param  reserved_user_modem_cid
+  * @retval none
+  */
+static void reserve_user_modem_cid(atcustom_persistent_context_t *p_persistent_ctxt, CS_PDN_conf_id_t conf_id,
+                                   uint8_t reserved_user_modem_cid)
+{
+  /* User PDP CID and Modem CID are matching */
+  UNUSED(conf_id);
+
+  CS_PDN_conf_id_t user_pdn_conf = atcm_convert_index_to_PDN_conf(reserved_user_modem_cid);
+  /* valid only for CS_PDN_USER_CONFIG_1 to CS_PDN_USER_CONFIG_5 */
+  if ((user_pdn_conf == CS_PDN_USER_CONFIG_1) ||
+      (user_pdn_conf == CS_PDN_USER_CONFIG_2) ||
+      (user_pdn_conf == CS_PDN_USER_CONFIG_3) ||
+      (user_pdn_conf == CS_PDN_USER_CONFIG_4) ||
+      (user_pdn_conf == CS_PDN_USER_CONFIG_5))
+  {
+    bool leave_loop = false;
+    uint8_t i = 0U;
+    /* parse modem cid table to find matching value */
+    do
+    {
+      atcustom_modem_cid_table_t *p_tmp;
+      p_tmp = &p_persistent_ctxt->modem_cid_table[i];
+      if (reserved_user_modem_cid == p_tmp->mdm_cid_value)
+      {
+        /* reserve this modem cid */
+        p_tmp->pdn_defined = AT_TRUE;
+        leave_loop = true;
+      }
+      i++;
+    } while ((leave_loop == false) && (i < MODEM_MAX_NB_PDP_CTXT));
+  }
+  else
+  {
+    PRINT_ERR("Trying to affect a non-valid modem CID")
+  }
+
+  return;
+}
+
+/**
+  * @brief  Affect a modem cid to the specified user PDP config
+  * @param  p_persistent_ctxt Pointer to persistent context.
+  * @param  conf_id
+  * @retval none
+  */
+static void affect_modem_cid(atcustom_persistent_context_t *p_persistent_ctxt, CS_PDN_conf_id_t conf_id)
+{
+  /* User PDP CID and Modem CID are matching */
+
+  /* only for CS_PDN_USER_CONFIG_1 to CS_PDN_USER_CONFIG_5 */
+  if ((conf_id == CS_PDN_USER_CONFIG_1) ||
+      (conf_id == CS_PDN_USER_CONFIG_2) ||
+      (conf_id == CS_PDN_USER_CONFIG_3) ||
+      (conf_id == CS_PDN_USER_CONFIG_4) ||
+      (conf_id == CS_PDN_USER_CONFIG_5))
+  {
+    /* reserve this modem cid */
+    bool leave_loop = false;
+    uint8_t i = 0U;
+    /* parse modem cid table to find matching value */
+    do
+    {
+      atcustom_modem_cid_table_t *p_tmp;
+      p_tmp = &p_persistent_ctxt->modem_cid_table[i];
+      if (conf_id == p_tmp->affected_config)
+      {
+        /* reserve this modem cid */
+        p_tmp->pdn_defined = AT_TRUE;
+        leave_loop = true;
+      }
+      i++;
+    } while ((leave_loop == false) && (i < MODEM_MAX_NB_PDP_CTXT));
+  }
+  else
+  {
+    PRINT_ERR("Trying to affect a non-valid modem CID")
+  }
+
+  return;
+}
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */

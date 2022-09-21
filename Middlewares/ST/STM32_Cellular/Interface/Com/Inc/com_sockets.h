@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -26,10 +25,12 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
+#include "plf_config.h"
+
+#if (USE_COM_SOCKETS == 1)
+
 #include <stdint.h>
 #include <stdbool.h>
-
-#include "plf_config.h"
 
 #include "com_common.h"
 #include "com_sockets_addr_compat.h"
@@ -62,7 +63,7 @@ extern "C" {
   It is recommended for Application to call com_ping interface services in order to be
   independent of the IP selection.
 
-  To use this module define USE_COM_PING must be set to 1
+  To use this module define USE_COM_SOCKETS AND USE_COM_PING must be set to 1
 
   @endverbatim
   */
@@ -118,14 +119,14 @@ extern "C" {
   It is recommended for Application to call com_ping interface services in order to be
   independent of the IP selection.
 
-  To use this module define USE_COM_PING must be set to 1
+  To use this module define USE_COM_SOCKETS AND USE_COM_PING must be set to 1
 
   @endverbatim
   */
 
 /** @defgroup COM_PING_Functions Functions
   * @brief    PING functionalities (Create, Process and Close session)
-  *           define USE_COM_PING must be set to 1
+  *           define USE_COM_SOCKETS AND USE_COM_PING must be set to 1
   * @{
   */
 
@@ -159,6 +160,8 @@ extern "C" {
 
   It is recommended for Application to call com_sockets interface services in order to be
   independent of the IP selection.
+
+  To use this module define USE_COM_SOCKETS must be set to 1
 
   @endverbatim
   */
@@ -225,6 +228,8 @@ extern "C" {
 
   It is recommended for Application to call com_sockets interface services in order to be
   independent of the IP selection.
+
+  To use this module define USE_COM_SOCKETS must be set to 1
 
   @endverbatim
   */
@@ -485,7 +490,7 @@ int32_t com_getsockname(int32_t sock,
   It is recommended for Application to call com_ping interface services in order to be
   independent of the IP selection.
 
-  To use this module define USE_COM_PING must be set to 1
+  To use this module define USE_COM_SOCKETS AND USE_COM_PING must be set to 1
 
   @endverbatim
   */
@@ -563,6 +568,7 @@ bool com_sockets_init(void);
   */
 void com_sockets_start(void);
 
+#endif /* USE_COM_SOCKETS == 1 */
 
 
 #ifdef __cplusplus
@@ -570,5 +576,3 @@ void com_sockets_start(void);
 #endif
 
 #endif /* COM_SOCKETS_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

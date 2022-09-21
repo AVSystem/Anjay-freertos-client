@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -28,6 +27,8 @@
 #include "ppposif_ipc.h"
 #include "cellular_service_os.h"
 #include "error_handler.h"
+#include "cellular_runtime_custom.h" /* needed for crc_get_ip_addr */
+
 /* LwIP is a Third Party so MISRAC messages linked to it are ignored */
 /*cstat -MISRAC2012-* */
 #include "ppp.h"
@@ -47,62 +48,86 @@
 
 /* Functions Definition ------------------------------------------------------*/
 
-/**
-  * @brief  PPP status callback is called on PPP status change (up, down, �) from lwIP
-  * @param  pcb        pcb reference
-  * @param  err_code   error
-  * @param  pcb        user context
-  * @retval ppposif_status_cb    return status
-  */
 
 static void ppposif_err_none_mngt(ppp_pcb *pcb);
 
 static void ppposif_err_none_mngt(ppp_pcb *pcb)
 {
-#if ((USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1))
+#if (USE_TRACE_PPPOSIF == 1)
   struct netif *pppif = ppp_netif((pcb));
-#else
-  UNUSED(pcb);
-#endif  /* (USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1) */
+#else  /* USE_TRACE_PPPOSIF == 0 */
+  UNUSED(pcb); /* pcb parameter only used when trace activated */
+#endif /* USE_TRACE_PPPOSIF == 1 */
+
+#if PPP_IPV4_SUPPORT
 #if LWIP_DNS
   const ip_addr_t *ns;
+  ip_addr_t dns_addr;
+  uint8_t ip_addr[4];  /* Used to analyse DNS server address configuration */
 #endif /* LWIP_DNS */
-  /* PRINT_PPPOSIF("status_cb: Connected\n") */
+#endif /* PPP_IPV4_SUPPORT */
+
 #if PPP_IPV4_SUPPORT
+#if (USE_TRACE_PPPOSIF == 1)
   PRINT_PPPOSIF("\n\r")
   PRINT_PPPOSIF("   our_ipaddr  = %s", ipaddr_ntoa(&pppif->ip_addr))
   PRINT_PPPOSIF("   his_ipaddr  = %s", ipaddr_ntoa(&pppif->gw))
   PRINT_PPPOSIF("   netmask     = %s", ipaddr_ntoa(&pppif->netmask))
+#endif /* USE_TRACE_PPPOSIF == 1 */
 #if LWIP_DNS
   ns = dns_getserver(0U);
   if (ns->addr == 0U)
   {
-    ip_addr_t dns_addr;
-    IP_ADDR4(&dns_addr, 8, 8, 8, 8);
-    dns_setserver(0, &dns_addr);
-    ns = dns_getserver(0);
+    if ((crc_get_ip_addr(PLF_CELLULAR_DNS_SERVER_IP_ADDR, ip_addr, NULL) == 0U)
+        && (ip_addr[0] != 0U) && (ip_addr[1] != 0U) && (ip_addr[2] != 0U) && (ip_addr[3] != 0U))
+    {
+      IP_ADDR4(&dns_addr, ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
+      dns_setserver(0, &dns_addr);
+#if (USE_TRACE_PPPOSIF == 1) /* To avoid a warning because : */
+      ns = dns_getserver(0); /* update of value ns only used when trace activated */
+#endif /* USE_TRACE_PPPOSIF == 1 */
+    }
   }
-#if (USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1)
+#if (USE_TRACE_PPPOSIF == 1)
   PRINT_PPPOSIF("   dns1        = %s", ipaddr_ntoa(ns))
-#endif   /* (USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1) */
+#endif /* USE_TRACE_PPPOSIF == 1 */
   ns = dns_getserver(1U);
   if (ns->addr == 0U)
   {
-    ip_addr_t dns_addr;
-    IP_ADDR4(&dns_addr, 8, 8, 4, 4);
-    dns_setserver(1, &dns_addr);
-    ns = dns_getserver(1);
+#if defined PLF_CELLULAR_DNS_SERVER_IP_ADDR_2
+    if ((crc_get_ip_addr(PLF_CELLULAR_DNS_SERVER_IP_ADDR_2, ip_addr, NULL) == 0U)
+        && (ip_addr[0] != 0U) && (ip_addr[1] != 0U) && (ip_addr[2] != 0U) && (ip_addr[3] != 0U))
+    {
+      IP_ADDR4(&dns_addr, ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
+      dns_setserver(1, &dns_addr);
+#if (USE_TRACE_PPPOSIF == 1) /* To avoid a warning because : */
+      ns = dns_getserver(1); /* update of value ns only used when trace activated */
+#endif /* USE_TRACE_PPPOSIF == 1 */
+    }
+#else  /* !defined PLF_CELLULAR_DNS_SERVER_IP_ADDR_2 */
+    __NOP(); /* No defined value to set */
+#endif /* defined PLF_CELLULAR_DNS_SERVER_IP_ADDR_2 */
   }
-#if (USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1)
+#if (USE_TRACE_PPPOSIF == 1)
   PRINT_PPPOSIF("   dns2        = %s", ipaddr_ntoa(ns))
-#endif /* (USE_TRACE_PPPOSIF == 1) || (USE_PRINTF == 1) */
+#endif /* USE_TRACE_PPPOSIF == 1 */
 #endif /* LWIP_DNS */
 #endif /* PPP_IPV4_SUPPORT */
+
 #if PPP_IPV6_SUPPORT
+#if (USE_TRACE_PPPOSIF == 1)
   PRINT_PPPOSIF("   our6_ipaddr = %s", ip6addr_ntoa(netif_ip6_addr(pppif, 0)))
+#endif /* USE_TRACE_PPPOSIF == 1 */
 #endif /* PPP_IPV6_SUPPORT */
 }
 
+/**
+  * @brief  PPP status callback is called on PPP status change (up, down, ...) from lwIP
+  * @param  pcb        pcb reference
+  * @param  err_code   error
+  * @param  ctx        user context
+  * @retval ppposif_status_cb    return status
+  */
 void ppposif_status_cb(ppp_pcb *pcb, int32_t err_code, void *ctx)
 {
   UNUSED(ctx);
@@ -322,5 +347,3 @@ uint32_t sys_jiffies(void)
 }
 
 #endif /* USE_SOCKETS_TYPE == USE_SOCKETS_LWIP  */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

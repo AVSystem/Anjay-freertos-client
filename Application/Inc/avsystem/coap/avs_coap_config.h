@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Licensed under the AVSystem-5-clause License.
+ * See the attached LICENSE file for details.
  */
 
 #ifndef AVS_COAP_CONFIG_H
@@ -45,8 +48,7 @@
  * - @c avs_stream
  * - @c avs_utils
  * - @c avs_log (if @c WITH_AVS_COAP_LOGS is enabled)
- * - @c avs_persistence and @c avs_rbtree (if
- *   @c WITH_AVS_COAP_OBSERVE_PERSISTENCE is enabled)
+ * - @c avs_persistence (if @c WITH_AVS_COAP_OBSERVE_PERSISTENCE is enabled)
  * - @c avs_crypto (if @c WITH_AVS_COAP_OSCORE is enabled)
  *
  * In the repository, this file is provided as <c>avs_coap_config.h.in</c>,
@@ -93,15 +95,12 @@
  * Enable support for UDP transport.
  *
  * NOTE: Enabling at least one transport is necessary for the library to be
- * useful. UDP is the only transport available in the open source version.
+ * useful.
  */
 #define WITH_AVS_COAP_UDP
 
 /**
  * Enable support for TCP transport (RFC 8323).
- *
- * IMPORTANT: Only available in the commercial version. Ignored in the open
- * source version.
  *
  * NOTE: Enabling at least one transport is necessary for the library to be
  * useful.
@@ -111,7 +110,7 @@
 /**
  * Enable support for OSCORE (RFC 8613).
  *
- * IMPORTANT: Only available in the commercial version. Ignored in the open
+ * IMPORTANT: Only available with the OSCORE feature. Ignored in the open
  * source version.
  */
 /* #undef WITH_AVS_COAP_OSCORE */
@@ -122,7 +121,7 @@
  *
  * Only meaningful if <c>WITH_AVS_COAP_OSCORE</c> is enabled.
  *
- * IMPORTANT: Only available in the commercial version. Ignored in the open
+ * IMPORTANT: Only available with the OSCORE feature. Ignored in the open
  * source version.
  */
 /* #undef WITH_AVS_COAP_OSCORE_DRAFT_8 */

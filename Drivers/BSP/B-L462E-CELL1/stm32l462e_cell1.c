@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -229,138 +228,7 @@ void BSP_PB_DeInit(Button_TypeDef Button)
   */
 uint32_t BSP_PB_GetState(Button_TypeDef Button)
 {
-  return HAL_GPIO_ReadPin((GPIO_TypeDef *)BUTTON_PORT[Button], (uint16_t)BUTTON_PIN[Button]);
-}
-
-/*******************************************************************************
-                            LINK OPERATIONS
-  *******************************************************************************/
-
-/******************************** LINK LCD ********************************/
-/**
-  * @brief  Initializes lcd low level.
-  * @retval None
-  */
-void LCD_IO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct;
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_SET);
-
-  /* Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LCD_RST_DISP_GPIO_PORT, LCD_RST_DISP_PIN, GPIO_PIN_SET);
-
-  /* Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_SET);
-
-  /* Configure GPIO pin : LCD_D_C_DISP_PIN */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  GPIO_InitStruct.Pin = LCD_D_C_DISP_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LCD_D_C_DISP_GPIO_PORT, &GPIO_InitStruct);
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_RESET);
-
-  /* Configure GPIO pin : LCD_RST_DISP_PIN */
-  __HAL_RCC_GPIOH_CLK_ENABLE();
-  GPIO_InitStruct.Pin = LCD_RST_DISP_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-  /* GPIO_InitStruct.Pull = GPIO_NOPULL; */          /* Already done in previous line */
-  /* GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW; */ /* Already done in previous line */
-  HAL_GPIO_Init(LCD_RST_DISP_GPIO_PORT, &GPIO_InitStruct);
-
-  /* Configure GPIO pin : LCD_CS_DISP_PIN */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  GPIO_InitStruct.Pin = LCD_CS_DISP_PIN;
-  /* GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD; */  /* Already done in previous line */
-  /* GPIO_InitStruct.Pull = GPIO_NOPULL; */          /* Already done in previous line */
-  /* GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW; */ /* Already done in previous line */
-  HAL_GPIO_Init(LCD_CS_DISP_GPIO_PORT, &GPIO_InitStruct);
-  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_RESET);
-
-  /* Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LCD_RST_DISP_GPIO_PORT, LCD_RST_DISP_PIN, GPIO_PIN_RESET);
-  HAL_Delay(1);
-  HAL_GPIO_WritePin(LCD_RST_DISP_GPIO_PORT, LCD_RST_DISP_PIN, GPIO_PIN_SET);
-
-  (void) BSP_SPI3_Init();
-
-  GPIO_InitStruct.Pin = LCD_D_C_DISP_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  /* GPIO_InitStruct.Pull = GPIO_NOPULL; */  /* Already done in previous line */
-  /* GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW; */  /* Already done in previous line */
-  HAL_GPIO_Init(LCD_D_C_DISP_GPIO_PORT, &GPIO_InitStruct);
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_RESET);
-}
-
-void LCD_IO_DeInit(void)
-{
-  if (HAL_SPI_GetState(&LCD_SPI_HANDLE) != HAL_SPI_STATE_RESET)
-  {
-    /* SPI Deinit */
-    (void) BSP_SPI3_DeInit();
-
-    HAL_GPIO_DeInit(GPIOC, (GPIO_PIN_12 | GPIO_PIN_11 | GPIO_PIN_10));
-    __HAL_RCC_SPI3_FORCE_RESET();
-    __HAL_RCC_SPI3_RELEASE_RESET();
-
-    HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_SET);
-
-    /* Disable SPIx clock  */
-    __HAL_RCC_GPIOC_CLK_DISABLE();
-  }
-}
-
-void LCD_IO_WriteCommand(uint8_t Cmd)
-{
-  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_RESET);
-  HAL_Delay(1);
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_RESET);
-  HAL_Delay(1);
-
-  (void) BSP_SPI3_Send(&Cmd, 1U);
-
-  HAL_Delay(1);
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_SET);
-  HAL_Delay(1);
-  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_SET);
-  HAL_Delay(1);
-}
-
-void LCD_IO_WriteData(uint8_t Value)
-{
-  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_RESET);
-  HAL_Delay(1);
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_SET);
-  HAL_Delay(1);
-
-  (void) BSP_SPI3_Send(&Value, 1U);;
-
-  HAL_Delay(1);
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_SET);
-  HAL_Delay(1);
-}
-
-void LCD_IO_WriteMultipleData(uint8_t *pData, uint32_t Size)
-{
-  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_RESET);
-  HAL_Delay(1U);
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_SET);
-  HAL_Delay(1U);
-
-  (void) BSP_SPI3_Send(pData, (uint16_t)Size);
-
-  HAL_Delay(1U);
-  HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_SET);
-  HAL_Delay(1U);
-}
-
-void LCD_Delay(uint32_t delay)
-{
-  HAL_Delay(delay);
+  return ((uint32_t)HAL_GPIO_ReadPin((GPIO_TypeDef *)BUTTON_PORT[Button], (uint16_t)BUTTON_PIN[Button]));
 }
 
 /**
@@ -378,5 +246,3 @@ void LCD_Delay(uint32_t delay)
 /**
   * @}
   */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

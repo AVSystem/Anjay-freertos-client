@@ -6,19 +6,20 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
 
 /* Includes ------------------------------------------------------------------*/
 #include "com_sockets_lwip_mcu.h"
+
+#if (USE_COM_SOCKETS == 1)
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
 #include "rtosal.h"
@@ -78,7 +79,7 @@ static uint8_t ping_seqno;
   */
 int32_t com_socket_lwip_mcu(int32_t family, int32_t type, int32_t protocol)
 {
-  return lwip_socket(family, type, protocol);
+  return (lwip_socket(family, type, protocol));
 }
 
 
@@ -96,7 +97,7 @@ int32_t com_socket_lwip_mcu(int32_t family, int32_t type, int32_t protocol)
 int32_t com_setsockopt_lwip_mcu(int32_t sock, int32_t level, int32_t optname,
                                 const void *optval, int32_t optlen)
 {
-  return lwip_setsockopt(sock, level, optname, optval, optlen);
+  return (lwip_setsockopt(sock, level, optname, optval, optlen));
 }
 
 
@@ -114,7 +115,7 @@ int32_t com_setsockopt_lwip_mcu(int32_t sock, int32_t level, int32_t optname,
 int32_t com_getsockopt_lwip_mcu(int32_t sock, int32_t level, int32_t optname,
                                 void *optval, int32_t *optlen)
 {
-  return lwip_getsockopt(sock, level, optname, optval, optlen);
+  return (lwip_getsockopt(sock, level, optname, optval, optlen));
 }
 
 
@@ -130,7 +131,7 @@ int32_t com_getsockopt_lwip_mcu(int32_t sock, int32_t level, int32_t optname,
 int32_t com_bind_lwip_mcu(int32_t sock,
                           const com_sockaddr_t *addr, int32_t addrlen)
 {
-  return lwip_bind(sock, (const struct sockaddr *)addr, addrlen);
+  return (lwip_bind(sock, (const struct sockaddr *)addr, addrlen));
 }
 
 
@@ -145,7 +146,7 @@ int32_t com_bind_lwip_mcu(int32_t sock,
 int32_t com_listen_lwip_mcu(int32_t sock,
                             int32_t backlog)
 {
-  return lwip_listen(sock, backlog);
+  return (lwip_listen(sock, backlog));
 }
 
 
@@ -161,7 +162,7 @@ int32_t com_listen_lwip_mcu(int32_t sock,
 int32_t com_accept_lwip_mcu(int32_t sock,
                             com_sockaddr_t *addr, int32_t *addrlen)
 {
-  return lwip_accept(sock, (struct sockaddr *)addr, addrlen);
+  return (lwip_accept(sock, (struct sockaddr *)addr, addrlen));
 }
 
 
@@ -177,7 +178,7 @@ int32_t com_accept_lwip_mcu(int32_t sock,
 int32_t com_connect_lwip_mcu(int32_t sock,
                              const com_sockaddr_t *addr, int32_t addrlen)
 {
-  return lwip_connect(sock, (const struct sockaddr *)addr, addrlen);
+  return (lwip_connect(sock, (const struct sockaddr *)addr, addrlen));
 }
 
 
@@ -195,7 +196,7 @@ int32_t com_send_lwip_mcu(int32_t sock,
                           const com_char_t *buf, int32_t len,
                           int32_t flags)
 {
-  return lwip_send(sock, buf, (size_t)len, flags);
+  return (lwip_send(sock, buf, (size_t)len, flags));
 }
 
 
@@ -216,7 +217,7 @@ int32_t com_sendto_lwip_mcu(int32_t sock,
                             int32_t flags,
                             const com_sockaddr_t *to, int32_t tolen)
 {
-  return lwip_sendto(sock, buf, (size_t)len, flags, (const struct sockaddr *)to, tolen);
+  return (lwip_sendto(sock, buf, (size_t)len, flags, (const struct sockaddr *)to, tolen));
 }
 
 
@@ -234,7 +235,7 @@ int32_t com_recv_lwip_mcu(int32_t sock,
                           com_char_t *buf, int32_t len,
                           int32_t flags)
 {
-  return lwip_recv(sock, buf, (size_t)len, flags);
+  return (lwip_recv(sock, buf, (size_t)len, flags));
 }
 
 
@@ -255,7 +256,7 @@ int32_t com_recvfrom_lwip_mcu(int32_t sock,
                               int32_t flags,
                               com_sockaddr_t *from, int32_t *fromlen)
 {
-  return lwip_recvfrom(sock, buf, (size_t)len, flags, (struct sockaddr *)from, fromlen);
+  return (lwip_recvfrom(sock, buf, (size_t)len, flags, (struct sockaddr *)from, fromlen));
 }
 
 
@@ -268,7 +269,7 @@ int32_t com_recvfrom_lwip_mcu(int32_t sock,
   */
 int32_t com_closesocket_lwip_mcu(int32_t sock)
 {
-  return lwip_close(sock);
+  return (lwip_close(sock));
 }
 
 
@@ -285,9 +286,7 @@ int32_t com_closesocket_lwip_mcu(int32_t sock)
 int32_t com_gethostbyname_lwip_mcu(const com_char_t *name,
                                    com_sockaddr_t   *addr)
 {
-  int32_t result;
-
-  result = (int32_t)ERR_ARG;
+  int32_t result = (int32_t)ERR_ARG;
 
   if (addr != NULL) /* parameter name is checked by netconn_gethostbyname() */
   {
@@ -307,7 +306,7 @@ int32_t com_gethostbyname_lwip_mcu(const com_char_t *name,
     }
   }
 
-  return result;
+  return (result);
 }
 
 
@@ -323,7 +322,7 @@ int32_t com_gethostbyname_lwip_mcu(const com_char_t *name,
 int32_t com_getpeername_lwip_mcu(int32_t sock,
                                  com_sockaddr_t *name, int32_t *namelen)
 {
-  return lwip_getpeername(sock, (struct sockaddr *)name, namelen);
+  return (lwip_getpeername(sock, (struct sockaddr *)name, namelen));
 }
 
 
@@ -339,7 +338,7 @@ int32_t com_getpeername_lwip_mcu(int32_t sock,
 int32_t com_getsockname_lwip_mcu(int32_t sock,
                                  com_sockaddr_t *name, int32_t *namelen)
 {
-  return lwip_getsockname(sock, (struct sockaddr *)name, namelen);
+  return (lwip_getsockname(sock, (struct sockaddr *)name, namelen));
 }
 
 
@@ -368,7 +367,7 @@ int32_t com_ping_lwip_mcu(void)
     result = (int32_t)ERR_WOULDBLOCK;
   }
 
-  return result;
+  return (result);
 }
 
 
@@ -388,7 +387,7 @@ int32_t com_ping_process_lwip_mcu(int32_t ping,
 {
   int32_t result;
   uint32_t ping_size;
-  /* manage the send to the distant */
+  /* Manage the send to the distant */
   uint32_t timeout_ms;
   uint32_t ping_time;
   /* Manage the response from the distant */
@@ -397,108 +396,125 @@ int32_t com_ping_process_lwip_mcu(int32_t ping,
   struct ip_hdr *p_ip_hdr;
   struct icmp_echo_hdr *p_icmp_echo;
 
-  result = (int32_t)ERR_ARG;
-  timeout_ms = (uint32_t)timeout * 1000U;
-  ping_size = sizeof(struct icmp_echo_hdr) + COM_PING_DATA_SIZE;
+  /* Check input parameters and memory availability */
+  if ((ping < 0) || (rsp == NULL) || (addr == NULL))
+  {
+    result = (int32_t)ERR_ARG;
+  }
+  else if ((ping_snd == NULL) || (ping_rcv == NULL))
+  {
+    result = (int32_t)ERR_MEM;
+  }
+  else
+  {
+    result = (int32_t)ERR_OK;
+  }
 
-  if ((ping >= 0)
-      && (rsp != NULL)
-      && (addr != NULL))
+  /* if all is OK, do the treatment: set timeout, send trame, receive trame */
+  if (result == (int32_t)ERR_OK)
   {
     rsp->time = 0U;
     rsp->size = 0U;
     rsp->ttl  = 0U;
+    timeout_ms = (uint32_t)timeout * 1000U;
 
-    if ((ping_snd != NULL)
-        && (ping_rcv != NULL))
+    /* Set timeout */
+    result = com_setsockopt_lwip_mcu(ping, COM_SOL_SOCKET, COM_SO_RCVTIMEO, &timeout_ms, (int32_t)sizeof(timeout_ms));
+    if (result == (int32_t)ERR_OK)
     {
-      result = com_setsockopt_lwip_mcu(ping,
-                                       COM_SOL_SOCKET, COM_SO_RCVTIMEO,
-                                       &timeout_ms, (int32_t)sizeof(timeout_ms));
-      if (result == (int32_t)ERR_OK)
+      PRINT_DBG("ping setsockopt OK")
+      /* Format icmp message to send */
+      ICMPH_TYPE_SET(ping_snd, ICMP_ECHO);
+      ICMPH_CODE_SET(ping_snd, 0);
+      ping_snd->chksum = 0U;
+      ping_snd->id     = COM_PING_ID;
+      ping_seqno++;
+      ping_snd->seqno  = ping_seqno;
+      ping_size = sizeof(struct icmp_echo_hdr) + COM_PING_DATA_SIZE;
+
+      /* Fill the additional data buffer with some data */
+      for (uint8_t i = (uint8_t)sizeof(struct icmp_echo_hdr); i < COM_PING_DATA_SIZE; i++)
       {
-        /* Format icmp message to send */
-        ICMPH_TYPE_SET(ping_snd, ICMP_ECHO);
-        ICMPH_CODE_SET(ping_snd, 0);
-        ping_snd->chksum = 0U;
-        ping_snd->id     = COM_PING_ID;
-        ping_seqno++;
-        ping_snd->seqno  = ping_seqno;
+        ((COM_SOCKETS_IP_CHAR_t *)ping_snd)[i] = (COM_SOCKETS_IP_CHAR_t)i;
+      }
 
-        /* Fill the additional data buffer with some data */
-        for (uint8_t i = (uint8_t)sizeof(struct icmp_echo_hdr);
-             i < COM_PING_DATA_SIZE; i++)
+      ping_snd->chksum = inet_chksum(ping_snd, (uint16_t)sizeof(struct icmp_echo_hdr) + (uint16_t)COM_PING_DATA_SIZE);
+
+      /* Send the trame */
+      result = com_sendto_lwip_mcu(ping, (const com_char_t *)ping_snd, (int32_t)ping_size, 0,
+                                   (const com_sockaddr_t *)addr, addrlen);
+      ping_time = sys_now();
+      if (result == (int32_t)ping_size)
+      {
+        PRINT_DBG("ping send OK")
+        /* Send is OK, wait response from remote */
+        (void)memset((void *)&from, 0, sizeof(from));
+        fromlen = (int32_t)sizeof(from);
+        result = com_recvfrom_lwip_mcu(ping, (uint8_t *)ping_rcv, (int32_t)COM_PING_RSP_LEN_MAX, 0,
+                                       (com_sockaddr_t *)&from, &fromlen);
+
+        rsp->time = sys_now() - ping_time;
+        rsp->size = COM_PING_DATA_SIZE;
+        /* Data received ? */
+        if (result >= 0) /* No error */
         {
-          ((COM_SOCKETS_IP_CHAR_t *)ping_snd)[i] = (COM_SOCKETS_IP_CHAR_t)i;
-        }
-
-        ping_snd->chksum = inet_chksum(ping_snd,
-                                       (uint16_t)sizeof(struct icmp_echo_hdr) + (uint16_t)COM_PING_DATA_SIZE);
-
-        result = com_sendto_lwip_mcu(ping,
-                                     (const com_char_t *)ping_snd,
-                                     (int32_t)ping_size,
-                                     0,
-                                     (const com_sockaddr_t *)addr, addrlen);
-        ping_time = sys_now();
-        if (result == (int32_t)ping_size)
-        {
-          PRINT_DBG("ping request send")
-          /* Send is OK, wait response from remote */
-          (void)memset((void *)&from, 0, sizeof(from));
-          fromlen = (int32_t)sizeof(from);
-          result = com_recvfrom_lwip_mcu(ping,
-                                         (uint8_t *)ping_rcv,
-                                         (int32_t)COM_PING_RSP_LEN_MAX,
-                                         0,
-                                         (com_sockaddr_t *)&from, &fromlen);
-
-          rsp->time = sys_now() - ping_time;
-          rsp->size = COM_PING_DATA_SIZE;
-          /* Data has been received ? */
-          if (result < 0)
+          /* Is answer received complete ? */
+          if ((uint32_t)result >= (sizeof(struct ip_hdr) + sizeof(struct icmp_echo_hdr)))
           {
-            /* Timeout - No response */
-            result = (int32_t)ERR_TIMEOUT;
+            PRINT_DBG("ping receive OK")
+            result = (int32_t)ERR_OK;
           }
           else
           {
-            if ((uint32_t)result >= (sizeof(struct ip_hdr) + sizeof(struct icmp_echo_hdr)))
-            {
-              PRINT_DBG("ping response received")
-              p_ip_hdr = (struct ip_hdr *)ping_rcv;
-              p_icmp_echo = (struct icmp_echo_hdr *)(ping_rcv + ((IPH_HL(p_ip_hdr)) * 4U));
-              if ((p_icmp_echo->id == COM_PING_ID)
-                  && (p_icmp_echo->seqno == ping_seqno))
-              {
-                if (ICMPH_TYPE(p_icmp_echo) == (uint8_t)ICMP_ER)
-                {
-                  PRINT_DBG("ICMP ECHO REPLY received")
-                  result = (int32_t)ERR_OK;
-                  rsp->status = (int32_t)ERR_OK;
-                  rsp->ttl = IPH_TTL(p_ip_hdr);
-                }
-                else
-                {
-                  result = (int32_t)ERR_IF;
-                  rsp->status = (int32_t)ICMPH_TYPE(p_icmp_echo);
-                }
-              }
-              else
-              {
-                result = (int32_t)ERR_IF;
-              }
-            }
+            /* Incomplete answer, ensure an error is returned */
+            result = (int32_t)ERR_IF;
           }
         }
+        /* else result < 0, receive is NOK, result contains the error */
+      }
+      else if (result >= 0) /* case incomplete send */
+      {
+        /* Ensure an error is returned */
+        result = (int32_t)ERR_IF;
+      }
+      else
+      {
+        __NOP(); /* send NOK, result contains the error */
+      }
+    }
+    /* else setsockopt NOK, result contains the error */
+  }
+
+  /* Analyse the received trame and format the response */
+  if (result == (int32_t)ERR_OK)
+  {
+    p_ip_hdr = (struct ip_hdr *)ping_rcv;
+    /* For next line, use of IPH_HL() or IPH_HL_BYTES() make MISRA errors */
+    p_icmp_echo = (struct icmp_echo_hdr *)(ping_rcv + (((p_ip_hdr->_v_hl) & 0x0FU) * 4U));
+    if ((p_icmp_echo->id == COM_PING_ID) && (p_icmp_echo->seqno == ping_seqno))
+    {
+      if (ICMPH_TYPE(p_icmp_echo) == (uint8_t)ICMP_ER)
+      {
+        PRINT_DBG("ping icmp echo reply OK")
+        /* result already set to ERR_OK */
+        rsp->status = (int32_t)ERR_OK;
+        rsp->ttl = IPH_TTL(p_ip_hdr);
+      }
+      else
+      {
+        /* Ensure an error is returned */
+        result = (int32_t)ERR_IF;
+        rsp->status = (int32_t)ICMPH_TYPE(p_icmp_echo);
       }
     }
     else
     {
-      result = (int32_t)ERR_MEM;
+      /* Ensure an error is returned */
+      result = (int32_t)ERR_IF;
     }
   }
-  return result;
+
+  return (result);
 }
 
 
@@ -519,7 +535,7 @@ int32_t com_closeping_lwip_mcu(int32_t ping)
     ping_seqno = 0U;
   }
 
-  return result;
+  return (result);
 }
 
 #endif /* USE_COM_PING == 1 */
@@ -538,9 +554,7 @@ int32_t com_closeping_lwip_mcu(int32_t ping)
   */
 bool com_init_lwip_mcu(void)
 {
-  bool result;
-
-  result = true;
+  bool result = true;
 
   /* No way to know if tcp_init is ok or not */
   tcpip_init(NULL, NULL);
@@ -564,7 +578,7 @@ bool com_init_lwip_mcu(void)
     if (ping_rcv != NULL)
     {
       /* Create Mutex to protect Ping session */
-      ComPingMutexHandle = rtosalMutexNew(NULL);
+      ComPingMutexHandle = rtosalMutexNew((const rtosal_char_t *)"COMSOCKLWIP_MUT_PING_DESC");
     }
   }
 
@@ -589,7 +603,7 @@ bool com_init_lwip_mcu(void)
   /* else result already set to true */
 #endif /* USE_COM_PING == 1 */
 
-  return result;
+  return (result);
 }
 
 
@@ -609,5 +623,4 @@ void com_start_lwip_mcu(void)
 
 #endif /* USE_SOCKETS_TYPE == USE_SOCKETS_LWIP */
 
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+#endif /* USE_COM_SOCKETS == 1 */

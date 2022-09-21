@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -29,9 +28,17 @@
 /* following file added to check SID for DATA suspend/resume cases */
 #include "cellular_service_int.h"
 
-/* Private typedef -----------------------------------------------------------*/
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
 
-/* Private macros ------------------------------------------------------------*/
+/** @addtogroup AT_CORE_CORE AT_CORE CORE
+  * @{
+  */
+
+/** @defgroup AT_CORE_CORE_Private_Macros AT_CORE CORE Private Macros
+  * @{
+  */
 #if (USE_TRACE_ATCORE == 1U)
 #if (USE_PRINTF  == 0U)
 #include "trace_interface.h"
@@ -50,38 +57,27 @@
 #endif /* USE_TRACE_ATCORE */
 
 #define LOG_ERROR(ErrId, gravity)   ERROR_Handler(DBG_CHAN_ATCMD, (ErrId), (gravity))
+/**
+  * @}
+  */
 
-/* Private defines -----------------------------------------------------------*/
+/** @defgroup AT_CORE_CORE_Private_Defines AT_CORE CORE Private Defines
+  * @{
+  */
 #define USE_PARSING_MUTEX    (1)
-
-/* specific debug flags */
 #define DBG_DUMP_IPC_RX_QUEUE (0) /* dump the IPC RX queue (advanced debug only) */
-
-/* Private defines -----------------------------------------------------------*/
 #define ATCORE_SEM_WAIT_ANSWER_COUNT     ((uint16_t) 1U)
 #define ATCORE_SEM_SEND_COUNT            ((uint16_t) 1U)
 #define MSG_IPC_RECEIVED_SIZE (uint32_t) ((uint16_t) 128U)
 #define SIG_IPC_MSG                      (1U) /* signals definition for IPC message queue */
 #define SIG_INTERNAL_EVENT_MODEM         (2U) /* signals definition for internal event from the cellular modem */
+/**
+  * @}
+  */
 
-/* Global variables ----------------------------------------------------------*/
-
-/* Private variables ---------------------------------------------------------*/
-/* this semaphore is used for waiting for an answer from Modem */
-static osSemaphoreId s_WaitAnswer_SemaphoreId = NULL;
-/* Queues definition */
-/* this queue is used by IPC to inform that messages are ready to be retrieved */
-static osMessageQId q_msg_IPC_received_Id;
-
-/* Private function prototypes -----------------------------------------------*/
-static void ATCoreTaskBody(void *argument);
-
-/* Mutex used to avoid crossing cases when preparing/parsing AT commands/responses/URC */
-#if (USE_PARSING_MUTEX == 1)
-static osMutexId ATCore_ParsingMutexHandle;
-#endif /* USE_PARSING_MUTEX == 1 */
-
-/* Private variables ---------------------------------------------------------*/
+/** @defgroup AT_CORE_CORE_Private_Variables AT_CORE CORE Private Variables
+  * @{
+  */
 static uint8_t         AT_Core_initialized = 0U;
 static IPC_Handle_t    ipcHandleTab;
 static at_context_t    at_context;
@@ -89,24 +85,41 @@ static urc_callback_t  register_URC_callback;
 static IPC_RxMessage_t msgFromIPC;       /* IPC msg */
 static __IO uint8_t    MsgReceived = 0U; /* received IPC msg counter */
 static IPC_CheckEndOfMsgCallbackTypeDef custom_checkEndOfMsgCallback = NULL;
+/* this semaphore is used for waiting for an answer from Modem */
+static osSemaphoreId s_WaitAnswer_SemaphoreId = NULL;
+/* this queue is used by IPC to inform that messages are ready to be retrieved */
+static osMessageQId q_msg_IPC_received_Id;
 
-/* Global variables ----------------------------------------------------------*/
+/* Mutex used to avoid crossing cases when preparing/parsing AT commands/responses/URC */
+#if (USE_PARSING_MUTEX == 1)
+static osMutexId ATCore_ParsingMutexHandle;
+#endif /* USE_PARSING_MUTEX == 1 */
+/**
+  * @}
+  */
 
-/* Private function prototypes -----------------------------------------------*/
+/** @defgroup AT_CORE_CORE_Private_Functions_Prototypes AT_CORE CORE Private Functions Prototypes
+  * @{
+  */
+static void ATCoreTaskBody(void *argument);
 static void msgReceivedCallback(IPC_Handle_t *ipcHandle);
 static void msgSentCallback(IPC_Handle_t *ipcHandle);
-
 static at_status_t process_AT_transaction(at_msg_t msg_in_id, at_buf_t *p_rsp_buf);
 static at_status_t waitOnMsgUntilTimeout(uint32_t Tickstart, uint32_t Timeout);
 static at_status_t sendToIPC(uint8_t *cmdBuf, uint16_t cmdSize);
 static at_status_t waitFromIPC(uint32_t tickstart, uint32_t cmdTimeout, IPC_RxMessage_t *p_msg);
 static at_action_rsp_t process_answer(at_action_send_t action_send, uint32_t at_cmd_timeout);
 static at_action_rsp_t analyze_action_result(at_action_rsp_t val);
-
 static void IRQ_DISABLE(void);
 static void IRQ_ENABLE(void);
+/**
+  * @}
+  */
 
-/* Functions Definition ------------------------------------------------------*/
+/** @defgroup AT_CORE_CORE_Exported_Functions AT_CORE CORE Exported Functions
+  * @{
+  */
+
 /**
   * @brief  Initialise AT core
   * @note   This function has to be called once.
@@ -139,7 +152,7 @@ at_status_t  AT_init(void)
     (void) memset((void *)&at_context.parser, 0, sizeof(atparser_context_t));
 
 #if (USE_PARSING_MUTEX == 1U)
-    ATCore_ParsingMutexHandle = rtosalMutexNew(NULL);
+    ATCore_ParsingMutexHandle = rtosalMutexNew((const rtosal_char_t *)"ATCORE_MUT_PARSING");
     if (ATCore_ParsingMutexHandle == NULL)
     {
       /* Platform is reset */
@@ -356,24 +369,20 @@ at_status_t AT_sendcmd(at_handle_t athandle, at_msg_t msg_in_id, at_buf_t *p_cmd
   *  This is a blocking function.
   *  It returns when the command is fully processed or a timeout expires.
   */
-  at_status_t retval;
+  at_status_t retval = ATSTATUS_OK;
 
   if (athandle == AT_HANDLE_INVALID)
   {
     retval = ATSTATUS_ERROR;
-    LOG_ERROR(21, ERROR_WARNING);
+  }
+  /* Check if a command is already ongoing */
+  else if (at_context.processing_cmd == 1U)
+  {
+    TRACE_ERR("!!!!!!!!!!!!!!!!!! WARNING COMMAND IS UNDER PROCESS !!!!!!!!!!!!!!!!!!")
+    retval = ATSTATUS_ERROR;
   }
   else
   {
-    /* Check if a command is already ongoing */
-    if (at_context.processing_cmd == 1U)
-    {
-      TRACE_ERR("!!!!!!!!!!!!!!!!!! WARNING COMMAND IS UNDER PROCESS !!!!!!!!!!!!!!!!!!")
-      retval = ATSTATUS_ERROR;
-      LOG_ERROR(2, ERROR_WARNING);
-      goto exit_func;
-    }
-
     /* initialize response buffer */
     (void) memset((void *)p_rsp_buf, 0, ATCMD_MAX_BUF_SIZE);
 
@@ -397,40 +406,41 @@ at_status_t AT_sendcmd(at_handle_t athandle, at_msg_t msg_in_id, at_buf_t *p_cmd
     /* check if trying to suspend DATA while in command mode */
     else if (msg_in_id == (at_msg_t) SID_CS_DATA_SUSPEND)
     {
-      retval = ATSTATUS_ERROR;
-      LOG_ERROR(3, ERROR_WARNING);
       TRACE_ERR("DATA not active")
-      goto exit_func;
+      retval = ATSTATUS_ERROR;
     }
     else
     {
       /* nothing to do */
     }
 
-    /* Process the user request */
-    ATParser_process_request(&at_context, msg_in_id, p_cmd_in_buf);
-
-    /* Start an AT command transaction */
-    retval = process_AT_transaction(msg_in_id, p_rsp_buf);
-    if (retval != ATSTATUS_OK)
+    if (retval == ATSTATUS_OK)
     {
-      TRACE_DBG("AT_sendcmd error: process AT transaction")
-      /* retrieve and send error report if exist */
-      (void) ATParser_get_error(&at_context, p_rsp_buf);
-      ATParser_abort_request(&at_context);
-      if (msg_in_id == (at_msg_t) SID_CS_DATA_SUSPEND)
+      /* Process the user request */
+      ATParser_process_request(&at_context, msg_in_id, p_cmd_in_buf);
+
+      /* Start an AT command transaction */
+      retval = process_AT_transaction(msg_in_id, p_rsp_buf);
+      if (retval == ATSTATUS_OK)
       {
-        /* force to return to command mode */
-        TRACE_ERR("force to return to COMMAND mode")
-        at_context.in_data_mode = AT_FALSE ;
+        /* get command response buffer */
+        (void) ATParser_get_rsp(&at_context, p_rsp_buf);
       }
-      goto exit_func;
+      else
+      {
+        TRACE_DBG("AT_sendcmd error: process AT transaction")
+        /* retrieve and send error report if exist */
+        (void) ATParser_get_error(&at_context, p_rsp_buf);
+        ATParser_abort_request(&at_context);
+        if (msg_in_id == (at_msg_t) SID_CS_DATA_SUSPEND)
+        {
+          /* force to return to command mode */
+          TRACE_ERR("force to return to COMMAND mode")
+          at_context.in_data_mode = AT_FALSE ;
+        }
+      }
     }
 
-    /* get command response buffer */
-    (void) ATParser_get_rsp(&at_context, p_rsp_buf);
-
-exit_func:
     /* finished to process this command */
     at_context.processing_cmd = 0U;
   }
@@ -454,7 +464,80 @@ void AT_internalEvent(sysctrl_device_type_t deviceType)
   }
 }
 
-/* Private function Definition -----------------------------------------------*/
+/**
+  * @brief  Start AT task.
+  * @param  taskPrio Task priority.
+  * @param  stackSize Stack size for this task.
+  * @retval at_status_t.
+  */
+at_status_t atcore_task_start(osPriority taskPrio, uint16_t stackSize)
+{
+  at_status_t retval;
+
+  /* ATCore task handler */
+  static osThreadId atcoreTaskId = NULL;
+
+  /* check if AT_init has been called before */
+  if (AT_Core_initialized != 1U)
+  {
+    TRACE_ERR("error, ATCore is not initialized")
+    LOG_ERROR(17, ERROR_WARNING);
+    retval = ATSTATUS_ERROR;
+  }
+  else
+  {
+    /* semaphores creation */
+    s_WaitAnswer_SemaphoreId = rtosalSemaphoreNew((const rtosal_char_t *) "ATCORE_SEM_WAIT_ANSWER",
+                                                  ATCORE_SEM_WAIT_ANSWER_COUNT);
+    if (s_WaitAnswer_SemaphoreId == NULL)
+    {
+      TRACE_ERR("s_WaitAnswer_SemaphoreId creation error")
+      LOG_ERROR(18, ERROR_WARNING);
+      retval = ATSTATUS_ERROR;
+    }
+    else
+    {
+      /* init semaphore */
+      (void) rtosalSemaphoreAcquire(s_WaitAnswer_SemaphoreId, 15000U);
+
+      /* queues creation */
+      q_msg_IPC_received_Id = rtosalMessageQueueNew((const rtosal_char_t *) "IPC_MSG_RCV",
+                                                    MSG_IPC_RECEIVED_SIZE); /* create message queue */
+
+      /* start driver thread */
+      atcoreTaskId = rtosalThreadNew((const rtosal_char_t *)"AtCore",
+                                     (os_pthread) ATCoreTaskBody,
+                                     taskPrio,
+                                     (uint32_t)stackSize,
+                                     NULL);
+      if (atcoreTaskId == NULL)
+      {
+        TRACE_ERR("atcoreTaskId creation error")
+        LOG_ERROR(19, ERROR_WARNING);
+        retval = ATSTATUS_ERROR;
+      }
+      else
+      {
+        retval = ATSTATUS_OK;
+      }
+    }
+  }
+
+  return (retval);
+}
+/**
+  * @}
+  */
+
+/** @defgroup AT_CORE_CORE_Private_Functions AT_CORE CORE Private Functions
+  * @{
+  */
+
+/**
+  * @brief  Callback used to inform that a complete AT message has been received.
+  * @param  ipcHandle Pointer to IPC context.
+  * @retval none.
+  */
 static void msgReceivedCallback(IPC_Handle_t *ipcHandle)
 {
   UNUSED(ipcHandle);
@@ -468,6 +551,11 @@ static void msgReceivedCallback(IPC_Handle_t *ipcHandle)
   }
 }
 
+/**
+  * @brief  Callback used to inform that an AT message has been sent.
+  * @param  ipcHandle Pointer to IPC context.
+  * @retval none.
+  */
 static void msgSentCallback(IPC_Handle_t *ipcHandle)
 {
   UNUSED(ipcHandle);
@@ -476,6 +564,12 @@ static void msgSentCallback(IPC_Handle_t *ipcHandle)
   (void) rtosalSemaphoreRelease(at_context.s_SendConfirm_SemaphoreId);
 }
 
+/**
+  * @brief  Wait for message reception, limited by a Timeout.
+  * @param  Tickstart Initial tickstart (unused).
+  * @param  Timeout Timer value.
+  * @retval at_status_t.
+  */
 static at_status_t waitOnMsgUntilTimeout(uint32_t Tickstart, uint32_t Timeout)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -504,6 +598,12 @@ static at_status_t waitOnMsgUntilTimeout(uint32_t Tickstart, uint32_t Timeout)
   return (retval);
 }
 
+/**
+  * @brief  Process the answer to AT command.
+  * @param  action_send Bitmap of actions requested for current AT command.
+  * @param  at_cmd_timeout Timer value for current AT command.
+  * @retval at_action_rsp_t Action finally applied for current command.
+  */
 static at_action_rsp_t process_answer(at_action_send_t action_send, uint32_t at_cmd_timeout)
 {
   at_action_rsp_t  action_rsp;
@@ -591,6 +691,12 @@ static at_action_rsp_t process_answer(at_action_send_t action_send, uint32_t at_
   return (action_rsp);
 }
 
+/**
+  * @brief  Process the answer to AT command.
+  * @param  msg_in_id Service ID requested.
+  * @param  p_rsp_buf Pointer to the buffer with the response to the Service ID.
+  * @retval at_status_t.
+  */
 static at_status_t process_AT_transaction(at_msg_t msg_in_id, at_buf_t *p_rsp_buf)
 {
   UNUSED(p_rsp_buf);
@@ -708,6 +814,12 @@ static at_status_t process_AT_transaction(at_msg_t msg_in_id, at_buf_t *p_rsp_bu
   return (retval);
 }
 
+/**
+  * @brief  Send an AT command to IPC.
+  * @param  cmdBuf Pointer to the buffer containing the command to send.
+  * @param  cmdSize Size of the command.
+  * @retval at_status_t.
+  */
 static at_status_t sendToIPC(uint8_t *cmdBuf, uint16_t cmdSize)
 {
   at_status_t retval;
@@ -735,6 +847,13 @@ static at_status_t sendToIPC(uint8_t *cmdBuf, uint16_t cmdSize)
   return (retval);
 }
 
+/**
+  * @brief  Wait reception of an AT command from IPC.
+  * @param  tickstart Initial tick value.
+  * @param  cmdTimeout Timeout value for the current command.
+  * @param  p_msg Pointer to message received from IPC.
+  * @retval at_status_t.
+  */
 static at_status_t waitFromIPC(uint32_t tickstart, uint32_t cmdTimeout, IPC_RxMessage_t *p_msg)
 {
   UNUSED(p_msg);
@@ -754,6 +873,11 @@ static at_status_t waitFromIPC(uint32_t tickstart, uint32_t cmdTimeout, IPC_RxMe
   return (retval);
 }
 
+/**
+  * @brief  Analyze action bitmap.
+  * @param  val Action bitmap.
+  * @retval at_action_rsp_t.
+  */
 static at_action_rsp_t analyze_action_result(at_action_rsp_t val)
 {
   at_action_rsp_t action;
@@ -801,72 +925,29 @@ static at_action_rsp_t analyze_action_result(at_action_rsp_t val)
   return (action);
 }
 
+/**
+  * @brief  Disable IRQ.
+  * @retval at_action_rsp_t.
+  */
 static void IRQ_DISABLE(void)
 {
   __disable_irq();
 }
 
+/**
+  * @brief  Enable IRQ.
+  * @retval at_action_rsp_t.
+  */
 static void IRQ_ENABLE(void)
 {
   __enable_irq();
 }
 
-at_status_t atcore_task_start(osPriority taskPrio, uint16_t stackSize)
-{
-  at_status_t retval;
-
-  /* ATCore task handler */
-  static osThreadId atcoreTaskId = NULL;
-
-  /* check if AT_init has been called before */
-  if (AT_Core_initialized != 1U)
-  {
-    TRACE_ERR("error, ATCore is not initialized")
-    LOG_ERROR(17, ERROR_WARNING);
-    retval = ATSTATUS_ERROR;
-  }
-  else
-  {
-    /* semaphores creation */
-    s_WaitAnswer_SemaphoreId = rtosalSemaphoreNew((const rtosal_char_t *) "ATCORE_SEM_WAIT_ANSWER",
-                                                  ATCORE_SEM_WAIT_ANSWER_COUNT);
-    if (s_WaitAnswer_SemaphoreId == NULL)
-    {
-      TRACE_ERR("s_WaitAnswer_SemaphoreId creation error")
-      LOG_ERROR(18, ERROR_WARNING);
-      retval = ATSTATUS_ERROR;
-    }
-    else
-    {
-      /* init semaphore */
-      (void) rtosalSemaphoreAcquire(s_WaitAnswer_SemaphoreId, 15000U);
-
-      /* queues creation */
-      q_msg_IPC_received_Id = rtosalMessageQueueNew((const rtosal_char_t *) "IPC_MSG_RCV",
-                                                    MSG_IPC_RECEIVED_SIZE); /* create message queue */
-
-      /* start driver thread */
-      atcoreTaskId = rtosalThreadNew((const rtosal_char_t *)"AtCore",
-                                     (os_pthread) ATCoreTaskBody,
-                                     taskPrio,
-                                     (uint32_t)stackSize,
-                                     NULL);
-      if (atcoreTaskId == NULL)
-      {
-        TRACE_ERR("atcoreTaskId creation error")
-        LOG_ERROR(19, ERROR_WARNING);
-        retval = ATSTATUS_ERROR;
-      }
-      else
-      {
-        retval = ATSTATUS_OK;
-      }
-    }
-  }
-
-  return (retval);
-}
-
+/**
+  * @brief  Core of AT task.
+  * @param  argument Pointer to task arguments.
+  * @retval none.
+  */
 static void ATCoreTaskBody(void *argument)
 {
   UNUSED(argument);
@@ -995,5 +1076,15 @@ static void ATCoreTaskBody(void *argument)
   }
 }
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 

@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -22,23 +21,35 @@
 #include "string.h"
 #include "at_custom_modem_api.h"
 #include "at_custom_modem_specific.h"
-#include "sysctrl_specific.h"
+#include "at_custom_sysctrl.h"
 #include "plf_config.h"
 
-/* Private typedef -----------------------------------------------------------*/
-/* Private defines -----------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
 
-/* Private macros ------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM_SEQUANS_MONARCH AT_CUSTOM SEQUANS_MONARCH
+  * @{
+  */
 
-/* Private variables ---------------------------------------------------------*/
-/* Global variables ----------------------------------------------------------*/
-/* Private function prototypes -----------------------------------------------*/
+/** @addtogroup AT_CUSTOM_SEQUANS_MONARCH_API AT_CUSTOM SEQUANS_MONARCH API
+  * @{
+  */
 
-/* Functions Definition ------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_SEQUANS_MONARCH_API_Exported_Functions AT_CUSTOM SEQUANS_MONARCH API Exported Functions
+  * @{
+  */
+/**
+  * @brief  Initialize AT custom function pointers.
+  * @param  funcPtrs Pointer to the structure of AT functions.
+  * @retval none
+  */
 void atcma_init_at_func_ptrs(atcustom_funcPtrs_t *funcPtrs)
 {
 #if defined(USE_MODEM_GM01Q)
-  /* init function pointers with MONARCH functions */
+  /* initialize the structure of function pointers with TYPE1SC functions.
+   * This structure will be used by common code to call specific modem functions.
+   */
   funcPtrs->f_init = ATCustom_MONARCH_init;
   funcPtrs->f_checkEndOfMsgCallback = ATCustom_MONARCH_checkEndOfMsgCallback;
   funcPtrs->f_getCmd = ATCustom_MONARCH_getCmd;
@@ -55,10 +66,17 @@ void atcma_init_at_func_ptrs(atcustom_funcPtrs_t *funcPtrs)
 #endif /* USE_MODEM_GM01Q */
 }
 
+/**
+  * @brief  Initialize SYSCTRL custom function pointers.
+  * @param  funcPtrs Pointer to the structure of SYSCTRL functions.
+  * @retval none
+  */
 void atcma_init_sysctrl_func_ptrs(sysctrl_funcPtrs_t *funcPtrs)
 {
 #if defined(USE_MODEM_GM01Q)
-  /* init function pointers with MONARCH functions */
+  /* initialize the structure of function pointers with TYPE1SC functions.
+   * This structure will be used by common code to call specific modem functions.
+   */
   funcPtrs->f_getDeviceDescriptor = SysCtrl_MONARCH_getDeviceDescriptor;
   funcPtrs->f_open_channel =  SysCtrl_MONARCH_open_channel;
   funcPtrs->f_close_channel =  SysCtrl_MONARCH_close_channel;
@@ -70,4 +88,19 @@ void atcma_init_sysctrl_func_ptrs(sysctrl_funcPtrs_t *funcPtrs)
 #error SysCtrl does not match with selected modem
 #endif /* USE_MODEM_GM01Q */
 }
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */

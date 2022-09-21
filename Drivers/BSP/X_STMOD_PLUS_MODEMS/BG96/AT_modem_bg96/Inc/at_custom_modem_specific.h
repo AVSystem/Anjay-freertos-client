@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -34,14 +33,72 @@ extern "C" {
 #include "cellular_service_int.h"
 #include "ipc_common.h"
 
-/* Exported constants --------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_QUECTEL_BG96 AT_CUSTOM QUECTEL_BG96
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_QUECTEL_BG96_SPECIFIC AT_CUSTOM QUECTEL_BG96 SPECIFIC
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_SPECIFIC_Exported_Defines AT_CUSTOM QUECTEL_BG96 SPECIFIC Exported Defines
+  * @{
+  */
 /* device specific parameters */
 #define MODEM_MAX_SOCKET_TX_DATA_SIZE   CONFIG_MODEM_MAX_SOCKET_TX_DATA_SIZE /* cf AT+QISEND */
 #define MODEM_MAX_SOCKET_RX_DATA_SIZE   CONFIG_MODEM_MAX_SOCKET_RX_DATA_SIZE /* cf AT+QIRD */
 #define BG96_ACTIVATE_PING_REPORT       (1)
 
-/* Exported types ------------------------------------------------------------*/
+/* Commands timeout values */
+#define BG96_DEFAULT_TIMEOUT  ((uint32_t)15000U)
+#define BG96_RDY_TIMEOUT      ((uint32_t)30000U)
+#define BG96_APP_RDY_TIMEOUT  ((uint32_t)10000U)
+#define BG96_SIMREADY_TIMEOUT ((uint32_t)3000U)
+#define BG96_ESCAPE_TIMEOUT   ((uint32_t)1000U)  /* maximum time allowed to receive a response to an Escape command */
+#define BG96_COPS_TIMEOUT     ((uint32_t)180000U) /* 180 sec */
+#define BG96_CGATT_TIMEOUT    ((uint32_t)140000U) /* 140 sec */
+#define BG96_CGACT_TIMEOUT    ((uint32_t)150000U) /* 150 sec */
+#define BG96_ATH_TIMEOUT      ((uint32_t)90000U) /* 90 sec */
+#define BG96_AT_TIMEOUT       ((uint32_t)1000U)  /* timeout for AT */
+#define BG96_QNWINFO_TIMEOUT  ((uint32_t)1000U) /* 1000ms */
+#define BG96_CPSMS_TIMEOUT    ((uint32_t)60000)
+#define BG96_CEDRX_TIMEOUT    ((uint32_t)60000)
 
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+#define BG96_SOCKET_PROMPT_TIMEOUT ((uint32_t)10000U)
+#define BG96_QIOPEN_TIMEOUT   ((uint32_t)150000U) /* 150 sec */
+#define BG96_QICLOSE_TIMEOUT  ((uint32_t)150000U) /* 150 sec */
+#define BG96_QIACT_TIMEOUT    ((uint32_t)150000U) /* 150 sec */
+#define BG96_QIDEACT_TIMEOUT  ((uint32_t)40000U) /* 40 sec */
+#define BG96_QPING_TIMEOUT    ((uint32_t)150000U) /* 150 sec */
+#define BG96_QIDNSGIP_TIMEOUT ((uint32_t)60000U) /* 60 sec */
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
+
+#define BG96_MODEM_SYNCHRO_AT_MAX_RETRIES ((uint8_t)30U)
+#define BG96_MAX_SIM_STATUS_RETRIES       ((uint8_t)20U) /* maximum number of AT+QINISTAT retries to wait SIM ready
+                                                          * multiply by BG96_SIMREADY_TIMEOUT to compute global
+                                                          * timeout value
+                                                          */
+#if !defined(BG96_OPTION_NETWORK_INFO)
+/* set default value */
+#define BG96_OPTION_NETWORK_INFO (0)
+#endif /* BG96_OPTION_NETWORK_INFO */
+
+#if !defined(BG96_OPTION_ENGINEERING_MODE)
+/* set default value */
+#define BG96_OPTION_ENGINEERING_MODE (0)
+#endif /* BG96_OPTION_ENGINEERING_MODE */
+/**
+  * @}
+  */
+
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_SPECIFIC_Exported_Types AT_CUSTOM QUECTEL_BG96 SPECIFIC Exported Types
+  * @{
+  */
 enum
 {
   /* modem specific commands */
@@ -53,7 +110,21 @@ enum
   CMD_AT_QNWINFO,                        /* Query Network Information */
   CMD_AT_QENG,                           /* Switch on or off Engineering Mode */
   /* BG96 specific TCP/IP commands */
+  CMD_AT_QICFG,                          /* Configure optional parameters */
+  CMD_AT_SEND_OK,                        /* socket send data OK */
+  CMD_AT_SEND_FAIL,                      /* socket send data problem */
+  CMD_AT_QCCID,                          /* show ICCID */
+  CMD_AT_QINISTAT,                       /* query initialization status of SIM */
+  CMD_AT_QCSQ,                           /* query and report signal strength */
+  CMD_AT_QGMR,                          /* request Modem and Application Firmware Versions */
+  CMD_AT_QPSMS,
+  CMD_AT_QPSMCFG,
+  CMD_AT_QPSMEXTCFG,
+  CMD_AT_QURCCFG,
+
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
   CMD_AT_QICSGP,                         /* Configure parameters of a TCP/IP context */
+  CMD_AT_QIURC,                          /* TCP/IP URC */
   CMD_AT_QIACT,                          /* Activate a PDP context */
   CMD_AT_QIDEACT,                        /* Deactivate a PDP context */
   CMD_AT_QIOPEN,                         /* Open a socket service */
@@ -61,23 +132,12 @@ enum
   CMD_AT_QISEND,                         /* Send Data - waiting for prompt */
   CMD_AT_QISEND_WRITE_DATA,              /* Send Data - writing data */
   CMD_AT_QIRD,                           /* Retrieve the received TCP/IP Data */
-  CMD_AT_QICFG,                          /* Configure optional parameters */
   CMD_AT_QISTATE,                        /* Query socket service status */
-  CMD_AT_QIURC,                          /* TCP/IP URC */
-  CMD_AT_SOCKET_PROMPT,                  /* when sending socket data : prompt = "> " */
-  CMD_AT_SEND_OK,                        /* socket send data OK */
-  CMD_AT_SEND_FAIL,                      /* socket send data problem */
+  CMD_AT_QPING,                          /* ping a remote server */
   CMD_AT_QIDNSCFG,                       /* configure address of DNS server */
   CMD_AT_QIDNSGIP,                       /* get IP address by Domain Name */
-  CMD_AT_QPING,                          /* ping a remote server */
-  CMD_AT_QCCID,                          /* show ICCID */
-  CMD_AT_QINISTAT,                       /* query initialization status of SIM */
-  CMD_AT_QCSQ,                           /* query and report signal strength */
-  CMD_AT_QGMR,                           /* request Modem and Application Firmware Versions */
-  CMD_AT_QPSMS,
-  CMD_AT_QPSMCFG,
-  CMD_AT_QPSMEXTCFG,
-  CMD_AT_QURCCFG,
+  CMD_AT_SOCKET_PROMPT,                  /* when sending socket data : prompt = "> " */
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
   /* modem specific events (URC, BOOT, ...) */
   CMD_AT_WAIT_EVENT,
@@ -92,6 +152,7 @@ enum
 };
 
 /* device specific parameters */
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
 typedef enum
 {
   QIURC_UNKNOWN,
@@ -102,6 +163,7 @@ typedef enum
   QIURC_PDPDEACT,
   QIURC_DNSGIP,
 } ATCustom_BG96_QIURC_function_t;
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
 typedef enum
 {
@@ -341,14 +403,21 @@ typedef struct
 
 } bg96_shared_variables_t;
 
-/* External variables --------------------------------------------------------*/
+/**
+  * @}
+  */
+
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_SPECIFIC_Exported_Variables AT_CUSTOM QUECTEL_BG96 SPECIFIC Exported Variables
+  * @{
+  */
 extern bg96_shared_variables_t bg96_shared;
+/**
+  * @}
+  */
 
-/* Exported macros -----------------------------------------------------------*/
-
-/* Exported functions ------------------------------------------------------- */
-
-/* Exported functions ------------------------------------------------------- */
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_SPECIFIC_Exported_Functions AT_CUSTOM QUECTEL_BG96 SPECIFIC Exported Functions
+  * @{
+  */
 void        ATCustom_BG96_init(atparser_context_t *p_atp_ctxt);
 uint8_t     ATCustom_BG96_checkEndOfMsgCallback(uint8_t rxChar);
 at_status_t ATCustom_BG96_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeout);
@@ -368,10 +437,36 @@ at_status_t ATCustom_BG96_get_urc(atparser_context_t *p_atp_ctxt, at_buf_t *p_rs
 at_status_t ATCustom_BG96_get_error(atparser_context_t *p_atp_ctxt, at_buf_t *p_rsp_buf);
 at_status_t ATCustom_BG96_hw_event(sysctrl_device_type_t deviceType, at_hw_event_t hwEvent, GPIO_PinState gstate);
 
+void ATC_BG96_modem_reset(atcustom_modem_context_t *p_modem_ctxt);
+void ATC_BG96_reset_variables(void);
+void ATC_BG96_reinitSyntaxAutomaton(atcustom_modem_context_t *p_modem_ctxt);
+
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
+at_bool_t ATC_BG96_init_low_power(atcustom_modem_context_t *p_modem_ctxt);
+at_bool_t ATC_BG96_set_low_power(atcustom_modem_context_t *p_modem_ctxt);
+void ATC_BG96_low_power_event(ATCustom_BG96_LP_event_t event);
+bool ATC_BG96_is_modem_in_PSM_state(void);
+bool ATC_BG96_is_waiting_modem_wakeup(void);
+#endif /* ENABLE_BG96_LOW_POWER_MODE == 1U */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_CUSTOM_MODEM_BG96_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

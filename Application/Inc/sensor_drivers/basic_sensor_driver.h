@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,14 +18,12 @@
 #define BASIC_SENSOR_DRIVER_H
 
 #if defined(USE_STM32L496G_DISCO)
-#    include "sensor.h"
+#include "sensor.h"
 #endif
 
 typedef struct {
     int (*init)(void);
     int (*read)(float *);
-    const char *unit;
-    const char *name;
 } basic_sensor_driver_t;
 
 #endif // BASIC_SENSOR_DRIVER_H

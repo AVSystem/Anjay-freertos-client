@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -28,15 +27,30 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "at_core.h"
 #include "ipc_common.h"
-#include "sysctrl.h"
+#include "at_sysctrl.h"
 #include "plf_config.h"
 #include "rtosal.h"
 
-/* Exported constants --------------------------------------------------------*/
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
+
+/** @addtogroup AT_CORE_PARSER AT_CORE PARSER
+  * @{
+  */
+
+/** @defgroup AT_CORE_PARSER_Exported_Defines AT_CORE PARSER Exported Defines
+  * @{
+  */
 #define AT_CMD_DEFAULT_TIMEOUT    ((uint32_t)3000)
 #define AT_CMD_MAX_END_STR_SIZE   ((uint32_t)3)
+/**
+  * @}
+  */
 
-/* Exported types ------------------------------------------------------------*/
+/** @defgroup AT_CORE_PARSER_Exported_Types AT_CORE PARSER Exported Types
+  * @{
+  */
 typedef enum
 {
   CMD_MANDATORY_ANSWER_EXPECTED   = 0,
@@ -93,12 +107,13 @@ typedef struct
   uint16_t    str_end_idx;       /* current param end index in the message */
   uint16_t    str_size;          /* current param size */
 } at_element_info_t;
+/**
+  * @}
+  */
 
-/* External variables --------------------------------------------------------*/
-
-/* Exported macros -----------------------------------------------------------*/
-
-/* Exported functions ------------------------------------------------------- */
+/** @defgroup AT_CORE_PARSER_Exported_Functions AT_CORE PARSER Exported Functions
+  * @{
+  */
 at_status_t ATParser_initParsers(sysctrl_device_type_t device_type);
 void ATParser_init(at_context_t *p_at_ctxt, IPC_CheckEndOfMsgCallbackTypeDef *p_checkEndOfMsgCallback);
 void ATParser_process_request(at_context_t *p_at_ctxt,
@@ -112,10 +127,20 @@ at_status_t ATParser_get_urc(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf);
 at_status_t ATParser_get_error(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf);
 void        ATParser_abort_request(at_context_t *p_at_ctxt);
 
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_PARSER_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

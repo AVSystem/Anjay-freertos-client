@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -99,6 +98,26 @@ int32_t BSP_MOTION_SENSOR_Init_Acc(void)
 int32_t BSP_MOTION_SENSOR_Init_Mag(void)
 {
   return (BSP_MOTION_SENSOR_Init(STM32L462E_CELL1_LSM303AGR_MAG_0, MOTION_MAGNETO));
+}
+
+/**
+  * @brief  Deinitializes the Accelerator motion sensor
+  * @note   This is a  part of High-Level API to ease use of sensors.
+  * @retval BSP status
+  */
+int32_t BSP_MOTION_SENSOR_DeInit_Acc(void)
+{
+  return (BSP_MOTION_SENSOR_DeInit(STM32L462E_CELL1_LSM303AGR_ACC_0));
+}
+
+/**
+  * @brief  Deinitializes the Magnetometer motion sensor
+  * @note   This is a  part of High-Level API to ease use of sensors.
+  * @retval BSP status
+  */
+int32_t BSP_MOTION_SENSOR_DeInit_Mag(void)
+{
+  return (BSP_MOTION_SENSOR_DeInit(STM32L462E_CELL1_LSM303AGR_MAG_0));
 }
 
 /**
@@ -410,7 +429,8 @@ int32_t BSP_MOTION_SENSOR_GetAxes(uint32_t Instance, uint32_t Function, MOTION_S
   {
     if ((MotionCtx[Instance].Functions & Function) == Function)
     {
-      if (MotionFuncDrv[Instance][FunctionIndexMotion[Function]]->GetAxes(MotionCompObj[Instance], Axes) != BSP_ERROR_NONE)
+      if (MotionFuncDrv[Instance][FunctionIndexMotion[Function]]->GetAxes(MotionCompObj[Instance],
+                                                                          Axes) != BSP_ERROR_NONE)
       {
         ret = BSP_ERROR_COMPONENT_FAILURE;
       }
@@ -450,7 +470,8 @@ int32_t BSP_MOTION_SENSOR_GetAxesRaw(uint32_t Instance, uint32_t Function, MOTIO
   {
     if ((MotionCtx[Instance].Functions & Function) == Function)
     {
-      if (MotionFuncDrv[Instance][FunctionIndexMotion[Function]]->GetAxesRaw(MotionCompObj[Instance], Axes) != BSP_ERROR_NONE)
+      if (MotionFuncDrv[Instance][FunctionIndexMotion[Function]]->GetAxesRaw(MotionCompObj[Instance],
+                                                                             Axes) != BSP_ERROR_NONE)
       {
         ret = BSP_ERROR_COMPONENT_FAILURE;
       }
@@ -531,8 +552,8 @@ int32_t BSP_MOTION_SENSOR_GetOutputDataRate(uint32_t Instance, uint32_t Function
   {
     if ((MotionCtx[Instance].Functions & Function) == Function)
     {
-      if (MotionFuncDrv[Instance][FunctionIndexMotion[Function]]->GetOutputDataRate(MotionCompObj[Instance], Odr)
-          != BSP_ERROR_NONE)
+      if (MotionFuncDrv[Instance][FunctionIndexMotion[Function]]->GetOutputDataRate(MotionCompObj[Instance],
+                                                                                    Odr) != BSP_ERROR_NONE)
       {
         ret = BSP_ERROR_COMPONENT_FAILURE;
       }
@@ -613,8 +634,8 @@ int32_t BSP_MOTION_SENSOR_SetOutputDataRate(uint32_t Instance, uint32_t Function
   {
     if ((MotionCtx[Instance].Functions & Function) == Function)
     {
-      if (MotionFuncDrv[Instance][FunctionIndexMotion[Function]]->SetOutputDataRate(MotionCompObj[Instance], Odr)
-          != BSP_ERROR_NONE)
+      if (MotionFuncDrv[Instance][FunctionIndexMotion[Function]]->SetOutputDataRate(MotionCompObj[Instance],
+                                                                                    Odr) != BSP_ERROR_NONE)
       {
         ret = BSP_ERROR_COMPONENT_FAILURE;
       }
@@ -728,8 +749,8 @@ static int32_t LSM303AGR_ACC_0_Probe(uint32_t Functions)
     if ((ret == BSP_ERROR_NONE) && ((Functions & MOTION_ACCELERO) == MOTION_ACCELERO) && (cap.Acc == 1U))
     {
       /* The second cast (void *) is added to bypass Misra R11.3 rule */
-      MotionFuncDrv[STM32L462E_CELL1_LSM303AGR_ACC_0][FunctionIndexMotion[MOTION_ACCELERO]] = (MOTION_SENSOR_FuncDrv_t *)(
-            void *)&LSM303AGR_ACC_Driver;
+      MotionFuncDrv[STM32L462E_CELL1_LSM303AGR_ACC_0][FunctionIndexMotion[MOTION_ACCELERO]] =
+        (MOTION_SENSOR_FuncDrv_t *)(void *)&LSM303AGR_ACC_Driver;
 
       if (MotionDrv[STM32L462E_CELL1_LSM303AGR_ACC_0]->Init(MotionCompObj[STM32L462E_CELL1_LSM303AGR_ACC_0])
           != LSM303AGR_OK)
@@ -804,8 +825,8 @@ static int32_t LSM303AGR_MAG_0_Probe(uint32_t Functions)
     if ((ret == BSP_ERROR_NONE) && ((Functions & MOTION_MAGNETO) == MOTION_MAGNETO) && (cap.Magneto == 1U))
     {
       /* The second cast (void *) is added to bypass Misra R11.3 rule */
-      MotionFuncDrv[STM32L462E_CELL1_LSM303AGR_MAG_0][FunctionIndexMotion[MOTION_MAGNETO]] = (MOTION_SENSOR_FuncDrv_t *)(
-            void *)&LSM303AGR_MAG_Driver;
+      MotionFuncDrv[STM32L462E_CELL1_LSM303AGR_MAG_0][FunctionIndexMotion[MOTION_MAGNETO]] =
+        (MOTION_SENSOR_FuncDrv_t *)(void *)&LSM303AGR_MAG_Driver;
 
       if (MotionDrv[STM32L462E_CELL1_LSM303AGR_MAG_0]->Init(MotionCompObj[STM32L462E_CELL1_LSM303AGR_MAG_0])
           != LSM303AGR_OK)
@@ -849,5 +870,3 @@ static int32_t LSM303AGR_MAG_0_Probe(uint32_t Functions)
   */
 
 #endif /* (USE_STM32L462E_CELL1_MOTION_SENSOR_LSM303AGR_MAG_0 == 1) */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

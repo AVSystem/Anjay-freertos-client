@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -43,12 +42,13 @@ extern "C" {
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
 #define PRINT_PPPOSIF(format, args...)  TRACE_PRINT(DBG_CHAN_PPPOSIF, DBL_LVL_P0, "UTILS:" format "\n\r", ## args)
-#else
+#else  /* USE_PRINTF == 1U */
+#include <stdio.h>
 #define PRINT_PPPOSIF(format, args...)  (void)printf("" format , ## args);
-#endif /* USE_PRINTF */
-#else
-#define PRINT_PPPOSIF(format, args...)  do {} while(0);
-#endif /* USE_TRACE_PPPOSIF */
+#endif /* USE_PRINTF == 0U */
+#else  /* USE_TRACE_PPPOSIF == 0U */
+#define PRINT_PPPOSIF(...)              __NOP(); /* Nothing to do */
+#endif /* USE_TRACE_PPPOSIF == 1U */
 
 #define PPPOSIF_CAUSE_POWER_OFF       0U
 #define PPPOSIF_CAUSE_CONNECTION_LOST 1U
@@ -85,10 +85,10 @@ extern ppposif_status_t ppposif_close(ppp_pcb *ppp_pcb_struct);
 
 
 /**
-  * @brief  PPP status callback is called on PPP status change (up, down, …) from lwIP
+  * @brief  PPP status callback is called on PPP status change (up, down, ...) from lwIP
   * @param  pcb        pcb reference
   * @param  err_code   error
-  * @param  pcb        user context
+  * @param  ctx        user context
   * @retval ppposif_status_cb    return status
   */
 
@@ -120,5 +120,3 @@ extern uint32_t sys_jiffies(void);
 #endif
 
 #endif /* PPPOSIF_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -45,7 +45,7 @@
 #include "lwip/netdb.h"
 
 #if LWIP_VERSION_MAJOR >= 2
-#    define AVS_COMMONS_NET_POSIX_AVS_SOCKET_HAVE_INET_NTOP
+#define AVS_COMMONS_NET_POSIX_AVS_SOCKET_HAVE_INET_NTOP
 #endif // LWIP_VERSION_MAJOR >= 2
 
 typedef int sockfd_t;

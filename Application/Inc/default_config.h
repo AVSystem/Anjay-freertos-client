@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #ifndef DEFAULT_CONFIG_H
 #define DEFAULT_CONFIG_H
 
-#define DEFAULT_SERVER_URI "coaps://try-anjay.avsystem.com:5684"
+#define DEFAULT_SERVER_URI "coaps://eu.iot.avsystem.cloud:5684"
 #define DEFAULT_PSK "psk"
 #define DEFAULT_APN "internet"
 #define DEFAULT_APN_USERNAME "internet"

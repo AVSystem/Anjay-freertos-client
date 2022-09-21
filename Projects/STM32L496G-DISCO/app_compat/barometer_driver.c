@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,7 +58,5 @@ static int get_pressure(float *out_pressure) {
 
 const basic_sensor_driver_t BSP_BAROMETER_DRIVER = {
     .init = barometer_init,
-    .read = get_pressure,
-    .unit = "Pa",
-    .name = "barometer"
+    .read = get_pressure
 };

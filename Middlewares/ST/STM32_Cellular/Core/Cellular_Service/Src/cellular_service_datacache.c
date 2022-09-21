@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -69,44 +68,63 @@ void cellular_service_datacache_init(void)
   static dc_cellular_power_status_t  dc_cellular_power_status;
 #endif  /* (USE_LOW_POWER == 1) */
 
+  /* set all the data cache entries variables to 0 */
+  /* Reset cellular info */
   (void)memset((void *)&dc_cellular_info,         0, sizeof(dc_cellular_info_t));
+  /* Reset data info */
   (void)memset((void *)&dc_cellular_data_info,    0, sizeof(dc_cellular_data_info_t));
+  /* Reset Nifman info */
   (void)memset((void *)&dc_nifman_info,           0, sizeof(dc_nifman_info_t));
+  /* Reset NFMC info */
   (void)memset((void *)&dc_nfmc_info,             0, sizeof(dc_nfmc_info_t));
+  /* Reset SIM info */
   (void)memset((void *)&dc_sim_info,              0, sizeof(dc_sim_info_t));
+  /* Reset signal info */
   (void)memset((void *)&dc_signal_info,           0, sizeof(dc_signal_info_t));
+  /* Register cellular config */
   (void)memset((void *)&dc_cellular_params,       0, sizeof(dc_cellular_params_t));
+  /* Register target state */
   (void)memset((void *)&dc_cellular_target_state, 0, sizeof(dc_cellular_target_state_t));
 #if (USE_LOW_POWER == 1)
+  /* Register power config */
   (void)memset((void *)&dc_cellular_power_config, 0, sizeof(dc_cellular_power_config_t));
+  /* Register power status */
   (void)memset((void *)&dc_cellular_power_status, 0, sizeof(dc_cellular_power_status_t));
 #endif  /* (USE_LOW_POWER == 1) */
 
   /* register all all cellular entries of Data Cache */
+  /* Register cellular info */
   DC_CELLULAR_INFO             = dc_com_register_serv(&dc_com_db, (void *)&dc_cellular_info,
                                                       (uint16_t)sizeof(dc_cellular_info_t));
+  /* Register data info */
   DC_CELLULAR_DATA_INFO        = dc_com_register_serv(&dc_com_db, (void *)&dc_cellular_data_info,
                                                       (uint16_t)sizeof(dc_cellular_data_info_t));
+  /* Register Nifman info */
   DC_CELLULAR_NIFMAN_INFO      = dc_com_register_serv(&dc_com_db, (void *)&dc_nifman_info,
                                                       (uint16_t)sizeof(dc_nifman_info_t));
+  /* Register NFMC info */
   DC_CELLULAR_NFMC_INFO        = dc_com_register_serv(&dc_com_db, (void *)&dc_nfmc_info,
                                                       (uint16_t)sizeof(dc_nfmc_info_t));
+  /* Register SIM info */
   DC_CELLULAR_SIM_INFO         = dc_com_register_serv(&dc_com_db, (void *)&dc_sim_info,
                                                       (uint16_t)sizeof(dc_sim_info_t));
+  /* Register signal info */
   DC_CELLULAR_SIGNAL_INFO      = dc_com_register_serv(&dc_com_db, (void *)&dc_signal_info,
                                                       (uint16_t)sizeof(dc_signal_info_t));
+  /* Register cellular config */
   DC_CELLULAR_CONFIG           = dc_com_register_serv(&dc_com_db, (void *)&dc_cellular_params,
                                                       (uint16_t)sizeof(dc_cellular_params_t));
+  /* Register target state */
   DC_CELLULAR_TARGET_STATE_CMD = dc_com_register_serv(&dc_com_db, (void *)&dc_cellular_target_state,
                                                       (uint16_t)sizeof(dc_cellular_target_state_t));
 #if (USE_LOW_POWER == 1)
+  /* Register power config */
   DC_CELLULAR_POWER_CONFIG     = dc_com_register_serv(&dc_com_db, (void *)&dc_cellular_power_config,
                                                       (uint16_t)sizeof(dc_cellular_power_config));
+  /* Register power status */
   DC_CELLULAR_POWER_STATUS     = dc_com_register_serv(&dc_com_db, (void *)&dc_cellular_power_status,
                                                       (uint16_t)sizeof(dc_cellular_power_status));
 #endif  /* (USE_LOW_POWER == 1) */
 }
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 
 

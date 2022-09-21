@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2019 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2019-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -24,8 +23,11 @@
 
 #include "com_core.h"
 
-#include "com_sockets.h"
 #include "com_trace.h"
+
+#if (USE_COM_SOCKETS == 1)
+#include "com_sockets.h"
+#endif /* USE_COM_SOCKETS == 1 */
 
 #if (USE_COM_ICC == 1)
 #include "com_icc.h"
@@ -36,8 +38,13 @@
 #if (USE_CMD_CONSOLE == 1)
 #include <string.h>
 #include "cmd.h"
+#if (USE_COM_SOCKETS == 1)
 #include "com_sockets_statistic.h"
+#endif /* USE_COM_SOCKETS == 1 */
 #endif /* USE_CMD_CONSOLE == 1 */
+
+#include "cellular_runtime_custom.h"   /* for CRC_CHAR_t definition   */
+#include "cellular_runtime_standard.h" /* for crs_strlen() definition */
 
 /* Private defines -----------------------------------------------------------*/
 #define COM_CORE_CMD_ARG_MAX_NB                5U
@@ -49,7 +56,7 @@
 /* Private function prototypes -----------------------------------------------*/
 #if (USE_CMD_CONSOLE == 1)
 static void com_core_cmd_help(void);
-static cmd_status_t com_core_cmd(uint8_t *p_cmd_line);
+static void com_core_cmd(uint8_t *p_cmd_line);
 #endif /* USE_CMD_CONSOLE == 1 */
 
 /* Private function Definition -----------------------------------------------*/
@@ -58,24 +65,24 @@ static cmd_status_t com_core_cmd(uint8_t *p_cmd_line);
 /**
   * @brief  console cmd help
   * @param  -
-  * @note   -
   * @retval -
   */
 static void com_core_cmd_help(void)
 {
   CMD_print_help((uint8_t *)"comlib");
   PRINT_FORCE("comlib help")
+#if (USE_COM_SOCKETS == 1)
   PRINT_FORCE("comlib stat : display com statitistics\n\r")
+#endif /* USE_COM_SOCKETS == 1 */
 }
 
 /**
   * @brief  cmd management
   * @param  p_cmd_line - pointer on command parameters
-  * @retval cmd_status_t - status of cmd management CMD_OK or CMD_SYNTAX_ERROR
+  * @retval -
   */
-static cmd_status_t com_core_cmd(uint8_t *p_cmd_line)
+static void com_core_cmd(uint8_t *p_cmd_line)
 {
-  cmd_status_t result = CMD_SYNTAX_ERROR;
   uint32_t argc;
   uint32_t len;
   uint8_t  *p_argv[COM_CORE_CMD_ARG_MAX_NB];
@@ -112,14 +119,16 @@ static cmd_status_t com_core_cmd(uint8_t *p_cmd_line)
         if (memcmp((CRC_CHAR_t *)p_argv[0], "help", len) == 0)
         {
           /* cmd 'comlib help': display help */
-          result = CMD_OK;
           com_core_cmd_help();
         }
         else if (memcmp((CRC_CHAR_t *)p_argv[0], "stat", len) == 0)
         {
+#if (USE_COM_SOCKETS == 1)
           /* cmd 'comlib stat': display statistics */
-          result = CMD_OK;
           com_sockets_statistic_display();
+#else  /* USE_COM_SOCKETS == 0 */
+          PRINT_FORCE("comlib: option 'stat' not supported!")
+#endif /* USE_COM_SOCKETS == 1 */
         }
         else /* cmd 'comlib xxx ...': unknown */
         {
@@ -130,7 +139,6 @@ static cmd_status_t com_core_cmd(uint8_t *p_cmd_line)
       }
     }
   }
-  return (result);
 }
 #endif /* USE_CMD_CONSOLE == 1 */
 
@@ -152,12 +160,16 @@ bool com_init(void)
   bool init_socket, init_icc, result;
 
   /* Init socket services */
+#if (USE_COM_SOCKETS == 1)
   init_socket = com_sockets_init();
+#else  /* USE_COM_SOCKETS == 0 */
+  init_socket = true;
+#endif /* USE_COM_SOCKETS == 1 */
 
   /* Init icc services */
 #if (USE_COM_ICC == 1)
   init_icc    = com_icc_init();
-#else /* USE_COM_ICC == 0 */
+#else  /* USE_COM_ICC == 0 */
   init_icc    = true;
 #endif /* USE_COM_ICC == 1 */
 
@@ -168,7 +180,9 @@ bool com_init(void)
   }
 
   /* RandomNumberGenerator - needed by com_icc and com_sockets as fallback solution */
+#if ((USE_COM_SOCKETS == 1) || (USE_COM_ICC == 1))
   srand(rtosalGetSysTimerCount());
+#endif /* (USE_COM_SOCKETS == 1) || (USE_COM_ICC == 1) */
 
   return (result);
 }
@@ -188,8 +202,10 @@ bool com_start(void)
 
   result = true;
 
+#if (USE_COM_SOCKETS == 1)
   /* Start socket services */
   com_sockets_start();
+#endif /* USE_COM_SOCKETS == 1 */
 
 #if (USE_COM_ICC == 1)
   /* Start icc services */
@@ -203,5 +219,3 @@ bool com_start(void)
   return (result);
 }
 
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

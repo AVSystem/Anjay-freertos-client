@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -38,21 +37,38 @@ typedef enum
   ERROR_FATAL,
 } error_gravity_t;
 
-typedef struct
-{
-  dbg_channels_t  channel; /* channel where error occurred */
-  int32_t         errorId; /* number identifying the error in the channel */
-  error_gravity_t gravity; /* error gravity */
-  uint32_t        count;   /* count how many errors have been logged since the beginning */
-} error_handler_decript_t;
-
 /* Exported constants --------------------------------------------------------*/
 /* External variables --------------------------------------------------------*/
 /* Exported macros -----------------------------------------------------------*/
 /* Exported functions ------------------------------------------------------- */
+/**
+  * @brief  Initialize error handler module
+  * @param  -
+  * @retval -
+  */
 void ERROR_Handler_Init(void);
+
+/**
+  * @brief  Log an error
+  * @param  chan    - channel/component in error
+  * @param  errorId - error value to log
+  * @param  gravity - error gravity to log - if equal to ERROR_FATAL then a SystemReset() is done
+  * @retval -
+  */
 void ERROR_Handler(dbg_channels_t chan, int32_t errorId, error_gravity_t gravity);
+
+/**
+  * @brief  Dump all errors logged with a trace
+  * @param  -
+  * @retval -
+  */
 void ERROR_Dump_All(void);
+
+/**
+  * @brief  Dump the last error logged
+  * @param  -
+  * @retval -
+  */
 void ERROR_Dump_Last(void);
 
 
@@ -61,5 +77,3 @@ void ERROR_Dump_Last(void);
 #endif
 
 #endif /* ERROR_HANDLER_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

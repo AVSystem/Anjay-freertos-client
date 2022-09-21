@@ -46,6 +46,10 @@ extern "C" {
 #define USE_SOCKETS_TYPE          (USE_SOCKETS_MODEM) /* Possible values: USE_SOCKETS_LWIP or USE_SOCKETS_MODEM */
 #endif /* !defined USE_SOCKETS_TYPE */
 
+#if !defined USE_COM_SOCKETS
+#define USE_COM_SOCKETS           (1)
+#endif /* !defined USE_COM_SOCKETS */
+
 /* ===================================== */
 /* END - Cellular data mode              */
 /* ===================================== */
@@ -55,13 +59,15 @@ extern "C" {
 /* ======================================= */
 
 /* To configure some parameters of the software */
-#if !defined USE_CMD_CONSOLE
-#define USE_CMD_CONSOLE           (0) /* 0: not activated, 1: activated */
-#endif /* !defined USE_CMD_CONSOLE */
 
-/* If included then com_ping interfaces are defined in com module */
+/* If included then com_ping interfaces are defined in com module
+ * to use it USE_COM_SOCKETS must also be set to 1 */
 #if !defined USE_COM_PING
-#define USE_COM_PING              (1)  /* 0: not included, 1: included */
+#if (USE_COM_SOCKETS == 1)
+#define USE_COM_PING               (1)  /* 0: not included, 1: included */
+#else /* USE_COM_SOCKETS == 0 */
+#define USE_COM_PING               (0)  /* only possible value: 0: not included */
+#endif /* USE_COM_SOCKETS == 1 */
 #endif /* !defined USE_COM_PING */
 
 /* If included then com_icc interfaces are defined in com module */

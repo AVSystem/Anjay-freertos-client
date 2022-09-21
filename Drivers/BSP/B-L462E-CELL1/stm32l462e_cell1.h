@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -142,13 +141,37 @@ typedef enum
 #define LCD_CS_DISP_PIN                 GPIO_PIN_2
 #define LCD_CS_DISP_GPIO_PORT           GPIOB
 
-#define SPI3_MOSI_PIN     GPIO_PIN_12
-#define SPI3_MISO_PIN     GPIO_PIN_11
-#define SPI3_PORT         GPIOC
-#define SPI3_SCK_PIN      GPIO_PIN_10
-#define SPI3_ALT_FUNCTION GPIO_AF6_SPI3
+/**
+  * @brief  LCD Chip Select macro definition
+  */
+#define LCD_CS_LOW()                   HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_RESET)
+#define LCD_CS_HIGH()                  HAL_GPIO_WritePin(LCD_CS_DISP_GPIO_PORT, LCD_CS_DISP_PIN, GPIO_PIN_SET)
+
+/**
+  * @brief  LCD Reset macro definition
+  */
+#define LCD_RST_LOW()                   HAL_GPIO_WritePin(LCD_RST_DISP_GPIO_PORT, LCD_RST_DISP_PIN, GPIO_PIN_RESET)
+#define LCD_RST_HIGH()                  HAL_GPIO_WritePin(LCD_RST_DISP_GPIO_PORT, LCD_RST_DISP_PIN, GPIO_PIN_SET)
+
+/**
+  * @brief  LCD Data/Command macro definition
+  */
+#define LCD_DC_LOW()                    HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_RESET)
+#define LCD_DC_HIGH()                   HAL_GPIO_WritePin(LCD_D_C_DISP_GPIO_PORT, LCD_D_C_DISP_PIN, GPIO_PIN_SET)
+
+
+
+#define SPI3_MOSI_PIN                GPIO_PIN_12
+#define SPI3_MISO_PIN                GPIO_PIN_11
+#define SPI3_PORT                    GPIOC
+#define SPI3_SCK_PIN                 GPIO_PIN_10
+#define SPI3_NSS_PIN                 GPIO_PIN_4
+#define SPI3_NSS_PORT                GPIOA
+#define SPI3_ALT_FUNCTION            GPIO_AF6_SPI3
 #define SPI3_GPIO_CLOCK_ENABLE()      __HAL_RCC_GPIOC_CLK_ENABLE()
 #define SPI3_GPIO_CLOCK_DISABLE()     __HAL_RCC_GPIOC_CLK_DISABLE()
+#define SPI3_NSS_CLOCK_ENABLE()       __HAL_RCC_GPIOA_CLK_ENABLE()
+#define SPI3_NSS_CLOCK_DISABLE()      __HAL_RCC_GPIOA_CLK_DISABLE()
 #define SPI3_CLOCK_ENABLE()           __HAL_RCC_SPI3_CLK_ENABLE()
 #define SPI3_CLOCK_DISABLE()          __HAL_RCC_SPI3_CLK_DISABLE()
 #define SPI3_FORCE_RESET()            __HAL_RCC_SPI3_FORCE_RESET()
@@ -211,5 +234,3 @@ uint32_t         BSP_PB_GetState(Button_TypeDef Button);
 #endif /* __cplusplus */
 
 #endif /* __STM32L462E_CELL1_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

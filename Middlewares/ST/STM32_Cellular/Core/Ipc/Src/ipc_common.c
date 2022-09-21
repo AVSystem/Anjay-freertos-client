@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -22,7 +21,7 @@
 #include "ipc_common.h"
 #if (IPC_USE_UART == 1U)
 #include "ipc_uart.h"
-#endif /* (IPC_USE_UART == 1U) */
+#endif /* IPC_USE_UART == 1U */
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -351,8 +350,6 @@ void IPC_DumpRXQueue(IPC_Handle_t *const hipc, uint8_t readable)
   UNUSED(hipc);
   UNUSED(readable);
   __NOP();
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 }
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

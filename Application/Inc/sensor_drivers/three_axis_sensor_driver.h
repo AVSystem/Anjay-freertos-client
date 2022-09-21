@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 
 #include "main.h"
 
+#define G_TO_MS2 9.80665
+
 typedef struct {
     float x;
     float y;
@@ -28,8 +30,6 @@ typedef struct {
 typedef struct {
     int (*init)(void);
     int (*read)(three_axis_sensor_values_t *);
-    const char *unit;
-    const char *name;
 } three_axis_sensor_driver_t;
 
 static inline three_axis_sensor_values_t

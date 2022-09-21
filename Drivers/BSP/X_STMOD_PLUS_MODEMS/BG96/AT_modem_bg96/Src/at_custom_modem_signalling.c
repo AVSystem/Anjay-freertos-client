@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -23,7 +22,6 @@
 #include "at_modem_api.h"
 #include "at_modem_common.h"
 #include "at_modem_signalling.h"
-#include "at_modem_socket.h"
 #include "at_custom_modem_signalling.h"
 #include "at_custom_modem_specific.h"
 #include "at_datapack.h"
@@ -34,9 +32,25 @@
 #include "plf_modem_config.h"
 #include "error_handler.h"
 
-/* Private typedef -----------------------------------------------------------*/
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+#include "at_modem_socket.h"
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
-/* Private macros ------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_QUECTEL_BG96 AT_CUSTOM QUECTEL_BG96
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_QUECTEL_BG96_SIGNALLING AT_CUSTOM QUECTEL_BG96 SIGNALLING
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_SIGNALLING_Private_Macros AT_CUSTOM QUECTEL_BG96 SIGNALLING Private Macros
+  * @{
+  */
 #if (USE_TRACE_ATCUSTOM_SPECIFIC == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -75,7 +89,13 @@
   if (retval == ATACTION_RSP_ERROR) {exitcode = 1U;}\
   } while (exitcode == 0U);
 
-/* Private defines -----------------------------------------------------------*/
+/**
+  * @}
+  */
+
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_SIGNALLING_Private_Defines AT_CUSTOM QUECTEL_BG96 SIGNALLING Private Defines
+  * @{
+  */
 /*
 List of bands parameters (cf .h file to see the list of enum values for each parameter)
   - BG96_BAND_GSM    : hexadecimal value that specifies the GSM frequency band (cf AT+QCFG="band")
@@ -108,14 +128,22 @@ Below are define default band values that will be used if calling write form of 
                                            * 1 to enable QPSMTIMER URC report
                                            */
 
-/* Global variables ----------------------------------------------------------*/
+/**
+  * @}
+  */
 
-/* Private variables ---------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_QUECTEL_BG96_SIGNALLING_Exported_Functions AT_CUSTOM QUECTEL_BG96 SIGNALLING Exported Functions
+  * @{
+  */
 
-/* Private function prototypes -----------------------------------------------*/
-
-/* Functions Definition ------------------------------------------------------*/
 /* Build command functions ------------------------------------------------------- */
+
+/**
+  * @brief  Build specific modem command : ATD.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_ATD_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -135,6 +163,12 @@ at_status_t fCmdBuild_ATD_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_co
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : CGSN.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_CGSN_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -150,6 +184,12 @@ at_status_t fCmdBuild_CGSN_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : QPOWD.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_QPOWD_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -166,6 +206,12 @@ at_status_t fCmdBuild_QPOWD_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : QCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -343,107 +389,12 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
   return (retval);
 }
 
-#define APN_EMPTY_STRING ""
-at_status_t fCmdBuild_QICSGP_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
-{
-  at_status_t retval = ATSTATUS_OK;
-  PRINT_API("enter fCmdBuild_QICSGP_BG96()")
-
-  /* only for write command, set parameters */
-  if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
-  {
-    /* cf BG96 TCP/IP AT commands manual v1.0
-    *  AT+QICSGP: Configure parameters of a TCP/IP context
-    *  AT+QICSGP=<cid>[,<context_type>,<APN>[,<username>,<password>)[,<authentication>]]]
-    *  - cid: context id (rang 1 to 16)
-    *  - context_type: 1 for IPV4, 2 for IPV6
-    *  - APN: string for access point name
-    *  - username: string
-    *  - password: string
-    *  - authentication: 0 for NONE, 1 for PAP, 2 for CHAP, 3 for PAP or CHAP
-    *
-    * example: AT+QICSGP=1,1,"UNINET","","",1
-    */
-
-    if (bg96_shared.QICGSP_config_command == AT_TRUE)
-    {
-      CS_CHAR_t *p_apn;
-      /* Write command is a config command */
-      CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
-      uint8_t modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
-      PRINT_INFO("user cid = %d, modem cid = %d", (uint8_t)current_conf_id, modem_cid)
-
-      uint8_t context_type_value;
-      uint8_t authentication_value;
-
-      /* convert context type to numeric value */
-      switch (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].pdn_conf.pdp_type)
-      {
-        case CS_PDPTYPE_IP:
-          context_type_value = 1U;
-          break;
-        case CS_PDPTYPE_IPV6:
-        case CS_PDPTYPE_IPV4V6:
-          context_type_value = 2U;
-          break;
-
-        default :
-          context_type_value = 1U;
-          break;
-      }
-
-      /*  authentication : 0,1,2 or 3 - cf modem AT cmd manuel - Use 0 for None */
-      if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].pdn_conf.username[0] == 0U)
-      {
-        /* no username => no authentication */
-        authentication_value = 0U;
-      }
-      else
-      {
-        /* username => PAP or CHAP authentication type */
-        authentication_value = 3U;
-      }
-
-
-
-      /* build command */
-      if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CELLULAR_TRUE)
-      {
-        /* use the APN explicitly providedby user */
-        p_apn = (CS_CHAR_t *) &p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn;
-      }
-      else
-      {
-        /* no APN provided by user: use empty APN string (BG96 specific) to force the network to
-        *  select the appropriate APN.
-        */
-        p_apn = (CS_CHAR_t *) &APN_EMPTY_STRING;
-      }
-
-      /* use the APN value given by user */
-      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,%d,\"%s\",\"%s\",\"%s\",%d",
-                     modem_cid,
-                     context_type_value,
-                     p_apn,
-                     p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].pdn_conf.username,
-                     p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].pdn_conf.password,
-                     authentication_value
-                    );
-    }
-    else
-    {
-      /* Write command is a query command */
-      CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
-      uint8_t modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
-      PRINT_INFO("user cid = %d, modem cid = %d", (uint8_t)current_conf_id, modem_cid)
-      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d", modem_cid);
-    }
-
-  }
-
-  return (retval);
-}
-
+/**
+  * @brief  Build specific modem command : CGDCONT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_CGDCONT_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval;
@@ -455,6 +406,12 @@ at_status_t fCmdBuild_CGDCONT_BG96(atparser_context_t *p_atp_ctxt, atcustom_mode
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : QICFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_QICFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -471,6 +428,12 @@ at_status_t fCmdBuild_QICFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : QINDCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_QINDCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -509,6 +472,12 @@ at_status_t fCmdBuild_QINDCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_mode
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : QENG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_QENG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -545,6 +514,12 @@ at_status_t fCmdBuild_QENG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : QURCCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_QURCCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -561,6 +536,12 @@ at_status_t fCmdBuild_QURCCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_mode
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : QPSMEXTCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_QPSMEXTCFG(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -577,6 +558,12 @@ at_status_t fCmdBuild_QPSMEXTCFG(atparser_context_t *p_atp_ctxt, atcustom_modem_
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : COPS.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_COPS_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -606,9 +593,14 @@ at_status_t fCmdBuild_COPS_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
   return (retval);
 }
 
-
 /* Analyze command functions ------------------------------------------------------- */
 
+/**
+  * @brief  Analyze specific modem response : ERROR.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                        const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -616,19 +608,22 @@ at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   at_action_rsp_t retval = ATACTION_RSP_ERROR;
   PRINT_API("enter fRspAnalyze_Error_BG96()")
 
-  switch (p_atp_ctxt->current_SID)
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
   {
-    case SID_CS_DIAL_COMMAND:
-      /* in case of error during socket connection,
-      * release the modem CID for this socket_handle
-      */
-      (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle);
-      break;
-
-    default:
-      /* nothing to do */
-      break;
+    /* in case of error during socket connection,
+    * release the modem CID for this socket_handle
+    */
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
+    {
+      (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
+    }
+    else
+    {
+      PRINT_ERR("No socket info context to release cid")
+    }
   }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
   /* analyze Error for BG96 */
   switch (p_atp_ctxt->current_atcmd.id)
@@ -689,6 +684,12 @@ at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : CPIN.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_CPIN_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -720,6 +721,12 @@ at_action_rsp_t fRspAnalyze_CPIN_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : CFUN.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_CFUN_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -745,6 +752,12 @@ at_action_rsp_t fRspAnalyze_CFUN_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : QIND.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_QIND_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -926,6 +939,34 @@ at_action_rsp_t fRspAnalyze_QIND_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : QINDCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
+at_action_rsp_t fRspAnalyze_QINDCFG_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
+                                         const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
+{
+  UNUSED(p_at_ctxt);
+  UNUSED(p_modem_ctxt);
+  UNUSED(p_msg_in);
+  UNUSED(element_infos);
+
+  at_action_rsp_t retval = ATACTION_RSP_IGNORED;
+  PRINT_API("enter fRspAnalyze_QINDCFG_BG96()")
+
+  /* not implemented yet */
+
+  return (retval);
+}
+
+/**
+  * @brief  Analyze specific modem response : QCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_QCFG_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1056,310 +1097,12 @@ at_action_rsp_t fRspAnalyze_QCFG_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
   return (retval);
 }
 
-at_action_rsp_t fRspAnalyze_QIURC_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
-                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
-{
-  atparser_context_t *p_atp_ctxt = &(p_at_ctxt->parser);
-  at_action_rsp_t retval = ATACTION_RSP_IGNORED;
-  PRINT_API("enter fRspAnalyze_QIURC_BG96()")
-
-  /* memorize which is current QIURC received */
-  ATCustom_BG96_QIURC_function_t bg96_current_qiurc_ind = QIURC_UNKNOWN;
-
-  /*IP AT Commands manual - LTE Module Series - V1.0
-  * URC
-  * +QIURC:"closed",<connectID> : URC of connection closed
-  * +QIURC:"recv",<connectID> : URC of incoming data
-  * +QIURC:"incoming full" : URC of incoming connection full
-  * +QIURC:"incoming",<connectID> ,<serverID>,<remoteIP>,<remote_port> : URC of incoming connection
-  * +QIURC:"pdpdeact",<contextID> : URC of PDP deactivation
-  *
-  * for DNS request:
-  * header: +QIURC: "dnsgip",<err>,<IP_count>,<DNS_ttl>
-  * infos:  +QIURC: "dnsgip",<hostIPaddr>]
+/**
+  * @brief  Analyze specific modem response : QCCID.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
   */
-
-  /* this is an URC */
-  START_PARAM_LOOP()
-  if (element_infos->param_rank == 2U)
-  {
-    AT_CHAR_t line[32] = {0};
-
-    /* init param received info */
-    bg96_current_qiurc_ind = QIURC_UNKNOWN;
-
-    PRINT_BUF((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size)
-
-    /* copy element to line for parsing */
-    if (element_infos->str_size <= 32U)
-    {
-      (void) memcpy((void *)&line[0],
-                    (const void *) & (p_msg_in->buffer[element_infos->str_start_idx]),
-                    (size_t) element_infos->str_size);
-
-      /* extract value and compare it to expected value */
-      if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "closed") != NULL)
-      {
-        PRINT_DBG("+QIURC closed info received")
-        bg96_current_qiurc_ind = QIURC_CLOSED;
-      }
-      else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "recv") != NULL)
-      {
-        PRINT_DBG("+QIURC recv info received")
-        bg96_current_qiurc_ind = QIURC_RECV;
-      }
-      else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "incoming full") != NULL)
-      {
-        PRINT_DBG("+QIURC incoming full info received")
-        bg96_current_qiurc_ind = QIURC_INCOMING_FULL;
-      }
-      else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "incoming") != NULL)
-      {
-        PRINT_DBG("+QIURC incoming info received")
-        bg96_current_qiurc_ind = QIURC_INCOMING;
-      }
-      else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "pdpdeact") != NULL)
-      {
-        PRINT_DBG("+QIURC pdpdeact info received")
-        bg96_current_qiurc_ind = QIURC_PDPDEACT;
-      }
-      else if ((AT_CHAR_t *) strstr((const CRC_CHAR_t *)&line[0], "dnsgip") != NULL)
-      {
-        PRINT_DBG("+QIURC dnsgip info received")
-        bg96_current_qiurc_ind = QIURC_DNSGIP;
-        if (p_atp_ctxt->current_SID != (at_msg_t) SID_CS_DNS_REQ)
-        {
-          /* URC not expected */
-          retval = ATACTION_RSP_URC_IGNORED;
-        }
-      }
-      else
-      {
-        PRINT_ERR("+QIURC field not managed")
-      }
-    }
-    else
-    {
-      PRINT_ERR("param ignored (exceed maximum size)")
-      retval = ATACTION_RSP_IGNORED;
-    }
-  }
-  else if (element_infos->param_rank == 3U)
-  {
-    uint32_t connectID;
-    socket_handle_t sockHandle;
-
-    switch (bg96_current_qiurc_ind)
-    {
-      case QIURC_RECV:
-        /* <connectID> */
-        connectID = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
-        sockHandle = atcm_socket_get_socket_handle(p_modem_ctxt, connectID);
-        (void) atcm_socket_set_urc_data_pending(p_modem_ctxt, sockHandle);
-        PRINT_DBG("+QIURC received data for connId=%ld (socket handle=%ld)", connectID, sockHandle)
-        /* last param */
-        retval = ATACTION_RSP_URC_FORWARDED;
-        break;
-
-      case QIURC_CLOSED:
-        /* <connectID> */
-        connectID = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
-        sockHandle = atcm_socket_get_socket_handle(p_modem_ctxt, connectID);
-        (void) atcm_socket_set_urc_closed_by_remote(p_modem_ctxt, sockHandle);
-        PRINT_DBG("+QIURC closed for connId=%ld (socket handle=%ld)", connectID, sockHandle)
-        /* last param */
-        retval = ATACTION_RSP_URC_FORWARDED;
-        break;
-
-      case QIURC_INCOMING:
-        /* <connectID> */
-        PRINT_DBG("+QIURC incoming for connId=%ld",
-                  ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
-        break;
-
-      case QIURC_PDPDEACT:
-#if 0
-        /* we do not process this event as it is also reported by modem when it enters in PSM.
-         * So we do support only +CGEV to detect PDP deactivation
-         */
-
-        /* <contextID> */
-        uint32_t contextID = ATutil_convertStringToInt(
-                               &p_msg_in->buffer[element_infos->str_start_idx],
-                               element_infos->str_size);
-        PRINT_DBG("+QIURC pdpdeact for contextID=%ld", contextID)
-        /* Need to inform  upper layer if pdn event URC has been subscribed
-         * apply same treatment than CGEV NW PDN DEACT
-        */
-        p_modem_ctxt->persist.pdn_event.conf_id = atcm_get_configID_for_modem_cid(&p_modem_ctxt->persist,
-                                                                                  (uint8_t)contextID);
-        /* Indicate that an equivalent to +CGEV URC has been received */
-        p_modem_ctxt->persist.pdn_event.event_origine = CGEV_EVENT_ORIGINE_NW;
-        p_modem_ctxt->persist.pdn_event.event_scope = CGEV_EVENT_SCOPE_PDN;
-        p_modem_ctxt->persist.pdn_event.event_type = CGEV_EVENT_TYPE_DEACTIVATION;
-        p_modem_ctxt->persist.urc_avail_pdn_event = AT_TRUE;
-        /* last param */
-        retval = ATACTION_RSP_URC_FORWARDED;
-#else
-        retval = ATACTION_RSP_IGNORED;
-#endif  /* 0 */
-        break;
-
-      case QIURC_DNSGIP:
-        /* <err> or <hostIPaddr>]> */
-        if (bg96_shared.QIURC_dnsgip_param.wait_header == AT_TRUE)
-        {
-          /* <err> expected */
-          bg96_shared.QIURC_dnsgip_param.error =
-            ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
-          PRINT_DBG("+QIURC dnsgip with error=%ld", bg96_shared.QIURC_dnsgip_param.error)
-          if (bg96_shared.QIURC_dnsgip_param.error != 0U)
-          {
-            /* Error when trying to get host address */
-            bg96_shared.QIURC_dnsgip_param.finished = AT_TRUE;
-            retval = ATACTION_RSP_ERROR;
-          }
-        }
-        else
-        {
-          /* <hostIPaddr> expected
-          *  with the current implementation, in case of many possible host IP address, we use
-          *  the last one received
-          */
-          (void) memcpy((void *)bg96_shared.QIURC_dnsgip_param.hostIPaddr,
-                        (const void *) & (p_msg_in->buffer[element_infos->str_start_idx]),
-                        (size_t) element_infos->str_size);
-          PRINT_DBG("+QIURC dnsgip Host address #%ld =%s", bg96_shared.QIURC_dnsgip_param.ip_count,
-                    bg96_shared.QIURC_dnsgip_param.hostIPaddr)
-          bg96_shared.QIURC_dnsgip_param.ip_count--;
-          if (bg96_shared.QIURC_dnsgip_param.ip_count == 0U)
-          {
-            /* all expected URC have been reecived */
-            bg96_shared.QIURC_dnsgip_param.finished = AT_TRUE;
-            /* last param */
-            retval = ATACTION_RSP_FRC_END;
-          }
-          else
-          {
-            retval = ATACTION_RSP_IGNORED;
-          }
-        }
-        break;
-
-      case QIURC_INCOMING_FULL:
-      default:
-        /* no parameter expected */
-        PRINT_ERR("parameter not expected for this URC message")
-        break;
-    }
-  }
-  else if (element_infos->param_rank == 4U)
-  {
-    switch (bg96_current_qiurc_ind)
-    {
-      case QIURC_INCOMING:
-        /* <serverID> */
-        PRINT_DBG("+QIURC incoming for serverID=%ld",
-                  ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
-        break;
-
-      case QIURC_DNSGIP:
-        /* <IP_count> */
-        if (bg96_shared.QIURC_dnsgip_param.wait_header == AT_TRUE)
-        {
-          /* <QIURC_dnsgip_param.ip_count> expected */
-          bg96_shared.QIURC_dnsgip_param.ip_count =
-            ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
-          PRINT_DBG("+QIURC dnsgip IP count=%ld", bg96_shared.QIURC_dnsgip_param.ip_count)
-          if (bg96_shared.QIURC_dnsgip_param.ip_count == 0U)
-          {
-            /* No host address available */
-            bg96_shared.QIURC_dnsgip_param.finished = AT_TRUE;
-            retval = ATACTION_RSP_ERROR;
-          }
-        }
-        break;
-
-      case QIURC_RECV:
-      case QIURC_CLOSED:
-      case QIURC_PDPDEACT:
-      case QIURC_INCOMING_FULL:
-      default:
-        /* no parameter expected */
-        PRINT_ERR("parameter not expected for this URC message")
-        break;
-    }
-  }
-  else if (element_infos->param_rank == 5U)
-  {
-    AT_CHAR_t remoteIP[32] = {0};
-
-    switch (bg96_current_qiurc_ind)
-    {
-      case QIURC_INCOMING:
-        /* <remoteIP> */
-        (void) memcpy((void *)&remoteIP[0],
-                      (const void *) & (p_msg_in->buffer[element_infos->str_start_idx]),
-                      (size_t) element_infos->str_size);
-        PRINT_DBG("+QIURC remoteIP for remoteIP=%s", remoteIP)
-        break;
-
-      case QIURC_DNSGIP:
-        /* <DNS_ttl> */
-        if (bg96_shared.QIURC_dnsgip_param.wait_header == AT_TRUE)
-        {
-          /* <QIURC_dnsgip_param.ttl> expected */
-          bg96_shared.QIURC_dnsgip_param.ttl =
-            ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
-          PRINT_DBG("+QIURC dnsgip time-to-live=%ld", bg96_shared.QIURC_dnsgip_param.ttl)
-          /* no error, now waiting for URC with IP address */
-          bg96_shared.QIURC_dnsgip_param.wait_header = AT_FALSE;
-        }
-        break;
-
-      case QIURC_RECV:
-      case QIURC_CLOSED:
-      case QIURC_PDPDEACT:
-      case QIURC_INCOMING_FULL:
-      default:
-        /* no parameter expected */
-        PRINT_ERR("parameter not expected for this URC message")
-        break;
-    }
-  }
-  else if (element_infos->param_rank == 6U)
-  {
-    switch (bg96_current_qiurc_ind)
-    {
-      case QIURC_INCOMING:
-        /* <remote_port> */
-        PRINT_DBG("+QIURC incoming for remote_port=%ld",
-                  ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size))
-        /* last param */
-        retval = ATACTION_RSP_URC_FORWARDED;
-        break;
-
-      case QIURC_RECV:
-      case QIURC_CLOSED:
-      case QIURC_PDPDEACT:
-      case QIURC_INCOMING_FULL:
-      case QIURC_DNSGIP:
-      default:
-        /* no parameter expected */
-        PRINT_ERR("parameter not expected for this URC message")
-        break;
-    }
-  }
-  else
-  {
-    /* parameter ignored */
-    __NOP(); /* to avoid warning */
-  }
-  END_PARAM_LOOP()
-
-  return (retval);
-}
-
 at_action_rsp_t fRspAnalyze_QCCID_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                        const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1387,10 +1130,13 @@ at_action_rsp_t fRspAnalyze_QCCID_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
       src_idx += 1U;
     }
 
-    /* copy ICCID */
-    (void) memcpy((void *) & (p_modem_ctxt->SID_ctxt.device_info->u.iccid),
-                  (const void *)&p_msg_in->buffer[src_idx],
-                  (size_t)ccid_size);
+    if (p_modem_ctxt->SID_ctxt.p_device_info != NULL)
+    {
+      /* copy ICCID */
+      (void) memcpy((void *) & (p_modem_ctxt->SID_ctxt.p_device_info->u.iccid),
+                    (const void *)&p_msg_in->buffer[src_idx],
+                    (size_t)ccid_size);
+    }
   }
   else
   {
@@ -1402,6 +1148,12 @@ at_action_rsp_t fRspAnalyze_QCCID_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : QINISTAT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_QINISTAT_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1440,6 +1192,12 @@ at_action_rsp_t fRspAnalyze_QINISTAT_BG96(at_context_t *p_at_ctxt, atcustom_mode
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : QCSQ.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_QCSQ_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1618,6 +1376,12 @@ at_action_rsp_t fRspAnalyze_QCSQ_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : QGMR.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_QGMR_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1632,14 +1396,23 @@ at_action_rsp_t fRspAnalyze_QGMR_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
     PRINT_DBG("Revision:")
     PRINT_BUF((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size)
 
-    (void) memcpy((void *) & (p_modem_ctxt->SID_ctxt.device_info->u.revision),
-                  (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
-                  (size_t)element_infos->str_size);
+    if (p_modem_ctxt->SID_ctxt.p_device_info != NULL)
+    {
+      (void) memcpy((void *) & (p_modem_ctxt->SID_ctxt.p_device_info->u.revision),
+                    (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
+                    (size_t)element_infos->str_size);
+    }
   }
 
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : QPSMTIMER.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_QPSMTIMER_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                            const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1689,6 +1462,12 @@ at_action_rsp_t fRspAnalyze_QPSMTIMER_BG96(at_context_t *p_at_ctxt, atcustom_mod
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : COPS.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_COPS_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                       const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1718,5 +1497,19 @@ at_action_rsp_t fRspAnalyze_COPS_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
   return (retval);
 }
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 

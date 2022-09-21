@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,5 @@ static int get_temperature(float *out_temperature) {
 
 const basic_sensor_driver_t BSP_THERMOMETER_DRIVER = {
     .init = thermometer_init,
-    .read = get_temperature,
-    .unit = "Cel",
-    .name = "thermometer"
+    .read = get_temperature
 };

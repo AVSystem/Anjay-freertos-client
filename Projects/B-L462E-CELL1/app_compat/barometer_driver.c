@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,12 +39,12 @@ static int get_pressure(float *out_pressure) {
         LOG(ERROR, "Error getting current pressure");
         return -1;
     }
+    // convert hPa to Pa
+    *out_pressure = 100.0f * *out_pressure;
     return 0;
 }
 
 const basic_sensor_driver_t BSP_BAROMETER_DRIVER = {
     .init = barometer_init,
-    .read = get_pressure,
-    .unit = "hPa",
-    .name = "barometer"
+    .read = get_pressure
 };

@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -24,7 +23,6 @@
 #include "at_modem_api.h"
 #include "at_modem_common.h"
 #include "at_modem_signalling.h"
-#include "at_modem_socket.h"
 #include "at_custom_modem_signalling.h"
 #include "at_custom_modem_specific.h"
 #include "at_datapack.h"
@@ -35,9 +33,26 @@
 #include "plf_modem_config.h"
 #include "error_handler.h"
 
-/* Private typedef -----------------------------------------------------------*/
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+#include "at_modem_socket.h"
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
-/* Private macros ------------------------------------------------------------*/
+
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC AT_CUSTOM ALTAIR_T1SC
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC_SIGNALLING AT_CUSTOM ALTAIR_T1SC SIGNALLING
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SIGNALLING_Private_Macros AT_CUSTOM ALTAIR_T1SC SIGNALLING Private Macros
+  * @{
+  */
 #if (USE_TRACE_ATCUSTOM_SPECIFIC == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -76,19 +91,46 @@
   if (retval == ATACTION_RSP_ERROR) {exitcode = 1U;}\
   } while (exitcode == 0U);
 
-/* Private defines -----------------------------------------------------------*/
+/**
+  * @}
+  */
 
-/* Global variables ----------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SIGNALLING_Private_Defines AT_CUSTOM ALTAIR_T1SC SIGNALLING Private Defines
+  * @{
+  */
+#define APN_NULL_STRING "null"
 
-/* Private variables ---------------------------------------------------------*/
+#define T1SC_GETMIN(a,b) (((a)>(b))?(b):(a))
+#define T1SC_STR_OBJ_SIM     "SW_CFG.sim.dual_init_select"
+#define T1SC_STR_VALUE_SIM_1 "SIM1_ONLY"
+#define T1SC_STR_VALUE_SIM_2 "SIM2_ONLY"
+#define T1SC_MAX_SETGETSYSCFG_SIZE 30
+/**
+  * @}
+  */
 
-/* Private function prototypes -----------------------------------------------*/
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SIGNALLING_Private_Functions_Prototypes
+  * AT_CUSTOM ALTAIR_T1SC SIGNALLING Private Functions Prototypes
+  * @{
+  */
 static CS_IPaddrType_t atcm_PDNRDP_get_ip_address_type(const uint8_t *p_addr_str,
                                                        uint8_t addr_str_size,
                                                        uint8_t *ip_addr_size);
+/**
+  * @}
+  */
 
-/* Functions Definition ------------------------------------------------------*/
-/* Build command functions ---------------------------------------------------*/
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SIGNALLING_Exported_Functions AT_CUSTOM ALTAIR_T1SC SIGNALLING Exported Functions
+  * @{
+  */
+
+/* Build command functions -------------------------------------------------*/
+/**
+  * @brief  Build specific modem command : ATD.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_ATD_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -106,6 +148,12 @@ at_status_t fCmdBuild_ATD_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SETCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SETCFG_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -174,6 +222,12 @@ at_status_t fCmdBuild_SETCFG_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_mo
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : GETCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_GETCFG_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -223,6 +277,72 @@ at_status_t fCmdBuild_GETCFG_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_mo
   return (retval);
 }
 
+
+/**
+  * @brief  Build specific modem command : SETSYSCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
+at_status_t fCmdBuild_SETSYSCFG_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
+{
+  at_status_t retval = ATSTATUS_OK;
+  PRINT_API("enter fCmdBuild_SETSYSCFG_TYPE1SC()")
+
+  /* AT%SETSYSCFG=<obj>[,<value>]
+   * <obj> :
+   *  "SW_CFG.sim.dual_init_select"
+   *  "SW_CFG.catm_band_table.band#1" to "SW_CFG.catm_band_table.band#40"
+   * <value> depends of <obj> context (cf modem documentation)
+   */
+  if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
+  {
+    if (type1sc_shared.syscfg_function == SETGETSYSCFG_SIM_POLICY)
+    {
+      /* SW_CFG.sim.dual_init_select
+       * "DUAL_SIM2_FALLBACK" : Use external SIM if present. Otherwise, use internal eSIM.
+       * "SIM1_ONLY" : External SIM only
+       * "SIM2_ONLY" : Internal eSIM only
+       */
+      const CRC_CHAR_t *param_obj;
+      switch (p_modem_ctxt->persist.sim_selected)
+      {
+        case CS_MODEM_SIM_SOCKET_0:
+          param_obj = T1SC_STR_VALUE_SIM_1;
+          break;
+        case CS_MODEM_SIM_ESIM_1:
+          param_obj = T1SC_STR_VALUE_SIM_2;
+          break;
+        case CS_STM32_SIM_2:
+          PRINT_ERR("not supported, use default value");
+          param_obj = "";
+          break;
+        default:
+          param_obj = "";
+          break;
+      }
+
+      /* build SIM selection command */
+      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",\"%s\"",
+                     T1SC_STR_OBJ_SIM,
+                     param_obj);
+    }
+    else
+    {
+      PRINT_ERR("setsyscfg value not implemented")
+      retval = ATSTATUS_ERROR;
+    }
+  }
+
+  return (retval);
+}
+
+/**
+  * @brief  Build specific modem command : GETSYSCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_GETSYSCFG_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -252,6 +372,12 @@ at_status_t fCmdBuild_GETSYSCFG_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SETBDELAY.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SETBDELAY_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -263,8 +389,12 @@ at_status_t fCmdBuild_SETBDELAY_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom
   return (retval);
 }
 
-#define APN_NULL_STRING "null"
-
+/**
+  * @brief  Build specific modem command : PDNSET.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_PDNSET_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -326,6 +456,12 @@ at_status_t fCmdBuild_PDNSET_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_mo
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : PDNRDP.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_PDNRDP_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -352,6 +488,12 @@ at_status_t fCmdBuild_PDNRDP_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_mo
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : NOTIFYEV.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_NOTIFYEV_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -389,6 +531,13 @@ at_status_t fCmdBuild_NOTIFYEV_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_
 }
 
 /* Analyze command functions -------------------------------------------------*/
+
+/**
+  * @brief  Analyze specific modem response : ERROR.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_Error_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -396,19 +545,22 @@ at_action_rsp_t fRspAnalyze_Error_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mode
   at_action_rsp_t retval;
   PRINT_API("enter fRspAnalyze_Error_TYPE1SC()")
 
-  switch (p_atp_ctxt->current_SID)
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
   {
-    case SID_CS_DIAL_COMMAND:
-      /* in case of error during socket connection,
-      * release the modem CID for this socket_handle
-      */
-      (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle);
-      break;
-
-    default:
-      /* nothing to do */
-      break;
+    /* in case of error during socket connection,
+    * release the modem CID for this socket_handle
+    */
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
+    {
+      (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
+    }
+    else
+    {
+      PRINT_ERR("No socket context to release cid")
+    }
   }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
   /* analyze Error for TYPE1SC */
   switch (p_atp_ctxt->current_atcmd.id)
@@ -453,6 +605,16 @@ at_action_rsp_t fRspAnalyze_Error_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mode
       }
       break;
 
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+    case CMD_AT_SOCKETCMD_ACTIVATE:
+      /* specific error case:
+       *  when socket activation fails whereas allocation was successful, we need
+       *  to send command to release socket_id which was allocated by the modem.
+       */
+      retval = ATACTION_RSP_FRC_CONTINUE;
+      break;
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
+
     default:
       retval = fRspAnalyze_Error(p_at_ctxt, p_modem_ctxt, p_msg_in, element_infos);
       break;
@@ -461,6 +623,12 @@ at_action_rsp_t fRspAnalyze_Error_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mode
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : CPIN.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_CPIN_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                          const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -492,6 +660,12 @@ at_action_rsp_t fRspAnalyze_CPIN_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : CFUN.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_CFUN_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                          const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -512,6 +686,12 @@ at_action_rsp_t fRspAnalyze_CFUN_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : CCID.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_CCID_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                          const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -526,22 +706,25 @@ at_action_rsp_t fRspAnalyze_CCID_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem
     PRINT_DBG("ICCID:")
     PRINT_BUF((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size)
 
-    /* if ICCID reported by the modem includes a blank character (space, code=0x20) at the beginning
-     *  remove it if this is the case
-     */
-    uint16_t src_idx = element_infos->str_start_idx;
-    size_t ccid_size = element_infos->str_size;
-    if ((p_msg_in->buffer[src_idx] == 0x20U) &&
-        (ccid_size >= 2U))
+    if (p_modem_ctxt->SID_ctxt.p_device_info != NULL)
     {
-      ccid_size -= 1U;
-      src_idx += 1U;
-    }
+      /* if ICCID reported by the modem includes a blank character (space, code=0x20) at the beginning
+      *  remove it if this is the case
+      */
+      uint16_t src_idx = element_infos->str_start_idx;
+      size_t ccid_size = element_infos->str_size;
+      if ((p_msg_in->buffer[src_idx] == 0x20U) &&
+          (ccid_size >= 2U))
+      {
+        ccid_size -= 1U;
+        src_idx += 1U;
+      }
 
-    /* copy ICCID */
-    (void) memcpy((void *) & (p_modem_ctxt->SID_ctxt.device_info->u.iccid),
-                  (const void *)&p_msg_in->buffer[src_idx],
-                  (size_t) ccid_size);
+      /* copy ICCID */
+      (void) memcpy((void *) & (p_modem_ctxt->SID_ctxt.p_device_info->u.iccid),
+                    (const void *)&p_msg_in->buffer[src_idx],
+                    (size_t) ccid_size);
+    }
   }
   else
   {
@@ -552,6 +735,12 @@ at_action_rsp_t fRspAnalyze_CCID_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : GETCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_GETCFG_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                            const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -582,6 +771,12 @@ at_action_rsp_t fRspAnalyze_GETCFG_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mod
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : PDNRDP.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_PDNRDP_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                            const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -651,6 +846,12 @@ at_action_rsp_t fRspAnalyze_PDNRDP_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mod
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : NOTIFYEV.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_NOTIFYEV_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                              const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -800,175 +1001,11 @@ at_action_rsp_t fRspAnalyze_NOTIFYEV_TYPE1SC(at_context_t *p_at_ctxt, atcustom_m
 }
 
 /**
-  * @brief  Get IP Address type + extract IP address
-  * @param  p_addr_str_tmp Ptr to "IP address + subnet mask" string
-  * @param  addr_str_size size of given string
-  * @param  ip_addr_size  return size of IP address without subnet mask
-  * @retval CS_IPaddrType_t
+  * @brief  Analyze specific modem response : GETSYSCFG.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
   */
-static CS_IPaddrType_t atcm_PDNRDP_get_ip_address_type(const uint8_t *p_addr_str_tmp,
-                                                       uint8_t addr_str_size,
-                                                       uint8_t *ip_addr_size)
-{
-  CS_IPaddrType_t retval;
-  *ip_addr_size = 0U;
-
-  /* <local_addr and subnet_mask>
-  *  3GP TS27.007, same as AT+CGCONTRDP
-  * string type; shows the IP address and subnet mask of the MT. The string
-  *        is given as dot-separated numeric (0-255) parameters on the form:
-  *  for IPv4:
-  *    "a1.a2.a3.a4.m1.m2.m3.m4"
-  * for IPv6:
-  *    "a1.a2.a3.a4.a5.a6.a7.a8.a9.a10.a11.a12.a13.a14.a15.a16.m1.m2.m3.m4.m5.
-  *      m6.m7.m8.m9.m10.m11.m12.m13.m14.m15.m16"
-  */
-  PRINT_DBG("atcm_PDNRDP_get_ip_address_type (%d) %s  ", addr_str_size, p_addr_str_tmp)
-  if (p_addr_str_tmp != NULL)
-  {
-    uint8_t count_dots = 0U;
-    uint8_t cpt;
-
-    /* save ptr value
-     * we will iterate this pointer
-     * before to return, we need to restore pointer to its original value
-     */
-    const uint8_t *save_addr = p_addr_str_tmp;
-
-    /* count number of dots in address */
-    for (cpt = 0; cpt < addr_str_size; cpt++)
-    {
-      if (*p_addr_str_tmp == ((AT_CHAR_t)'.'))
-      {
-        count_dots++;
-      }
-      /* next character */
-      p_addr_str_tmp++;
-    }
-
-    /* restore ptr value for parsing same string again */
-    p_addr_str_tmp = save_addr;
-
-    /* analyze result */
-    if (count_dots == 7U)
-    {
-      retval = CS_IPAT_IPV4;
-    }
-    else if (count_dots == 30U)
-    {
-      retval = CS_IPAT_IPV6;
-    }
-    else
-    {
-      retval = CS_IPAT_INVALID;
-    }
-
-    /* now that IP type is known, parse again to
-    * split Ip address and subnet mask
-    */
-    count_dots = 0U;
-    if (retval != CS_IPAT_INVALID)
-    {
-      cpt = 0U;
-      do
-      {
-        if (*p_addr_str_tmp == ((AT_CHAR_t)'.'))
-        {
-          count_dots++;
-        }
-        /* if IPV4, cut before 4th dot*/
-        if ((retval == CS_IPAT_IPV4) && (count_dots == 4U))
-        {
-          *ip_addr_size = cpt;
-        }
-        /* if IPV6, cut before 16th dot*/
-        else if ((retval == CS_IPAT_IPV4) && (count_dots == 16U))
-        {
-          *ip_addr_size = cpt;
-        }
-        else
-        {
-          /* nothing to do */
-        }
-
-        /* next character */
-        cpt++;
-        p_addr_str_tmp++;
-      } while ((*ip_addr_size == 0U) && (cpt < addr_str_size));
-
-      /* restore original ptr value */
-      p_addr_str_tmp = save_addr; /* MISRA: ignore error, this ptr is returned to caller with its original value */
-    }
-  }
-  else
-  {
-    retval = CS_IPAT_INVALID;
-  }
-
-  PRINT_DBG("ip_addr_size (%d) type=%d", *ip_addr_size, retval)
-  return (retval);
-}
-
-
-#define T1SC_GETMIN(a,b) (((a)>(b))?(b):(a))
-#define T1SC_STR_OBJ_SIM     "SW_CFG.sim.dual_init_select"
-#define T1SC_STR_VALUE_SIM_1 "SIM1_ONLY"
-#define T1SC_STR_VALUE_SIM_2 "SIM2_ONLY"
-#define T1SC_MAX_SETGETSYSCFG_SIZE 30
-
-at_status_t fCmdBuild_SETSYSCFG_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
-{
-  at_status_t retval = ATSTATUS_OK;
-  PRINT_API("enter fCmdBuild_SETSYSCFG_TYPE1SC()")
-
-  /* AT%SETSYSCFG=<obj>[,<value>]
-   * <obj> :
-   *  "SW_CFG.sim.dual_init_select"
-   *  "SW_CFG.catm_band_table.band#1" to "SW_CFG.catm_band_table.band#40"
-   * <value> depends of <obj> context (cf modem documentation)
-   */
-  if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
-  {
-    if (type1sc_shared.syscfg_function == SETGETSYSCFG_SIM_POLICY)
-    {
-      /* SW_CFG.sim.dual_init_select
-       * "DUAL_SIM2_FALLBACK" – Use external SIM if present. Otherwise, use internal eSIM.
-       * "SIM1_ONLY" – External SIM only
-       * "SIM2_ONLY" – Internal eSIM only
-       */
-      const CRC_CHAR_t *param_obj;
-      switch (p_modem_ctxt->persist.sim_selected)
-      {
-        case CS_MODEM_SIM_SOCKET_0:
-          param_obj = T1SC_STR_VALUE_SIM_1;
-          break;
-        case CS_MODEM_SIM_ESIM_1:
-          param_obj = T1SC_STR_VALUE_SIM_2;
-          break;
-        case CS_STM32_SIM_2:
-          PRINT_ERR("not supported, use default value");
-          param_obj = "";
-          break;
-        default:
-          param_obj = "";
-          break;
-      }
-
-      /* build SIM selection command */
-      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",\"%s\"",
-                     T1SC_STR_OBJ_SIM,
-                     param_obj);
-    }
-    else
-    {
-      PRINT_ERR("setsyscfg value not implemented")
-      retval = ATSTATUS_ERROR;
-    }
-  }
-
-  return (retval);
-}
-
 at_action_rsp_t fRspAnalyze_GETSYSCFG_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                               const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -1045,6 +1082,131 @@ at_action_rsp_t fRspAnalyze_GETSYSCFG_TYPE1SC(at_context_t *p_at_ctxt, atcustom_
 
   return (retval);
 }
+/**
+  * @}
+  */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SIGNALLING_Private_Functions AT_CUSTOM ALTAIR_T1SC SIGNALLING Private Functions
+  * @{
+  */
+
+/**
+  * @brief  Get IP Address type + extract IP address
+  * @param  p_addr_str_tmp Ptr to "IP address + subnet mask" string
+  * @param  addr_str_size size of given string
+  * @param  ip_addr_size  return size of IP address without subnet mask
+  * @retval CS_IPaddrType_t
+  */
+static CS_IPaddrType_t atcm_PDNRDP_get_ip_address_type(const uint8_t *p_addr_str,
+                                                       uint8_t addr_str_size,
+                                                       uint8_t *ip_addr_size)
+{
+  CS_IPaddrType_t retval;
+  *ip_addr_size = 0U;
+
+  /* <local_addr and subnet_mask>
+  *  3GP TS27.007, same as AT+CGCONTRDP
+  * string type; shows the IP address and subnet mask of the MT. The string
+  *        is given as dot-separated numeric (0-255) parameters on the form:
+  *  for IPv4:
+  *    "a1.a2.a3.a4.m1.m2.m3.m4"
+  * for IPv6:
+  *    "a1.a2.a3.a4.a5.a6.a7.a8.a9.a10.a11.a12.a13.a14.a15.a16.m1.m2.m3.m4.m5.
+  *      m6.m7.m8.m9.m10.m11.m12.m13.m14.m15.m16"
+  */
+  PRINT_DBG("atcm_PDNRDP_get_ip_address_type (%d) %s  ", addr_str_size, p_addr_str)
+  if (p_addr_str != NULL)
+  {
+    uint8_t count_dots = 0U;
+    uint8_t cpt;
+
+    /* copy ptr value, we will iterate this pointer */
+    const uint8_t *p_tmp_addr = p_addr_str;
+
+    /* count number of dots in address */
+    for (cpt = 0; cpt < addr_str_size; cpt++)
+    {
+      if (*p_tmp_addr == ((AT_CHAR_t)'.'))
+      {
+        count_dots++;
+      }
+      /* next character */
+      p_tmp_addr++;
+    }
+
+    /* analyze result */
+    if (count_dots == 7U)
+    {
+      retval = CS_IPAT_IPV4;
+    }
+    else if (count_dots == 30U)
+    {
+      retval = CS_IPAT_IPV6;
+    }
+    else
+    {
+      retval = CS_IPAT_INVALID;
+    }
+
+    /* Now that IP type is known, parse again to split IP address and subnet mask
+     * Restore p_tmp_addr value for parsing same string again
+     */
+    p_tmp_addr = p_addr_str;
+    count_dots = 0U;
+    if (retval != CS_IPAT_INVALID)
+    {
+      cpt = 0U;
+      do
+      {
+        if (*p_tmp_addr == ((AT_CHAR_t)'.'))
+        {
+          count_dots++;
+        }
+        /* if IPV4, cut before 4th dot*/
+        if ((retval == CS_IPAT_IPV4) && (count_dots == 4U))
+        {
+          *ip_addr_size = cpt;
+        }
+        /* if IPV6, cut before 16th dot*/
+        else if ((retval == CS_IPAT_IPV4) && (count_dots == 16U))
+        {
+          *ip_addr_size = cpt;
+        }
+        else
+        {
+          /* nothing to do */
+        }
+
+        /* next character */
+        cpt++;
+        p_tmp_addr++;
+      } while ((*ip_addr_size == 0U) && (cpt < addr_str_size));
+
+    }
+  }
+  else
+  {
+    retval = CS_IPAT_INVALID;
+  }
+
+  PRINT_DBG("ip_addr_size (%d) type=%d", *ip_addr_size, retval)
+  return (retval);
+}
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
 

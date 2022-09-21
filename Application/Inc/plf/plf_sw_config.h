@@ -73,7 +73,6 @@ extern "C" {
 #if (SW_DEBUG_VERSION == 1U)
 /* ### SOFTWARE DEBUG VERSION :  traces activated ### */
 /* Trace channels: ITM, UART or Printf */
-#define TRACE_IF_TRACES_ITM                 (1U) /* trace_interface module send traces to ITM */
 #define TRACE_IF_TRACES_UART                (1U) /* trace_interface module send traces to UART */
 #define USE_PRINTF                          (0U) /* if set to 1, use printf instead of trace_interface module */
 
@@ -108,7 +107,6 @@ extern "C" {
 #else
 /* ### SOFTWARE RELEASE VERSION : very limited traces  ### */
 /* Trace channels: ITM, UART or Printf */
-#define TRACE_IF_TRACES_ITM                 (1U) /* trace_interface module send traces to ITM */
 #define TRACE_IF_TRACES_UART                (1U) /* trace_interface module send traces to UART */
 #define USE_PRINTF                          (0U) /* if set to 1, use printf instead of trace_interface module */
 

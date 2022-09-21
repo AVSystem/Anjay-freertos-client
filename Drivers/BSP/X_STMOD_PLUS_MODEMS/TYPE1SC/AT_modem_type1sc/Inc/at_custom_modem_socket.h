@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -33,16 +32,24 @@ extern "C" {
 #include "at_modem_common.h"
 #include "at_custom_modem_specific.h"
 
-/* Exported constants --------------------------------------------------------*/
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
 
-/* Exported types ------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
 
-/* Exported macros -----------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC AT_CUSTOM ALTAIR_T1SC
+  * @{
+  */
 
-/* Exported functions ------------------------------------------------------- */
-void clear_ping_resp_struct(atcustom_modem_context_t *p_modem_ctxt);
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC_SOCKET AT_CUSTOM ALTAIR_T1SC SOCKET
+  * @{
+  */
 
-/* TYPE1SC build commands overriding common function  or specific */
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SOCKET_Exported_Functions AT_CUSTOM ALTAIR_T1SC SOCKET Exported Functions
+  * @{
+  */
+/* TYPE1SC specific build commands */
 at_status_t fCmdBuild_PDNACT(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
 at_status_t fCmdBuild_SOCKETCMD_ALLOCATE(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
 at_status_t fCmdBuild_SOCKETCMD_ACTIVATE(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt);
@@ -67,10 +74,30 @@ at_action_rsp_t fRspAnalyze_DNSRSLV(at_context_t *p_at_ctxt, atcustom_modem_cont
                                     const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos);
 at_action_rsp_t fRspAnalyze_PINGCMD(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                     const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos);
+
+/* TYPE1SC other exported functions */
+void clear_ping_resp_struct(atcustom_modem_context_t *p_modem_ctxt);
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_CUSTOM_SOCKET_TYPE1SC_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

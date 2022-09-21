@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -26,9 +25,11 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include <stdint.h>
-
 #include "plf_config.h"
+
+#if (USE_COM_SOCKETS == 1)
+
+#include <stdint.h>
 
 #include "com_common.h"
 #include "com_sockets_addr_compat.h"
@@ -60,6 +61,9 @@ extern "C" {
   in Application call:
   generic com_socket services (e.g com_socket()) rather than
   com_socket_ip_modem() or com_socket_lwip_mcu() to be independent of the USE_SOCKETS_TYPE value
+
+  To use this module define USE_COM_SOCKETS must be set to 1
+
   @endverbatim
 
   @warning
@@ -238,7 +242,8 @@ int32_t com_sendto_ip_modem(int32_t sock,
   *         a maximum of the interface capacity can be received
   *         at each function call
   * @param  flags     - options
-  * @note   - if flags = COM_MSG_DONTWAIT, application request to not wait
+  * @note
+  *         - if flags = COM_MSG_DONTWAIT, application request to not wait
   *         until data are available at low level
   *         - if flags = COM_MSG_WAIT, application accept to wait
   *         until data are available at low level with respect of potential
@@ -260,7 +265,8 @@ int32_t com_recv_ip_modem(int32_t sock,
   *         a maximum of the interface capacity can be received
   *         at each function call
   * @param  flags     - options
-  * @note   - if flags = COM_MSG_DONTWAIT, application request to not wait
+  * @note
+  *         - if flags = COM_MSG_DONTWAIT, application request to not wait
   *         until data are available at low level
   *         - if flags = COM_MSG_WAIT, application accept to wait
   *         until data are available at low level with respect of potential
@@ -363,6 +369,8 @@ int32_t com_getsockname_ip_modem(int32_t sock,
   generic com_ping services (e.g com_ping()) rather than
   com_ping_ip_modem() or com_ping_lwip_mcu() to be independent of the USE_SOCKETS_TYPE value
 
+  To use this module define USE_COM_SOCKETS AND USE_COM_PING must be set to 1
+
   @endverbatim
 
   */
@@ -437,11 +445,10 @@ bool com_init_ip_modem(void);
   */
 void com_start_ip_modem(void);
 
+#endif /* USE_COM_SOCKETS == 1 */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* COM_SOCKETS_IP_MODEM_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

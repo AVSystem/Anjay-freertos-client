@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -28,12 +27,17 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "plf_config.h"
 
-/* Exported constants --------------------------------------------------------*/
-/* Exported types ------------------------------------------------------------*/
-/* External variables --------------------------------------------------------*/
-/* Exported macros -----------------------------------------------------------*/
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
 
-/* Exported functions ------------------------------------------------------- */
+/** @addtogroup AT_CORE_UTIL AT_CORE UTIL
+  * @{
+  */
+
+/** @defgroup AT_CORE_UTIL_Exported_Functions AT_CORE UTIL Exported Functions
+  * @{
+  */
 uint32_t ATutil_ipow(uint32_t base, uint16_t exp);
 uint32_t ATutil_convertStringToInt(const uint8_t *p_string, uint16_t size);
 uint32_t ATutil_convertHexaStringToInt32(const uint8_t *p_string, uint16_t size);
@@ -50,11 +54,20 @@ uint32_t ATutil_extract_hex_value_from_quotes(const uint8_t *p_str, uint16_t str
 uint32_t ATutil_extract_bin_value_from_quotes(const uint8_t *p_str, uint16_t str_size, uint8_t param_size);
 uint32_t ATutil_convert_T3412_to_seconds(uint32_t encoded_value);
 uint32_t ATutil_convert_T3324_to_seconds(uint32_t encoded_value);
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_UTIL_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

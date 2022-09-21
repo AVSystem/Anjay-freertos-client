@@ -6,19 +6,20 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
 
 /* Includes ------------------------------------------------------------------*/
 #include "com_sockets_ip_modem.h"
+
+#if (USE_COM_SOCKETS == 1)
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
 
@@ -74,6 +75,12 @@ typedef uint16_t com_socket_msg_id_t;
 #define COM_DATA_RCV          (com_socket_msg_id_t)1      /* MSG id is DATA_RCV       */
 #define COM_CLOSING_RCV       (com_socket_msg_id_t)2      /* MSG id is CLOSING_RCV    */
 
+/* Message Description :
+socket_msg_t
+{
+  socket_msg_type_t type;
+  socket_msg_id_t   id;
+} */
 typedef uint32_t com_socket_msg_t;
 
 /* Socket State */
@@ -84,34 +91,35 @@ typedef enum
   COM_SOCKET_CREATED,
   COM_SOCKET_CONNECTED,
   COM_SOCKET_SENDING,
-  COM_SOCKET_WAITING_RSP,
-  COM_SOCKET_WAITING_FROM,
+  COM_SOCKET_WAITING,
   COM_SOCKET_CLOSING
 } com_socket_state_t;
 
 /* Socket descriptor data structure */
 typedef struct _socket_desc_t
 {
-  com_socket_state_t    state;       /* socket state */
+  com_socket_state_t    state;       /* socket state            */
   bool                  local;       /*   internal id - e.g for ping
                                        or external id - e.g modem    */
   bool                  closing;     /* close recv from remote  */
   uint8_t               type;        /* Socket Type TCP/UDP/RAW */
   int32_t               error;       /* last command status     */
-  int32_t               id;          /* identifier */
-  uint16_t              local_port;  /* local port */
-  uint16_t              remote_port; /* remote port */
-  com_ip_addr_t         remote_addr; /* remote addr */
+  int32_t               id;          /* identifier              */
+  uint16_t              local_port;  /* local port              */
+  uint16_t              remote_port; /* remote port             */
+  com_ip_addr_t         remote_addr; /* remote addr             */
   uint32_t              snd_timeout; /* timeout for send cmd    */
   uint32_t              rcv_timeout; /* timeout for receive cmd */
   osMessageQId          queue;       /* message queue for URC   */
-  com_ping_rsp_t        *rsp;
-  struct _socket_desc_t *next;       /* chained list            */
+#if (USE_COM_PING == 1)
+  com_ping_rsp_t        *p_ping_rsp; /* pointer on ping rsp     */
+#endif /* USE_COM_PING == 1 */
+  struct _socket_desc_t *p_next;     /* chained list            */
 } socket_desc_t;
 
 typedef struct
 {
-  CS_IPaddrType_t ip_type;
+  CS_IPaddrType_t ip_type; /* possible values: IPv4 or IPv6 - only IPv4 supported */
   /* In cellular_service socket_configure_remote()
      memcpy from char *addr to addr[] without knowing the length
      and by using strlen(char *addr) so ip_value must contain /0 */
@@ -125,61 +133,40 @@ typedef struct
 /* Timer State */
 typedef enum
 {
-  COM_TIMER_INVALID = 0,
-  COM_TIMER_IDLE,
-  COM_TIMER_RUN
+  COM_TIMER_INVALID = 0, /* Timer not created         */
+  COM_TIMER_IDLE,        /* Timer created not started */
+  COM_TIMER_RUN          /* Timer created and started */
 } com_timer_state_t;
 #endif /* USE_LOW_POWER == 1 */
 
 /* Private macros ------------------------------------------------------------*/
-
 #define COM_MIN(a,b) (((a)<(b)) ? (a) : (b))
 
-/* Set socket error */
-#define SOCKET_SET_ERROR(socket, val) do {\
-                                           if ((socket) != NULL) {\
-                                           (socket)->error = (val); }\
-                                         } while(0)
+/* Set socket error - Used a lot of time in code */
+#define SOCKET_SET_ERROR(socket, val) do { if ((socket) != NULL) { (socket)->error = (val); } } while(0)
 
-/* Get socket error */
-#define SOCKET_GET_ERROR(socket, val) do {\
-                                           if ((socket) != NULL) {\
-                                             (*(int32_t *)(val)) = ((((socket)->error) == COM_SOCKETS_ERR_OK) ? \
-                                             COM_SOCKETS_ERR_OK : \
-                                           com_sockets_err_to_errno((com_sockets_err_t)((socket)->error))); }\
-                                           else {\
-                                             (*(int32_t *)(val)) = \
-                                           com_sockets_err_to_errno(COM_SOCKETS_ERR_DESCRIPTOR); }\
-                                         } while(0)
-
-/* Description
-socket_msg_t
-{
-  socket_msg_type_t type;
-  socket_msg_id_t   id;
-} */
 /* Set / Get Socket message */
-#define SET_SOCKET_MSG_TYPE(msg, type) ((msg) = ((msg)&0xFFFF0000U) | (type))
-#define SET_SOCKET_MSG_ID(msg, id)     ((msg) = ((msg)&0x0000FFFFU) | ((id)<<16))
+#define SET_SOCKET_MSG_TYPE(msg, type) ((msg) = ((msg)&0xFFFF0000U) | (uint32_t)(type))
+#define SET_SOCKET_MSG_ID(msg, id)     ((msg) = ((msg)&0x0000FFFFU) | (((uint32_t)(id))<<16))
 #define GET_SOCKET_MSG_TYPE(msg)       ((com_socket_msg_type_t)((msg)&0x0000FFFFU))
 #define GET_SOCKET_MSG_ID(msg)         ((com_socket_msg_id_t)(((msg)&0xFFFF0000U)>>16))
 
 /* Private variables ---------------------------------------------------------*/
 
-/* Mutex to protect access to :
-   socket descriptor list,
-   socket local_id array */
+/* Mutex to protect access to: socket descriptor list and socket local_id array */
 static osMutexId ComSocketsMutexHandle;
 
-static socket_desc_t *socket_desc_list; /* Socket descriptor list */
+/* Socket descriptor list */
+static socket_desc_t *p_socket_desc_list;
 
 /* Provide a socket local id - Used for Ping */
-static bool socket_local_id[COM_SOCKET_LOCAL_ID_NB]; /* false : unused, true  : in use  */
+static bool socket_local_id[COM_SOCKET_LOCAL_ID_NB]; /* false: socket id unused, true: socket id used */
 #if (USE_COM_PING == 1)
 static int32_t ping_socket_id; /* Ping socket id */
 #endif /* USE_COM_PING  == 1 */
 
-static bool com_sockets_network_is_up; /* Network status is managed through Datacache */
+/* Network status is managed through Datacache */
+static bool com_sockets_network_is_up;
 
 #if (USE_LOW_POWER == 1)
 /* Timer to check inactivity on socket and maybe to go in data idle mode */
@@ -188,23 +175,19 @@ static osTimerId ComTimerInactivityId;
 static com_timer_state_t com_timer_inactivity_state;
 /* If com_nb_wake_up <= 1 inactivity timer can be activated */
 static uint8_t com_nb_wake_up;
-/* Mutex to protect access to :
-   com_timer_inactivity_state,
-   com_nb_wake_up
-  (several applications and datacache) */
+/* Mutex to protect access to: com_timer_inactivity_state, com_nb_wake_up (several applications and datacache) */
 static osMutexId ComTimerInactivityMutexHandle;
 #endif /* USE_LOW_POWER == 1 */
 
 #if (UDP_SERVICE_SUPPORTED == 1U)
 /* Local port allocated - used when bind(local_port = 0U) */
-static uint16_t com_local_port; /* a value in [COM_LOCAL_PORT_BEGIN, COM_LOCAL_PORT_BEGIN] */
+static uint16_t com_local_port; /* a value in range [COM_LOCAL_PORT_BEGIN, COM_LOCAL_PORT_BEGIN] */
 #endif /* UDP_SERVICE_SUPPORTED == 1U */
 
 /* Global variables ----------------------------------------------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
-/* Callback prototype */
-
+/*** BEGIN Callback prototype ***/
 /* Callback called by AT when data are received */
 static void com_ip_modem_data_received_cb(socket_handle_t sock);
 /* Callback called by AT when closing is received */
@@ -222,9 +205,10 @@ static void com_ip_modem_ping_rsp_cb(CS_Ping_response_t ping_rsp);
 /* Callback called When Timer Inactivity is raised */
 static void com_ip_modem_timer_inactivity_cb(void *p_argument);
 #endif /* USE_LOW_POWER == 1 */
+/*** END Callback prototype ***/
 
 /* Initialize a socket descriptor */
-static void com_ip_modem_init_socket_desc(socket_desc_t *socket_desc);
+static void com_ip_modem_init_socket_desc(socket_desc_t *p_socket_desc);
 /* Create a socket descriptor */
 static socket_desc_t *com_ip_modem_create_socket_desc(void);
 /* Provide a free socket descriptor */
@@ -237,19 +221,16 @@ static socket_desc_t *com_ip_modem_find_socket(int32_t sock, bool local);
 /* Empty queue from all messages */
 static void com_ip_modem_empty_queue(osMessageQId queue);
 
-/* Conversion IP address functions */
-static bool com_translate_ip_address(const com_sockaddr_t *addr,
-                                     int32_t              addrlen,
-                                     socket_addr_t        *socket_addr);
-static bool com_convert_IPString_to_sockaddr(uint16_t       ipaddr_port,
-                                             com_char_t     *ipaddr_str,
-                                             com_sockaddr_t *sockaddr);
-static void com_convert_ipaddr_port_to_sockaddr(const com_ip_addr_t *ip_addr,
-                                                uint16_t port,
-                                                com_sockaddr_in_t *sockaddr_in);
-static void com_convert_sockaddr_to_ipaddr_port(const com_sockaddr_in_t *sockaddr_in,
-                                                com_ip_addr_t *ip_addr,
-                                                uint16_t *port);
+/*** BEGIN Conversion IP address functions ***/
+static bool com_translate_ip_address(const com_sockaddr_t *p_addr, int32_t addrlen, socket_addr_t *p_socket_addr);
+static bool com_convert_IPString_to_sockaddr(uint16_t ipaddr_port, com_char_t *p_ipaddr_str,
+                                             com_sockaddr_t *p_sockaddr);
+static void com_convert_ipaddr_port_to_sockaddr(const com_ip_addr_t *p_ip_addr, uint16_t port,
+                                                com_sockaddr_in_t *p_sockaddr_in);
+static void com_convert_sockaddr_to_ipaddr_port(const com_sockaddr_in_t *p_sockaddr_in,
+                                                com_ip_addr_t *p_ip_addr, uint16_t *p_port);
+
+/*** END Conversion IP address functions ***/
 
 /* Network status is managed through Datacache */
 static bool com_ip_modem_is_network_up(void);
@@ -259,78 +240,77 @@ static bool com_ip_modem_is_network_up(void);
 static uint16_t com_ip_modem_new_local_port(void);
 
 /* Establish a UDP service (sendto/recvfrom) socket */
-static int32_t com_ip_modem_connect_udp_service(socket_desc_t *socket_desc);
+static int32_t com_ip_modem_connect_udp_service(socket_desc_t *p_socket_desc);
 #endif /* UDP_SERVICE_SUPPORTED == 1U */
 
-/* Request low power */
+/* Request wakeup */
 static void com_ip_modem_wakeup_request(void);
+/* Request idle mode */
 static void com_ip_modem_idlemode_request(bool immediate);
 #if (USE_LOW_POWER == 1)
 static bool com_ip_modem_are_all_sockets_invalid(void);
 #endif /* USE_LOW_POWER == 1U */
 
 /* Private function Definition -----------------------------------------------*/
-
 /**
   * @brief  Initialize a socket descriptor
-  * @note   queue is reused
-  * @param  socket_desc - socket descriptor to initialize
+  * @note   socket queue is created the first time then it is reused
+  * @param  p_socket_desc - socket descriptor to initialize
   * @retval -
   */
-static void com_ip_modem_init_socket_desc(socket_desc_t *socket_desc)
+static void com_ip_modem_init_socket_desc(socket_desc_t *p_socket_desc)
 {
-  socket_desc->state            = COM_SOCKET_INVALID;
-  socket_desc->local            = false;
-  socket_desc->closing          = false;
-  socket_desc->id               = COM_SOCKET_INVALID_ID;
-  socket_desc->local_port       = 0U;
-  socket_desc->remote_port      = 0U;
-  socket_desc->remote_addr.addr = 0U;
-  (void)memset((void *)&socket_desc->remote_addr, 0, sizeof(socket_desc->remote_addr));
-  socket_desc->rcv_timeout      = RTOSAL_WAIT_FOREVER;
-  socket_desc->snd_timeout      = RTOSAL_WAIT_FOREVER;
-  socket_desc->error            = COM_SOCKETS_ERR_OK;
-  /* socket_desc->next is not re-initialize - element is let in the list at its place */
-  /* socket_desc->queue is not re-initialize - queue is reused */
+  p_socket_desc->state            = COM_SOCKET_INVALID;
+  p_socket_desc->local            = false;
+  p_socket_desc->closing          = false;
+  p_socket_desc->id               = COM_SOCKET_INVALID_ID;
+  p_socket_desc->local_port       = 0U;
+  p_socket_desc->remote_port      = 0U;
+  p_socket_desc->remote_addr.addr = 0U;
+  (void)memset((void *) & (p_socket_desc->remote_addr), 0, sizeof(p_socket_desc->remote_addr));
+  p_socket_desc->rcv_timeout      = RTOSAL_WAIT_FOREVER; /* default value, updated with setsockopt COM_SO_RCVTIMEO */
+  p_socket_desc->snd_timeout      = RTOSAL_WAIT_FOREVER; /* default value, updated with setsockopt COM_SO_SNDTIMEO */
+  p_socket_desc->error            = COM_SOCKETS_ERR_OK;
+  /* p_socket_desc->p_next is not re-initialize - element is let in the list at its place */
+  /* p_socket_desc->queue is not re-initialize - queue is reused */
 }
 
 /**
   * @brief  Create a socket descriptor
-  * @note   Allocate a new socket_desc_t and its queue
-  *         and initialize the socket to default value
+  * @note   Allocate a new socket_desc_t and its queue and initialize the socket to default value
   * @param  -
   * @retval socket_desc_t or NULL (if not enough memory)
   */
 static socket_desc_t *com_ip_modem_create_socket_desc(void)
 {
-  socket_desc_t *socket_desc;
+  socket_desc_t *p_socket_desc;
 
-  socket_desc = (socket_desc_t *)pvPortMalloc(sizeof(socket_desc_t));
-  if (socket_desc != NULL)
+  p_socket_desc = (socket_desc_t *)RTOSAL_MALLOC(sizeof(socket_desc_t));
+  if (p_socket_desc != NULL)
   {
-    socket_desc->queue = rtosalMessageQueueNew(NULL, 4U);
-    if (socket_desc->queue == NULL)
+    p_socket_desc->queue = rtosalMessageQueueNew((const rtosal_char_t *)"COMSOCKIP_QUE_SOCKET", 4U);
+    if (p_socket_desc->queue == NULL)
     {
-      /* Not enough memory - Deallocate socket_desc */
-      vPortFree(socket_desc);
-      socket_desc = NULL;
+      /* Not enough memory - Deallocate p_socket_desc */
+      RTOSAL_FREE(p_socket_desc);
+      p_socket_desc = NULL;
     }
     else
     {
-      socket_desc->next = NULL;
-      com_ip_modem_init_socket_desc(socket_desc);
+      /* Creation is ok, initialize socket */
+      p_socket_desc->p_next = NULL;
+      com_ip_modem_init_socket_desc(p_socket_desc);
     }
   }
 
-  return socket_desc;
+  return (p_socket_desc);
 }
 
 /**
   * @brief  Provide a socket descriptor
   * @note   Search the first empty place in the chained socket list
-  *         or create a new socket and add it at the end of the chained list
-  * @param  local
-  * @note   true/false socket is local (used for Ping) / network one
+  *         if no empty place found create a new socket and add it at the end of the chained list
+  * @param  local - true/false socket is local (used for Ping) / network one
   * @retval socket_desc_t or NULL (if not enough memory)
   */
 static socket_desc_t *com_ip_modem_provide_socket_desc(bool local)
@@ -338,14 +318,12 @@ static socket_desc_t *com_ip_modem_provide_socket_desc(bool local)
   /* Chained list will be changed */
   (void)rtosalMutexAcquire(ComSocketsMutexHandle, RTOSAL_WAIT_FOREVER);
 
-  bool found;
-  uint8_t i;
-  socket_desc_t *socket_desc;
-  socket_desc_t *socket_desc_previous;
+  bool found = false;
+  uint8_t i  = 0U;
+  socket_desc_t *p_socket_desc;
+  socket_desc_t *p_socket_desc_previous;
 
-  i = 0U;
-  found = false;
-  socket_desc = socket_desc_list;
+  p_socket_desc = p_socket_desc_list;
 
   /* If socket is local first check an id is still available in the table */
   if (local == true)
@@ -370,53 +348,52 @@ static socket_desc_t *com_ip_modem_provide_socket_desc(bool local)
 
   if ((found == true) && (i < COM_SOCKET_LOCAL_ID_NB))
   {
-    /* Need to create a new socket_desc ? */
-    while ((socket_desc->state != COM_SOCKET_INVALID)
-           && (socket_desc->next != NULL))
+    /* Need to create a new p_socket_desc ? */
+    while ((p_socket_desc->state != COM_SOCKET_INVALID) && (p_socket_desc->p_next != NULL))
     {
-      socket_desc = socket_desc->next; /* Check next descriptor */
+      p_socket_desc = p_socket_desc->p_next; /* Check next descriptor */
     }
     /* Find an empty socket ? */
-    if (socket_desc->state != COM_SOCKET_INVALID)
+    if (p_socket_desc->state != COM_SOCKET_INVALID)
     {
       /* No empty socket, save the last socket descriptor to attach the new one */
-      socket_desc_previous = socket_desc;
+      p_socket_desc_previous = p_socket_desc;
       /* Create new socket descriptor */
-      socket_desc = com_ip_modem_create_socket_desc();
-      if (socket_desc != NULL)
+      p_socket_desc = com_ip_modem_create_socket_desc();
+      if (p_socket_desc != NULL)
       {
-        PRINT_DBG("socket desc created %ld queue %p", socket_desc->id, socket_desc->queue)
+        PRINT_DBG("socket desc created %ld queue %p", p_socket_desc->id, p_socket_desc->queue)
         /* Before to attach this new socket to the descriptor list finalize its initialization */
-        socket_desc->state = COM_SOCKET_CREATING;
-        socket_desc->local = local;
+        p_socket_desc->state = COM_SOCKET_CREATING;
+        p_socket_desc->local = local;
         if (local == true)
         {
           /* even if an application create two sockets one local - one distant
              no issue if id is same because it will be stored
              in two variables at application level */
           /* Don't need an OFFSET to not overlap Modem id */
-          socket_desc->id = (int32_t)i;
+          p_socket_desc->id = (int32_t)i;
           /*  Socket is really created - book com_socket_local_id */
           socket_local_id[i] = true;
         }
         /* Initialization is finalized, socket can be attached to the list
            and so visible to other functions
            even the one accessing in read mode to socket descriptor list */
-        socket_desc_previous->next = socket_desc;
+        p_socket_desc_previous->p_next = p_socket_desc;
       }
     }
     else
     {
       /* Find an empty place */
-      socket_desc->state = COM_SOCKET_CREATING;
-      socket_desc->local = local;
+      p_socket_desc->state = COM_SOCKET_CREATING;
+      p_socket_desc->local = local;
       if (local == true)
       {
         /* even if an application create two sockets one local - one distant
            no issue if id is same because it will be stored
            in two variable s at application level */
         /* Don't need an OFFSET to not overlap Modem id */
-        socket_desc->id = (int32_t)i;
+        p_socket_desc->id = (int32_t)i;
         /*  Socket is really created - book com_socket_local_id */
         socket_local_id[i] = true;
       }
@@ -425,17 +402,15 @@ static socket_desc_t *com_ip_modem_provide_socket_desc(bool local)
 
   (void)rtosalMutexRelease(ComSocketsMutexHandle);
 
-  /* If provide == false then socket_desc = NULL */
-  return socket_desc;
+  /* If provide == false then p_socket_desc = NULL */
+  return (p_socket_desc);
 }
 
 /**
   * @brief  Delete a socket descriptor
   * @note   Search the socket descriptor and reinitialze it to unused
-  * @param  sock
-  * @note   socket id
-  * @param  local
-  * @note   true/false
+  * @param  sock  - socket id
+  * @param  local - true/false
   * @retval -
   */
 static void com_ip_modem_delete_socket_desc(int32_t sock, bool local)
@@ -443,19 +418,15 @@ static void com_ip_modem_delete_socket_desc(int32_t sock, bool local)
   /* Chained list will be changed */
   (void)rtosalMutexAcquire(ComSocketsMutexHandle, RTOSAL_WAIT_FOREVER);
 
-  bool found;
-  socket_desc_t *socket_desc;
+  bool found = false;
+  socket_desc_t *p_socket_desc;
 
-  found = false;
-
-  socket_desc = socket_desc_list;
+  p_socket_desc = p_socket_desc_list;
 
   /* Search the socket descriptor */
-  while ((socket_desc != NULL)
-         && (found != true))
+  while ((p_socket_desc != NULL) && (found != true))
   {
-    if ((socket_desc->id == sock)
-        && (socket_desc->local == local))
+    if ((p_socket_desc->id == sock) && (p_socket_desc->local == local))
     {
       /* Socket descriptor is found */
       found = true;
@@ -463,13 +434,13 @@ static void com_ip_modem_delete_socket_desc(int32_t sock, bool local)
     else
     {
       /* Not the searched one ... Next */
-      socket_desc = socket_desc->next;
+      p_socket_desc = p_socket_desc->p_next;
     }
   }
   if (found == true)
   {
     /* Always keep a created socket */
-    com_ip_modem_init_socket_desc(socket_desc);
+    com_ip_modem_init_socket_desc(p_socket_desc);
     if (local == true)
     {
       /* Free com_socket_local_id */
@@ -482,30 +453,24 @@ static void com_ip_modem_delete_socket_desc(int32_t sock, bool local)
 
 /**
   * @brief  Find a socket descriptor
-  * @note   Search the socket descriptor
-  * @param  sock
-  * @note   socket id
-  * @param  local
-  * @note   true/false
+  * @param  sock  - socket id
+  * @param  local - true/false
   * @retval socket_desc_t or NULL
   */
 static socket_desc_t *com_ip_modem_find_socket(int32_t sock, bool local)
 {
-  socket_desc_t *socket_desc;
+  socket_desc_t *p_socket_desc;
 
   if (sock >= 0)
   {
-    bool found;
+    bool found = false;
 
-    socket_desc = socket_desc_list;
-    found = false;
+    p_socket_desc = p_socket_desc_list;
 
     /* Search the socket descriptor */
-    while ((socket_desc != NULL)
-           && (found != true))
+    while ((p_socket_desc != NULL) && (found != true))
     {
-      if ((socket_desc->id == sock)
-          && (socket_desc->local == local))
+      if ((p_socket_desc->id == sock) && (p_socket_desc->local == local))
       {
         /* Socket descriptor is found */
         found = true;
@@ -513,17 +478,17 @@ static socket_desc_t *com_ip_modem_find_socket(int32_t sock, bool local)
       else
       {
         /* Not the searched one ... Next */
-        socket_desc = socket_desc->next;
+        p_socket_desc = p_socket_desc->p_next;
       }
     }
   }
   else
   {
-    socket_desc = NULL;
+    p_socket_desc = NULL;
   }
 
-  /* If found == false then socket_desc = NULL */
-  return socket_desc;
+  /* If found == false then p_socket_desc = NULL */
+  return (p_socket_desc);
 }
 
 /**
@@ -533,12 +498,13 @@ static socket_desc_t *com_ip_modem_find_socket(int32_t sock, bool local)
   */
 static void com_ip_modem_empty_queue(osMessageQId queue)
 {
-  uint32_t msg_queue;
+  com_socket_msg_t msg_queue;
 
   do
   {
-    msg_queue = 0U;
-    (void)rtosalMessageQueueGet(queue, &msg_queue, 0U);
+    msg_queue = 0U; /* if msg_queue = 0U after MessageQueueGet() then the queue is empty */
+    /* Read the queue to suppress the msg from it */
+    (void)rtosalMessageQueueGet(queue, &msg_queue, 0U); /* timeout = 0U */
     if (msg_queue != 0U)
     {
       /* Message available in the queue */
@@ -549,86 +515,74 @@ static void com_ip_modem_empty_queue(osMessageQId queue)
 
 #if (USE_LOW_POWER == 1)
 /**
-  * @brief  Are all sockets invalid
-  * @note   Check if all sockets are invalid
+  * @brief  Are all sockets invalid state
+  * @note   Check if all sockets are in invalid state
   * @param  -
   * @retval bool : false at least one socket is opened
   *                true  no socket are opened
   */
 static bool com_ip_modem_are_all_sockets_invalid(void)
 {
-  socket_desc_t *socket_desc;
-  bool result; /* false : at least one socket is still open
-                  true : all sockets are Invalid */
+  bool result = true; /* false : at least one socket is still open, true : all sockets are in invalid state */
+  socket_desc_t *p_socket_desc;
 
-  socket_desc = socket_desc_list;
-  result = true;
+  p_socket_desc = p_socket_desc_list;
 
-  /* Search the socket descriptor */
-  while ((socket_desc != NULL)
-         && (result != false))
+  /* Check one by one socket descriptor */
+  while ((p_socket_desc != NULL) && (result != false))
   {
-    if (socket_desc->id > COM_SOCKET_INVALID_ID)
+    if (p_socket_desc->id > COM_SOCKET_INVALID_ID)
     {
-      result = false;
+      result = false; /* at least one socket is not in invalid state, no need to continue the check */
     }
     else
     {
-      /* Socket is Invalid, check the next one */
-      socket_desc = socket_desc->next;
+      /* The socket is invalid state, check the next one */
+      p_socket_desc = p_socket_desc->p_next;
     }
   }
 
-  return result;
+  return (result);
 }
 #endif /* USE_LOW_POWER == 1 */
 
 /**
   * @brief  Translate a com_sockaddr_t to a socket_addr_t
-  * @note   -
-  * @param  addr - address in com socket format
+  * @param  p_addr - pointer on address in com socket format
   * @note   address is uint32_t 0xDDCCBBAA and port is COM_HTONS
   * @param  addrlen - com socket address length
   * @note   must be equal sizeof(com_sockaddr_in_t)
-  * @param  socket_addr - socket address AT format
+  * @param  p_socket_addr - pointer on socket address AT format
   * @note   address is AAA.BBB.CCC.DDD and port is COM_NTOHS
   * @retval bool - false/true conversion ok/nok
   */
-static bool com_translate_ip_address(const com_sockaddr_t *addr,
-                                     int32_t              addrlen,
-                                     socket_addr_t        *socket_addr)
+static bool com_translate_ip_address(const com_sockaddr_t *p_addr, int32_t addrlen, socket_addr_t *p_socket_addr)
 {
-  bool result;
+  bool result = false;
   const com_sockaddr_in_t *p_sockaddr_in;
-
-  result = false;
 
   if (addrlen == (int32_t)sizeof(com_sockaddr_in_t))
   {
-    p_sockaddr_in = (const com_sockaddr_in_t *)addr;
+    p_sockaddr_in = (const com_sockaddr_in_t *)p_addr;
 
-    if ((addr != NULL)
-        && (socket_addr != NULL))
+    if ((p_addr != NULL) && (p_socket_addr != NULL))
     {
-      if (addr->sa_family == (uint8_t)COM_AF_INET)
+      if (p_addr->sa_family == (uint8_t)COM_AF_INET)
       {
-        socket_addr->ip_type = CS_IPAT_IPV4;
+        p_socket_addr->ip_type = CS_IPAT_IPV4;
         if (p_sockaddr_in->sin_addr.s_addr == COM_INADDR_ANY)
         {
-          (void)memcpy(&socket_addr->ip_value[0], "0.0.0.0", strlen("0.0.0.0"));
+          (void)memcpy(&(p_socket_addr->ip_value[0]), "0.0.0.0", strlen("0.0.0.0"));
         }
         else
         {
           com_ip_addr_t com_ip_addr;
-          com_ip_addr.addr = ((const com_sockaddr_in_t *)addr)->sin_addr.s_addr;
-          (void)sprintf((CSIP_CHAR_t *)socket_addr->ip_value,
-                        "%hhu.%hhu.%hhu.%.hhu",
-                        COM_IP4_ADDR1(&com_ip_addr),
-                        COM_IP4_ADDR2(&com_ip_addr),
-                        COM_IP4_ADDR3(&com_ip_addr),
-                        COM_IP4_ADDR4(&com_ip_addr));
+          com_ip_addr.addr = ((const com_sockaddr_in_t *)p_addr)->sin_addr.s_addr;
+          (void)sprintf((CSIP_CHAR_t *)p_socket_addr->ip_value, "%hhu.%hhu.%hhu.%hhu",
+                        COM_IP4_ADDR1(&com_ip_addr), COM_IP4_ADDR2(&com_ip_addr),
+                        COM_IP4_ADDR3(&com_ip_addr), COM_IP4_ADDR4(&com_ip_addr));
         }
-        socket_addr->port = COM_NTOHS(((const com_sockaddr_in_t *)addr)->sin_port);
+        p_socket_addr->port = COM_NTOHS(((const com_sockaddr_in_t *)p_addr)->sin_port);
         result = true;
       }
       /* else if (addr->sa_family == COM_AF_INET6) */
@@ -637,59 +591,46 @@ static bool com_translate_ip_address(const com_sockaddr_t *addr,
     }
   }
 
-  return result;
+  return (result);
 }
 
 /**
   * @brief  Translate a port/address string to com_sockaddr_t
-  * @note   -
-  * @param  ipaddr_port
-  * @note   port
-  * @param  ipaddr_str - address in string format
+  * @param  ipaddr_port  - ipaddr port
+  * @param  p_ipaddr_str - pointer on address in string format
   * @note   "xxx.xxx.xxx.xxx" or xxx.xxx.xxx.xxx
-  * @param  sockaddr - address in com socket format
+  * @param  p_sockaddr   - pointer on address in com socket format
   * @note   address is uint32_t 0xDDCCBBAA and port is COM_HTONS
   * @retval bool - false/true conversion ok/nok
   */
-static bool com_convert_IPString_to_sockaddr(uint16_t       ipaddr_port,
-                                             com_char_t     *ipaddr_str,
-                                             com_sockaddr_t *sockaddr)
+static bool com_convert_IPString_to_sockaddr(uint16_t ipaddr_port, com_char_t *p_ipaddr_str, com_sockaddr_t *p_sockaddr)
 {
-  bool result;
-  int32_t  count;
-  uint8_t  begin;
-  uint32_t  ip_addr[4];
-  com_ip4_addr_t ip4_addr;
-
-  result = false;
+  bool result = false;
+  int32_t  count; /* To check if p_ipaddr_str contains an addr xxx.xxx.xxx.xxx */
+  uint8_t  begin; /* To start the copy skipping potential '"' at begin/end of p_ipaddr_str */
+  uint32_t ip_addr_tmp[4];
+  com_ip4_addr_t ip4_addr_tmp;
 
   /* In a static function no need to retest sockaddr != NULL
      But let it because this function will become an user library */
   /* if (sockaddr != NULL) */
   {
-    begin = (ipaddr_str[0] == ((uint8_t)'"')) ? 1U : 0U;
+    begin = (p_ipaddr_str[0] == ((uint8_t)'"')) ? 1U : 0U;
 
-    (void)memset(sockaddr, 0, sizeof(com_sockaddr_t));
+    (void)memset(p_sockaddr, 0, sizeof(com_sockaddr_t));
 
-    count = sscanf((CSIP_CHAR_t *)(&ipaddr_str[begin]),
-                   "%03lu.%03lu.%03lu.%03lu",
-                   &ip_addr[0], &ip_addr[1],
-                   &ip_addr[2], &ip_addr[3]);
+    count = sscanf((CSIP_CHAR_t *)(&(p_ipaddr_str[begin])), "%03lu.%03lu.%03lu.%03lu",
+                   &ip_addr_tmp[0], &ip_addr_tmp[1], &ip_addr_tmp[2], &ip_addr_tmp[3]);
 
     if (count == 4)
     {
-      if ((ip_addr[0] <= 255U)
-          && (ip_addr[1] <= 255U)
-          && (ip_addr[2] <= 255U)
-          && (ip_addr[3] <= 255U))
+      if ((ip_addr_tmp[0] <= 255U) && (ip_addr_tmp[1] <= 255U) && (ip_addr_tmp[2] <= 255U) && (ip_addr_tmp[3] <= 255U))
       {
-        sockaddr->sa_family = (uint8_t)COM_AF_INET;
-        sockaddr->sa_len    = (uint8_t)sizeof(com_sockaddr_in_t);
-        ((com_sockaddr_in_t *)sockaddr)->sin_port = COM_HTONS(ipaddr_port);
-        COM_IP4_ADDR(&ip4_addr,
-                     ip_addr[0], ip_addr[1],
-                     ip_addr[2], ip_addr[3]);
-        ((com_sockaddr_in_t *)sockaddr)->sin_addr.s_addr = ip4_addr.addr;
+        p_sockaddr->sa_family = (uint8_t)COM_AF_INET;
+        p_sockaddr->sa_len    = (uint8_t)sizeof(com_sockaddr_in_t);
+        ((com_sockaddr_in_t *)p_sockaddr)->sin_port = COM_HTONS(ipaddr_port);
+        COM_IP4_ADDR(&ip4_addr_tmp, ip_addr_tmp[0], ip_addr_tmp[1], ip_addr_tmp[2], ip_addr_tmp[3]);
+        ((com_sockaddr_in_t *)p_sockaddr)->sin_addr.s_addr = ip4_addr_tmp.addr;
         result = true;
       }
     }
@@ -700,48 +641,40 @@ static bool com_convert_IPString_to_sockaddr(uint16_t       ipaddr_port,
 
 /**
   * @brief  Translate a port/address uint32_t to com_sockaddr_in_t
-  * @note   -
-  * @param  ip_addr - address in uint32_t format
-  * @note   0xDDCCBBAA
+  * @param  p_ip_addr - pointer on address in uint32_t format 0xDDCCBBAA
   * @param  port - port
-  * @note   -
-  * @param  sockaddr_in - address in com socket format
+  * @param  p_sockaddr_in - pointer on address in com socket format
   * @note   address is uint32_t 0xDDCCBBCCAA and port is COM_HTONS
   * @retval -
   */
-static void com_convert_ipaddr_port_to_sockaddr(const com_ip_addr_t *ip_addr,
-                                                uint16_t port,
-                                                com_sockaddr_in_t *sockaddr_in)
+static void com_convert_ipaddr_port_to_sockaddr(const com_ip_addr_t *p_ip_addr, uint16_t port,
+                                                com_sockaddr_in_t *p_sockaddr_in)
 {
-  sockaddr_in->sin_len         = (uint8_t)sizeof(com_sockaddr_in_t);
-  sockaddr_in->sin_family      = COM_AF_INET;
-  sockaddr_in->sin_addr.s_addr = ip_addr->addr;
-  sockaddr_in->sin_port        = COM_HTONS(port);
-  (void) memset(sockaddr_in->sin_zero, 0, COM_SIN_ZERO_LEN);
+  p_sockaddr_in->sin_len         = (uint8_t)sizeof(com_sockaddr_in_t);
+  p_sockaddr_in->sin_family      = COM_AF_INET;
+  p_sockaddr_in->sin_addr.s_addr = p_ip_addr->addr;
+  p_sockaddr_in->sin_port        = COM_HTONS(port);
+  (void)memset(p_sockaddr_in->sin_zero, 0, COM_SIN_ZERO_LEN);
 }
 
 /**
   * @brief  Translate com_sockaddr_in_t to a port/address uint32_t
-  * @note   -
-  * @param  sockaddr_in - address in com socket format
+  * @param  p_sockaddr_in - pointer on address in com socket format
   * @note   address is uint32_t 0xDDCCDDAA and port is COM_HTONS
-  * @param  ip_addr - address in uint32_t format
-  * @note   0xDDCCBBAA
-  * @param  port - port
+  * @param  p_ip_addr - pointer on address in uint32_t format 0xDDCCBBAA
+  * @param  p_port - pointer on port
   * @note   port is COM_NTOHS
   * @retval -
   */
-static void com_convert_sockaddr_to_ipaddr_port(const com_sockaddr_in_t *sockaddr_in,
-                                                com_ip_addr_t *ip_addr,
-                                                uint16_t *port)
+static void com_convert_sockaddr_to_ipaddr_port(const com_sockaddr_in_t *p_sockaddr_in,
+                                                com_ip_addr_t *p_ip_addr, uint16_t *p_port)
 {
-  ip_addr->addr = sockaddr_in->sin_addr.s_addr;
-  *port = COM_NTOHS(sockaddr_in->sin_port);
+  p_ip_addr->addr = p_sockaddr_in->sin_addr.s_addr;
+  *p_port = COM_NTOHS(p_sockaddr_in->sin_port);
 }
 
 /**
   * @brief  Provide Network status
-  * @note   -
   * @param  -
   * @retval true/false network is up/down
   */
@@ -753,23 +686,18 @@ static bool com_ip_modem_is_network_up(void)
 #if (UDP_SERVICE_SUPPORTED == 1U)
 /**
   * @brief  Allocate a new local port value
-  * @note   -
   * @retval new local port value in [COM_LOCAL_PORT_BEGIN, COM_LOCAL_PORT_END]
   *         or 0U if impossible to find a free port
   */
 static uint16_t com_ip_modem_new_local_port(void)
 {
-  bool local_port_ok;
-  bool found;
-  uint16_t iter;
+  bool local_port_ok = false;
+  bool found; /* false: local port is unused, true: local port is already used */
+  uint16_t iter = 0U;
   uint16_t result;
-  socket_desc_t *socket_desc;
+  socket_desc_t *p_socket_desc;
 
-  local_port_ok = false;
-  iter = 0U;
-
-  while ((local_port_ok != true)
-         && (iter < (COM_LOCAL_PORT_END - COM_LOCAL_PORT_BEGIN)))
+  while ((local_port_ok != true) && (iter < (COM_LOCAL_PORT_END - COM_LOCAL_PORT_BEGIN)))
   {
     /* Test the next local port value */
     com_local_port++;
@@ -779,21 +707,21 @@ static uint16_t com_ip_modem_new_local_port(void)
       com_local_port = COM_LOCAL_PORT_BEGIN;
     }
 
-    socket_desc = socket_desc_list;
-    found = false;
+    /* Check if com_local_port is not already used by a socket */
+    p_socket_desc = p_socket_desc_list;
+    found = false; /* local port not already used */
 
-    /* See if a socket already created is not using this port */
-    while ((socket_desc != NULL)
-           && (found != true))
+    /* Check all sockets in the chained list */
+    while ((p_socket_desc != NULL) && (found != true))
     {
-      if (socket_desc->local_port == com_local_port)
+      if (p_socket_desc->local_port == com_local_port)
       {
-        /* Local port already used */
+        /* Local port already used - no need to continue the check for this local port value */
         found = true;
       }
       else
       {
-        socket_desc = socket_desc->next;
+        p_socket_desc = p_socket_desc->p_next;
       }
     }
 
@@ -813,7 +741,7 @@ static uint16_t com_ip_modem_new_local_port(void)
     result = com_local_port;
   }
 
-  return result;
+  return (result);
 }
 
 /**
@@ -822,26 +750,24 @@ static uint16_t com_ip_modem_new_local_port(void)
   *         Allocate a local port
   *         Send bind
   *         Send modem connect to use sendto/recvfrom services
-  * @param  socket_desc
+  * @param  p_socket_desc - pointer on socket descriptor
   * @note   socket descriptor (local port, state)
   * @retval result
   */
-static int32_t com_ip_modem_connect_udp_service(socket_desc_t *socket_desc)
+static int32_t com_ip_modem_connect_udp_service(socket_desc_t *p_socket_desc)
 {
-  int32_t result;
+  int32_t result = COM_SOCKETS_ERR_STATE;
 
-  result = COM_SOCKETS_ERR_STATE;
-
-  if (socket_desc->state == COM_SOCKET_CREATED)
+  if (p_socket_desc->state == COM_SOCKET_CREATED)
   {
     /* Bind and Connect udp service must be done */
     result = COM_SOCKETS_ERR_OK;
 
     /* Find a local port ? */
-    if (socket_desc->local_port == 0U)
+    if (p_socket_desc->local_port == 0U)
     {
-      socket_desc->local_port = com_ip_modem_new_local_port();
-      if (socket_desc->local_port == 0U)
+      p_socket_desc->local_port = com_ip_modem_new_local_port();
+      if (p_socket_desc->local_port == 0U)
       {
         /* No local port available */
         result = COM_SOCKETS_ERR_LOCKED;
@@ -853,24 +779,19 @@ static int32_t com_ip_modem_connect_udp_service(socket_desc_t *socket_desc)
     {
       result = COM_SOCKETS_ERR_GENERAL;
 
-      com_ip_modem_wakeup_request();
+      com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
 
       /* Bind */
-      if (osCDS_socket_bind(socket_desc->id,
-                            socket_desc->local_port)
-          == CELLULAR_OK)
+      if (osCDS_socket_bind(p_socket_desc->id, p_socket_desc->local_port) == CELLULAR_OK)
       {
         PRINT_INFO("socket internal bind ok")
         /* Connect UDP service */
-        if (osCDS_socket_connect(socket_desc->id,
-                                 CS_IPAT_IPV4,
-                                 CONFIG_MODEM_UDP_SERVICE_CONNECT_IP,
-                                 0)
+        if (osCDS_socket_connect(p_socket_desc->id, CS_IPAT_IPV4, CONFIG_MODEM_UDP_SERVICE_CONNECT_IP, 0)
             == CELLULAR_OK)
         {
           result = COM_SOCKETS_ERR_OK;
           PRINT_INFO("socket internal connect ok")
-          socket_desc->state = COM_SOCKET_CONNECTED;
+          p_socket_desc->state = COM_SOCKET_CONNECTED;
         }
         else
         {
@@ -886,7 +807,7 @@ static int32_t com_ip_modem_connect_udp_service(socket_desc_t *socket_desc)
 
     }
   }
-  else if (socket_desc->state == COM_SOCKET_CONNECTED)
+  else if (p_socket_desc->state == COM_SOCKET_CONNECTED)
   {
     /* Already connected - nothing to do */
     result = COM_SOCKETS_ERR_OK;
@@ -915,8 +836,7 @@ static void com_ip_modem_idlemode_request(bool immediate)
   {
     /* Are all sockets closed ?
        If so, don't arm the timer, immediate request to go in idle */
-    if ((immediate == true)
-        && (com_ip_modem_are_all_sockets_invalid() == true)) /* Should be always true */
+    if ((immediate == true) && (com_ip_modem_are_all_sockets_invalid() == true)) /* Should be always true */
     {
       com_timer_inactivity_state = COM_TIMER_IDLE;
       (void)rtosalTimerStop(ComTimerInactivityId);
@@ -1004,36 +924,28 @@ static void com_ip_modem_wakeup_request(void)
   */
 static void com_ip_modem_data_received_cb(socket_handle_t sock)
 {
-  com_socket_msg_t msg_queue;
-  socket_desc_t    *socket_desc;
+  com_socket_msg_type_t msg_type = COM_SOCKET_MSG;
+  com_socket_msg_id_t   msg_id   = COM_DATA_RCV;
+  com_socket_msg_t msg_queue = 0U;
+  socket_desc_t *p_socket_desc;
 
-  msg_queue = 0U;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
-    if (socket_desc->closing != true)
+    if (p_socket_desc->closing != true)
     {
-      if (socket_desc->state == COM_SOCKET_WAITING_RSP)
+      if (p_socket_desc->state == COM_SOCKET_WAITING)
       {
-        PRINT_INFO("cb socket %ld data ready called: waiting rsp", socket_desc->id)
-        SET_SOCKET_MSG_TYPE(msg_queue, COM_SOCKET_MSG);
-        SET_SOCKET_MSG_ID(msg_queue, COM_DATA_RCV);
-        PRINT_DBG("cb socket %ld MSGput %lu queue %p", socket_desc->id, msg_queue, socket_desc->queue)
-        (void)rtosalMessageQueuePut(socket_desc->queue, msg_queue, 0U);
-      }
-      else if (socket_desc->state == COM_SOCKET_WAITING_FROM)
-      {
-        PRINT_INFO("cb socket %ld data ready called: waiting from", socket_desc->id)
-        SET_SOCKET_MSG_TYPE(msg_queue, COM_SOCKET_MSG);
-        SET_SOCKET_MSG_ID(msg_queue, COM_DATA_RCV);
-        PRINT_DBG("cb socket %ld MSGput %lu queue %p", socket_desc->id, msg_queue, socket_desc->queue)
-        (void)rtosalMessageQueuePut(socket_desc->queue, msg_queue, 0U);
+        PRINT_INFO("cb socket %ld data ready called: waiting", p_socket_desc->id)
+        SET_SOCKET_MSG_TYPE(msg_queue, msg_type);
+        SET_SOCKET_MSG_ID(msg_queue, msg_id);
+        PRINT_DBG("cb socket %ld MSGput %lu queue %p", p_socket_desc->id, msg_queue, p_socket_desc->queue)
+        (void)rtosalMessageQueuePut(p_socket_desc->queue, msg_queue, 0U);
       }
       else
       {
-        PRINT_INFO("cb socket data ready called: socket_state:%i NOK",
-                   socket_desc->state)
+        PRINT_INFO("cb socket data ready called: socket_state:%i NOK", p_socket_desc->state)
       }
     }
     else
@@ -1056,30 +968,30 @@ static void com_ip_modem_data_received_cb(socket_handle_t sock)
   */
 static void com_ip_modem_closing_cb(socket_handle_t sock)
 {
+  com_socket_msg_type_t msg_type = COM_SOCKET_MSG;
+  com_socket_msg_id_t   msg_id   = COM_CLOSING_RCV;
+  com_socket_msg_t msg_queue = 0U;
+  socket_desc_t *p_socket_desc;
+
   PRINT_DBG("callback socket closing called")
 
-  com_socket_msg_t msg_queue;
-  socket_desc_t    *socket_desc;
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  msg_queue = 0U;
-  socket_desc = com_ip_modem_find_socket(sock, false);
-
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
     PRINT_INFO("cb socket closing called: close rqt")
-    if (socket_desc->closing == false)
+    if (p_socket_desc->closing == false)
     {
-      socket_desc->closing = true;
+      p_socket_desc->closing = true;
       PRINT_INFO("cb socket closing: close rqt")
     }
-    if ((socket_desc->state == COM_SOCKET_WAITING_RSP)
-        || (socket_desc->state == COM_SOCKET_WAITING_FROM))
+    if (p_socket_desc->state == COM_SOCKET_WAITING)
     {
-      PRINT_ERR("!!! cb socket %ld closing called: data_expected !!!", socket_desc->id)
-      SET_SOCKET_MSG_TYPE(msg_queue, COM_SOCKET_MSG);
-      SET_SOCKET_MSG_ID(msg_queue, COM_CLOSING_RCV);
-      PRINT_DBG("cb socket %ld MSGput %lu queue %p", socket_desc->id, msg_queue, socket_desc->queue)
-      (void)rtosalMessageQueuePut(socket_desc->queue, msg_queue, 0U);
+      PRINT_ERR("!!! cb socket %ld closing called: data_expected !!!", p_socket_desc->id)
+      SET_SOCKET_MSG_TYPE(msg_queue, msg_type);
+      SET_SOCKET_MSG_ID(msg_queue, msg_id);
+      PRINT_DBG("cb socket %ld MSGput %lu queue %p", p_socket_desc->id, msg_queue, p_socket_desc->queue)
+      (void)rtosalMessageQueuePut(p_socket_desc->queue, msg_queue, 0U);
     }
   }
   else
@@ -1161,42 +1073,37 @@ static void com_socket_datacache_cb(dc_com_event_id_t dc_event_id, const void *p
   */
 static void com_ip_modem_ping_rsp_cb(CS_Ping_response_t ping_rsp)
 {
+  bool treated = false;
+  com_socket_msg_type_t msg_type = COM_PING_MSG;
+  com_socket_msg_id_t   msg_id   = COM_DATA_RCV;
+  com_socket_msg_t msg_queue = 0U;
+  socket_desc_t *p_socket_desc;
+
   PRINT_DBG("callback ping response")
-
-  bool treated;
-  com_socket_msg_t msg_queue;
-  socket_desc_t *socket_desc;
-
   PRINT_DBG("Ping rsp status:%d index:%d final:%d time:%ld",
-            ping_rsp.ping_status,
-            ping_rsp.index, ping_rsp.is_final_report,
-            ping_rsp.time)
+            ping_rsp.ping_status, ping_rsp.index, ping_rsp.is_final_report, ping_rsp.time)
 
-  treated = false;
-  socket_desc = NULL;
-  msg_queue = 0U;
+  p_socket_desc = NULL;
 
   /* Avoid treatment if Ping Id is unknown - Should not happen */
   if (ping_socket_id != COM_SOCKET_INVALID_ID)
   {
-    socket_desc = com_ip_modem_find_socket(ping_socket_id, true);
+    p_socket_desc = com_ip_modem_find_socket(ping_socket_id, true);
 
-    if ((socket_desc != NULL)
-        && (socket_desc->closing == false)
-        && (socket_desc->state   == COM_SOCKET_WAITING_RSP))
+    if ((p_socket_desc != NULL) && (p_socket_desc->closing == false) && (p_socket_desc->state == COM_SOCKET_WAITING))
     {
       treated = true;
 
       if (ping_rsp.ping_status != CELLULAR_OK)
       {
-        socket_desc->rsp->status = COM_SOCKETS_ERR_GENERAL;
-        socket_desc->rsp->time   = 0U;
-        socket_desc->rsp->size   = 0U;
-        socket_desc->rsp->ttl    = 0U;
+        p_socket_desc->p_ping_rsp->status = COM_SOCKETS_ERR_GENERAL;
+        p_socket_desc->p_ping_rsp->time   = 0U;
+        p_socket_desc->p_ping_rsp->size   = 0U;
+        p_socket_desc->p_ping_rsp->ttl    = 0U;
         PRINT_INFO("callback ping data ready: error rcv - exit")
-        SET_SOCKET_MSG_TYPE(msg_queue, COM_PING_MSG);
-        SET_SOCKET_MSG_ID(msg_queue, COM_DATA_RCV);
-        (void)rtosalMessageQueuePut(socket_desc->queue, msg_queue, 0U);
+        SET_SOCKET_MSG_TYPE(msg_queue, msg_type);
+        SET_SOCKET_MSG_ID(msg_queue, msg_id);
+        (void)rtosalMessageQueuePut(p_socket_desc->queue, msg_queue, 0U);
       }
       else
       {
@@ -1206,21 +1113,22 @@ static void com_ip_modem_ping_rsp_cb(CS_Ping_response_t ping_rsp)
           {
             /* Save the data wait final report to send event */
             PRINT_INFO("callback ping data ready: rsp rcv - wait final report")
-            socket_desc->rsp->status = COM_SOCKETS_ERR_OK;
-            socket_desc->rsp->time   = ping_rsp.time;
-            socket_desc->rsp->size   = ping_rsp.ping_size;
-            socket_desc->rsp->ttl    = ping_rsp.ttl;
-            SET_SOCKET_MSG_TYPE(msg_queue, COM_PING_MSG);
-            SET_SOCKET_MSG_ID(msg_queue, COM_DATA_RCV);
-            (void)rtosalMessageQueuePut(socket_desc->queue, msg_queue, 0U);
+            p_socket_desc->p_ping_rsp->status = COM_SOCKETS_ERR_OK;
+            p_socket_desc->p_ping_rsp->time   = ping_rsp.time;
+            p_socket_desc->p_ping_rsp->size   = ping_rsp.ping_size;
+            p_socket_desc->p_ping_rsp->ttl    = ping_rsp.ttl;
+            SET_SOCKET_MSG_TYPE(msg_queue, msg_type);
+            SET_SOCKET_MSG_ID(msg_queue, msg_id);
+            (void)rtosalMessageQueuePut(p_socket_desc->queue, msg_queue, 0U);
           }
           else
           {
             /* index == 1U and final report == true => error */
             PRINT_INFO("callback ping data ready: index=1 and final report=true - exit")
-            SET_SOCKET_MSG_TYPE(msg_queue, COM_PING_MSG);
-            SET_SOCKET_MSG_ID(msg_queue, COM_CLOSING_RCV);
-            (void)rtosalMessageQueuePut(socket_desc->queue, msg_queue, 0U);
+            msg_id = COM_CLOSING_RCV;
+            SET_SOCKET_MSG_TYPE(msg_queue, msg_type);
+            SET_SOCKET_MSG_ID(msg_queue, msg_id);
+            (void)rtosalMessageQueuePut(p_socket_desc->queue, msg_queue, 0U);
           }
         }
         else
@@ -1229,16 +1137,17 @@ static void com_ip_modem_ping_rsp_cb(CS_Ping_response_t ping_rsp)
           if (ping_rsp.is_final_report == CELLULAR_TRUE)
           {
             PRINT_INFO("callback ping data ready: final report rcv")
-            SET_SOCKET_MSG_TYPE(msg_queue, COM_PING_MSG);
-            SET_SOCKET_MSG_ID(msg_queue, COM_CLOSING_RCV);
-            (void)rtosalMessageQueuePut(socket_desc->queue, msg_queue, 0U);
+            msg_id = COM_CLOSING_RCV;
+            SET_SOCKET_MSG_TYPE(msg_queue, msg_type);
+            SET_SOCKET_MSG_ID(msg_queue, msg_id);
+            (void)rtosalMessageQueuePut(p_socket_desc->queue, msg_queue, 0U);
           }
           else
           {
             /* we receive more than one response */
-            SET_SOCKET_MSG_TYPE(msg_queue, COM_PING_MSG);
-            SET_SOCKET_MSG_ID(msg_queue, COM_DATA_RCV);
-            (void)rtosalMessageQueuePut(socket_desc->queue, msg_queue, 0U);
+            SET_SOCKET_MSG_TYPE(msg_queue, msg_type);
+            SET_SOCKET_MSG_ID(msg_queue, msg_id);
+            (void)rtosalMessageQueuePut(p_socket_desc->queue, msg_queue, 0U);
           }
         }
       }
@@ -1247,22 +1156,21 @@ static void com_ip_modem_ping_rsp_cb(CS_Ping_response_t ping_rsp)
 
   if (treated == false)
   {
-    PRINT_INFO("!!! PURGE callback ping data ready - index %d !!!",
-               ping_rsp.index)
-    if (socket_desc == NULL)
+    PRINT_INFO("!!! PURGE callback ping data ready - index %d !!!", ping_rsp.index)
+    if (p_socket_desc == NULL)
     {
       PRINT_ERR("Ping Id unknown or no Ping in progress")
     }
     else
     {
-      if (socket_desc->closing == true)
+      if (p_socket_desc->closing == true)
       {
         PRINT_ERR("callback ping data ready: ping is closing")
       }
-      if (socket_desc->state != COM_SOCKET_WAITING_RSP)
+      if (p_socket_desc->state != COM_SOCKET_WAITING)
       {
         PRINT_DBG("callback ping data ready: ping state:%d index:%d final report:%u NOK",
-                  socket_desc->state, ping_rsp.index, ping_rsp.is_final_report)
+                  p_socket_desc->state, ping_rsp.index, ping_rsp.is_final_report)
       }
     }
   }
@@ -1284,9 +1192,8 @@ static void com_ip_modem_timer_inactivity_cb(void *p_argument)
   UNUSED(p_argument);
   PRINT_INFO("Inactivity: Inactivity Timer: Timer cb interaction %d", com_nb_wake_up)
 
-  /* Improvement : do next treatment also if a Ping session is opened and not closed ? */
-  if ((com_timer_inactivity_state == COM_TIMER_RUN)
-      && (com_nb_wake_up == 0U))
+  /* Improvement: do next treatment also if a Ping session is opened and not closed ? */
+  if ((com_timer_inactivity_state == COM_TIMER_RUN) && (com_nb_wake_up == 0U))
   {
     com_timer_inactivity_state = COM_TIMER_IDLE;
     if (com_ip_modem_is_network_up() == true) /* If network is up IdleMode can be requested */
@@ -1333,24 +1240,20 @@ static void com_ip_modem_timer_inactivity_cb(void *p_argument)
   */
 int32_t com_socket_ip_modem(int32_t family, int32_t type, int32_t protocol)
 {
-  int32_t sock;
-  int32_t result;
+  int32_t sock   = COM_SOCKET_INVALID_ID;
+  int32_t result = COM_SOCKETS_ERR_OK;
 
-  CS_IPaddrType_t IPaddrType;
-  CS_TransportProtocol_t TransportProtocol;
-  CS_PDN_conf_id_t PDN_conf_id;
+  CS_IPaddrType_t IPaddrType;               /* Depends on argument value */
+  CS_TransportProtocol_t TransportProtocol; /* Depends on argument value */
+  CS_PDN_conf_id_t PDN_conf_id = CS_PDN_CONFIG_DEFAULT; /* Fixed value   */
 
-  result = COM_SOCKETS_ERR_OK;
-  sock = COM_SOCKET_INVALID_ID;
-
-  PDN_conf_id = CS_PDN_CONFIG_DEFAULT;
-
+  /* IPaddrType */
   if (family == COM_AF_INET)
   {
     /* address family IPv4 */
     IPaddrType = CS_IPAT_IPV4;
   }
-  else if (family == COM_AF_INET6)
+  else if (family == COM_AF_INET6) /* Not yet supported */
   {
     /* address family IPv6 */
     IPaddrType = CS_IPAT_IPV6; /* To avoid a warning */
@@ -1362,16 +1265,13 @@ int32_t com_socket_ip_modem(int32_t family, int32_t type, int32_t protocol)
     result = COM_SOCKETS_ERR_PARAMETER;
   }
 
-  if ((type == COM_SOCK_STREAM)
-      && ((protocol == COM_IPPROTO_TCP)
-          || (protocol == COM_IPPROTO_IP)))
+  /* TransportProtocol */
+  if ((type == COM_SOCK_STREAM) && ((protocol == COM_IPPROTO_TCP) || (protocol == COM_IPPROTO_IP)))
   {
     /* IPPROTO_TCP = must be used with SOCK_STREAM */
     TransportProtocol = CS_TCP_PROTOCOL;
   }
-  else if ((type == COM_SOCK_DGRAM)
-           && ((protocol == COM_IPPROTO_UDP)
-               || (protocol == COM_IPPROTO_IP)))
+  else if ((type == COM_SOCK_DGRAM) && ((protocol == COM_IPPROTO_UDP) || (protocol == COM_IPPROTO_IP)))
   {
     /* IPPROTO_UDP = must be used with SOCK_DGRAM */
     TransportProtocol = CS_UDP_PROTOCOL;
@@ -1386,26 +1286,23 @@ int32_t com_socket_ip_modem(int32_t family, int32_t type, int32_t protocol)
   {
     result = COM_SOCKETS_ERR_GENERAL;
     PRINT_DBG("socket create request")
-    com_ip_modem_wakeup_request();
-    sock = osCDS_socket_create(IPaddrType,
-                               TransportProtocol,
-                               PDN_conf_id);
+    com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
+    sock = osCDS_socket_create(IPaddrType, TransportProtocol, PDN_conf_id);
 
     if (sock != CS_INVALID_SOCKET_HANDLE)
     {
-      socket_desc_t *socket_desc;
+      socket_desc_t *p_socket_desc;
       PRINT_INFO("create socket ok low level")
 
-      /* Need to create a new socket_desc ? */
-      socket_desc = com_ip_modem_provide_socket_desc(false);
-      if (socket_desc == NULL)
+      /* Need to create a new p_socket_desc ? */
+      p_socket_desc = com_ip_modem_provide_socket_desc(false);
+      if (p_socket_desc == NULL)
       {
         result = COM_SOCKETS_ERR_NOMEMORY;
         PRINT_ERR("create socket NOK no memory")
         /* Socket descriptor is not existing in COM
           must close directly the socket and not call com_close */
-        if (osCDS_socket_close(sock, 0U)
-            == CELLULAR_OK)
+        if (osCDS_socket_close(sock, 0U) == CELLULAR_OK)
         {
           PRINT_INFO("close socket ok low level")
         }
@@ -1417,9 +1314,9 @@ int32_t com_socket_ip_modem(int32_t family, int32_t type, int32_t protocol)
       else
       {
         /* Update socket descriptor */
-        socket_desc->id    = sock;
-        socket_desc->type  = (uint8_t)type;
-        socket_desc->state = COM_SOCKET_CREATED;
+        p_socket_desc->id    = sock;
+        p_socket_desc->type  = (uint8_t)type;
+        p_socket_desc->state = COM_SOCKET_CREATED;
 
         if (osCDS_socket_set_callbacks(sock, com_ip_modem_data_received_cb, NULL, com_ip_modem_closing_cb)
             == CELLULAR_OK)
@@ -1429,8 +1326,7 @@ int32_t com_socket_ip_modem(int32_t family, int32_t type, int32_t protocol)
         else
         {
           PRINT_ERR("rqt close socket issue at creation")
-          if (com_closesocket_ip_modem(sock)
-              == COM_SOCKETS_ERR_OK)
+          if (com_closesocket_ip_modem(sock) == COM_SOCKETS_ERR_OK)
           {
             PRINT_INFO("close socket ok low level")
           }
@@ -1447,8 +1343,7 @@ int32_t com_socket_ip_modem(int32_t family, int32_t type, int32_t protocol)
     }
     com_ip_modem_idlemode_request(false);
     /* Stat only socket whose parameters are supported */
-    com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? \
-                                 COM_SOCKET_STAT_CRE_OK : COM_SOCKET_STAT_CRE_NOK);
+    com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? COM_SOCKET_STAT_CRE_OK : COM_SOCKET_STAT_CRE_NOK);
   }
   else
   {
@@ -1480,43 +1375,38 @@ int32_t com_socket_ip_modem(int32_t family, int32_t type, int32_t protocol)
   * @param  optlen    - size of the buffer containing the option value
   * @retval int32_t   - ok or error value
   */
-int32_t com_setsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname,
-                                const void *optval, int32_t optlen)
+int32_t com_setsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname, const void *optval, int32_t optlen)
 {
-  int32_t result;
-  socket_desc_t *socket_desc;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
-    if ((optval != NULL)
-        && (optlen > 0))
+    if ((optval != NULL) && (optlen > 0))
     {
-      com_ip_modem_wakeup_request();
+      com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
       if (level == COM_SOL_SOCKET)
       {
         switch (optname)
         {
           /* Send Timeout */
           case COM_SO_SNDTIMEO :
-          {
-            if ((uint32_t)optlen <= sizeof(socket_desc->rcv_timeout))
+            if ((uint32_t)optlen <= sizeof(p_socket_desc->rcv_timeout))
             {
               /* A tempo already exists at low level and cannot be redefined */
               /* Ok to accept value setting but :
                  value will not be used due to conflict risk
                  if tempo differ from low level tempo value */
-              socket_desc->snd_timeout = *(const uint32_t *)optval;
+              p_socket_desc->snd_timeout = *(const uint32_t *)optval;
               result = COM_SOCKETS_ERR_OK;
             }
             break;
-          }
+
           /* Receive Timeout */
           case COM_SO_RCVTIMEO :
-          {
-            if ((uint32_t)optlen <= sizeof(socket_desc->rcv_timeout))
+            if ((uint32_t)optlen <= sizeof(p_socket_desc->rcv_timeout))
             {
               /* A tempo already exists at low level and cannot be redefined */
               /* Ok to accept value setting but :
@@ -1525,27 +1415,27 @@ int32_t com_setsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname,
                  and can still be read if modem manage this feature
                  if tempo value is bigger and data are received before
                  then data will be send to application */
-              socket_desc->rcv_timeout = *(const uint32_t *)optval;
+              p_socket_desc->rcv_timeout = *(const uint32_t *)optval;
               result = COM_SOCKETS_ERR_OK;
             }
             break;
-          }
+
           /* Error */
           case COM_SO_ERROR :
-          {
             /* Set for this option NOK */
+            __NOP(); /* result already set to COM_SOCKETS_ERR_PARAMETER */
             break;
-          }
+
           default :
-          {
             /* Other options NOT YET SUPPORTED */
+            __NOP(); /* result already set to COM_SOCKETS_ERR_PARAMETER */
             break;
-          }
         }
       }
       else
       {
         /* Other level than SOL_SOCKET NOT YET SUPPORTED */
+        __NOP(); /* result already set to COM_SOCKETS_ERR_PARAMETER */
       }
       com_ip_modem_idlemode_request(false);
     }
@@ -1555,8 +1445,9 @@ int32_t com_setsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname,
     result = COM_SOCKETS_ERR_DESCRIPTOR;
   }
 
-  SOCKET_SET_ERROR(socket_desc, result);
-  return result;
+  SOCKET_SET_ERROR(p_socket_desc, result);
+
+  return (result);
 }
 
 
@@ -1578,69 +1469,65 @@ int32_t com_setsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname,
   * @note   must be sizeof(x32_t)
   * @retval int32_t   - ok or error value
   */
-int32_t com_getsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname,
-                                void *optval, int32_t *optlen)
+int32_t com_getsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname, void *optval, int32_t *optlen)
 {
-  int32_t result;
-  socket_desc_t *socket_desc;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
-    if ((optval != NULL)
-        && (optlen != NULL))
+    if ((optval != NULL) && (optlen != NULL))
     {
-      com_ip_modem_wakeup_request();
+      com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
       if (level == COM_SOL_SOCKET)
       {
         switch (optname)
         {
           /* Send Timeout */
           case COM_SO_SNDTIMEO :
-          {
             /* Force optval to be on uint32_t to be compliant with lwip */
             if ((uint32_t)*optlen == sizeof(uint32_t))
             {
-              *(uint32_t *)optval = socket_desc->snd_timeout;
+              *(uint32_t *)optval = p_socket_desc->snd_timeout;
               result = COM_SOCKETS_ERR_OK;
             }
             break;
-          }
+
           /* Receive Timeout */
           case COM_SO_RCVTIMEO :
-          {
             /* Force optval to be on uint32_t to be compliant with lwip */
             if ((uint32_t)*optlen == sizeof(uint32_t))
             {
-              *(uint32_t *)optval = socket_desc->rcv_timeout;
+              *(uint32_t *)optval = p_socket_desc->rcv_timeout;
               result = COM_SOCKETS_ERR_OK;
             }
             break;
-          }
+
           /* Error */
           case COM_SO_ERROR :
-          {
             /* Force optval to be on int32_t to be compliant with lwip */
             if ((uint32_t)*optlen == sizeof(int32_t))
             {
-              SOCKET_GET_ERROR(socket_desc, optval);
-              socket_desc->error = COM_SOCKETS_ERR_OK;
+              /* Get socket error taking into account COM_SOCKETS_ERRNO_COMPAT define */
+              *(int32_t *)optval   = com_sockets_err_to_errno((com_sockets_err_t)(p_socket_desc->error));
+              /* A read of last ERROR reset the socket error */
+              p_socket_desc->error = COM_SOCKETS_ERR_OK;
               result = COM_SOCKETS_ERR_OK;
             }
             break;
-          }
+
           default :
-          {
             /* Other options NOT YET SUPPORTED */
+            __NOP(); /* result already set to COM_SOCKETS_ERR_PARAMETER */
             break;
-          }
         }
       }
       else
       {
         /* Other level than SOL_SOCKET NOT YET SUPPORTED */
+        __NOP(); /* result already set to COM_SOCKETS_ERR_PARAMETER */
       }
       com_ip_modem_idlemode_request(false);
     }
@@ -1650,8 +1537,9 @@ int32_t com_getsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname,
     result = COM_SOCKETS_ERR_DESCRIPTOR;
   }
 
-  SOCKET_SET_ERROR(socket_desc, result);
-  return result;
+  SOCKET_SET_ERROR(p_socket_desc, result);
+
+  return (result);
 }
 
 
@@ -1665,37 +1553,30 @@ int32_t com_getsockopt_ip_modem(int32_t sock, int32_t level, int32_t optname,
   * @param  addrlen   - addr length
   * @retval int32_t   - ok or error value
   */
-int32_t com_bind_ip_modem(int32_t sock,
-                          const com_sockaddr_t *addr, int32_t addrlen)
+int32_t com_bind_ip_modem(int32_t sock, const com_sockaddr_t *addr, int32_t addrlen)
 {
-  int32_t result;
-
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
   socket_addr_t socket_addr;
-  socket_desc_t *socket_desc;
+  socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
-    com_ip_modem_wakeup_request();
+    com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
     /* Bind supported only in Created state */
-    if (socket_desc->state == COM_SOCKET_CREATED)
+    if (p_socket_desc->state == COM_SOCKET_CREATED)
     {
-      if (com_translate_ip_address(addr, addrlen,
-                                   &socket_addr)
-          == true)
+      if (com_translate_ip_address(addr, addrlen, &socket_addr) == true)
       {
         result = COM_SOCKETS_ERR_GENERAL;
         PRINT_DBG("socket bind request")
 
-        if (osCDS_socket_bind(sock,
-                              socket_addr.port)
-            == CELLULAR_OK)
+        if (osCDS_socket_bind(sock, socket_addr.port) == CELLULAR_OK)
         {
           PRINT_INFO("socket bind ok low level")
           result = COM_SOCKETS_ERR_OK;
-          socket_desc->local_port = socket_addr.port;
+          p_socket_desc->local_port = socket_addr.port;
         }
       }
       else
@@ -1711,8 +1592,9 @@ int32_t com_bind_ip_modem(int32_t sock,
     com_ip_modem_idlemode_request(false);
   }
 
-  SOCKET_SET_ERROR(socket_desc, result);
-  return result;
+  SOCKET_SET_ERROR(p_socket_desc, result);
+
+  return (result);
 }
 
 
@@ -1724,12 +1606,11 @@ int32_t com_bind_ip_modem(int32_t sock,
   * @param  backlog   - number of connection requests that can be queued
   * @retval int32_t   - COM_SOCKETS_ERR_UNSUPPORTED
   */
-int32_t com_listen_ip_modem(int32_t sock,
-                            int32_t backlog)
+int32_t com_listen_ip_modem(int32_t sock, int32_t backlog)
 {
   UNUSED(sock);
   UNUSED(backlog);
-  return COM_SOCKETS_ERR_UNSUPPORTED;
+  return (COM_SOCKETS_ERR_UNSUPPORTED);
 }
 
 
@@ -1742,13 +1623,12 @@ int32_t com_listen_ip_modem(int32_t sock,
   * @param  addrlen   - addr length
   * @retval int32_t   - COM_SOCKETS_ERR_UNSUPPORTED
   */
-int32_t com_accept_ip_modem(int32_t sock,
-                            com_sockaddr_t *addr, int32_t *addrlen)
+int32_t com_accept_ip_modem(int32_t sock, com_sockaddr_t *addr, int32_t *addrlen)
 {
   UNUSED(sock);
   UNUSED(addr);
   UNUSED(addrlen);
-  return COM_SOCKETS_ERR_UNSUPPORTED;
+  return (COM_SOCKETS_ERR_UNSUPPORTED);
 }
 
 
@@ -1761,23 +1641,18 @@ int32_t com_accept_ip_modem(int32_t sock,
   * @param  addrlen   - addr length
   * @retval int32_t   - ok or error value
   */
-int32_t com_connect_ip_modem(int32_t sock,
-                             const com_sockaddr_t *addr, int32_t addrlen)
+int32_t com_connect_ip_modem(int32_t sock, const com_sockaddr_t *addr, int32_t addrlen)
 {
-  int32_t result;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
   socket_addr_t socket_addr;
-  socket_desc_t *socket_desc;
+  socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
   /* Check parameters validity */
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
-    if (com_translate_ip_address(addr, addrlen,
-                                 &socket_addr)
-        == true)
+    if (com_translate_ip_address(addr, addrlen, &socket_addr) == true)
     {
       /* Parameters are valid */
       result = COM_SOCKETS_ERR_OK;
@@ -1787,24 +1662,21 @@ int32_t com_connect_ip_modem(int32_t sock,
   /* If parameters are valid continue the treatment */
   if (result == COM_SOCKETS_ERR_OK)
   {
-    if (socket_desc->type == (uint8_t)COM_SOCK_STREAM)
+    if (p_socket_desc->type == (uint8_t)COM_SOCK_STREAM)
     {
-      if (socket_desc->state == COM_SOCKET_CREATED)
+      if (p_socket_desc->state == COM_SOCKET_CREATED)
       {
         /* Check Network status */
         if (com_ip_modem_is_network_up() == true)
         {
-          com_ip_modem_wakeup_request();
-          if (osCDS_socket_connect(socket_desc->id,
-                                   socket_addr.ip_type,
-                                   &socket_addr.ip_value[0],
-                                   socket_addr.port)
+          com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
+          if (osCDS_socket_connect(p_socket_desc->id, socket_addr.ip_type, &socket_addr.ip_value[0], socket_addr.port)
               == CELLULAR_OK)
           {
             /* result already set to the correct value COM_SOCKETS_ERR_OK */
             /* result = COM_SOCKETS_ERR_OK; */
             PRINT_INFO("socket connect ok")
-            socket_desc->state = COM_SOCKET_CONNECTED;
+            p_socket_desc->state = COM_SOCKET_CONNECTED;
           }
           else
           {
@@ -1825,27 +1697,23 @@ int32_t com_connect_ip_modem(int32_t sock,
         PRINT_ERR("socket connect NOK err state")
       }
     }
-    else /* socket_desc->type == (uint8_t)COM_SOCK_DGRAM */
+    else /* p_socket_desc->type == (uint8_t)COM_SOCK_DGRAM */
     {
 #if (UDP_SERVICE_SUPPORTED == 0U)
       /* even if CONNECTED let MODEM decide if it is supported
          to update internal configuration */
       /* for DGRAM no need to check network status
          because connection is internal */
-      if ((socket_desc->state == COM_SOCKET_CREATED)
-          || (socket_desc->state == COM_SOCKET_CONNECTED))
+      if ((p_socket_desc->state == COM_SOCKET_CREATED) || (p_socket_desc->state == COM_SOCKET_CONNECTED))
       {
-        com_ip_modem_wakeup_request();
-        if (osCDS_socket_connect(socket_desc->id,
-                                 socket_addr.ip_type,
-                                 &socket_addr.ip_value[0],
-                                 socket_addr.port)
+        com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
+        if (osCDS_socket_connect(p_socket_desc->id, socket_addr.ip_type, &socket_addr.ip_value[0], socket_addr.port)
             == CELLULAR_OK)
         {
           /* result already set to the correct value COM_SOCKETS_ERR_OK */
           /* result = COM_SOCKETS_ERR_OK; */
           PRINT_INFO("socket connect ok")
-          socket_desc->state = COM_SOCKET_CONNECTED;
+          p_socket_desc->state = COM_SOCKET_CONNECTED;
         }
         else
         {
@@ -1862,16 +1730,15 @@ int32_t com_connect_ip_modem(int32_t sock,
 #else /* UDP_SERVICES_SUPPORTED == 1U */
       /* A specific udp service connection is done
          in order to be able to use sendto/recvfrom services */
-      result = com_ip_modem_connect_udp_service(socket_desc);
+      result = com_ip_modem_connect_udp_service(p_socket_desc);
 #endif /* UDP_SERVICES_SUPPORTED == 0U */
     }
   }
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
     /* if com_translate_ip_address == FALSE, result already set to COM_SOCKETS_ERR_PARAMETER */
-    com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? \
-                                 COM_SOCKET_STAT_CNT_OK : COM_SOCKET_STAT_CNT_NOK);
-    SOCKET_SET_ERROR(socket_desc, result);
+    com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? COM_SOCKET_STAT_CNT_OK : COM_SOCKET_STAT_CNT_NOK);
+    SOCKET_SET_ERROR(p_socket_desc, result);
   }
 
   if (result == COM_SOCKETS_ERR_OK)
@@ -1880,14 +1747,12 @@ int32_t com_connect_ip_modem(int32_t sock,
     com_ip_addr_t remote_addr;
     uint16_t remote_port;
 
-    com_convert_sockaddr_to_ipaddr_port((const com_sockaddr_in_t *)addr,
-                                        &remote_addr,
-                                        &remote_port);
-    socket_desc->remote_addr.addr = remote_addr.addr;
-    socket_desc->remote_port = remote_port;
+    com_convert_sockaddr_to_ipaddr_port((const com_sockaddr_in_t *)addr, &remote_addr, &remote_port);
+    p_socket_desc->remote_addr.addr = remote_addr.addr;
+    p_socket_desc->remote_port = remote_port;
   }
 
-  return result;
+  return (result);
 }
 
 
@@ -1909,24 +1774,20 @@ int32_t com_connect_ip_modem(int32_t sock,
   *          COM will fragment the buffer according to the interface (multiple sends)
   * @retval int32_t   - number of bytes sent or error value
   */
-int32_t com_send_ip_modem(int32_t sock,
-                          const com_char_t *buf, int32_t len,
-                          int32_t flags)
+int32_t com_send_ip_modem(int32_t sock, const com_char_t *buf, int32_t len, int32_t flags)
 {
-  socket_desc_t *socket_desc;
-  int32_t result;
+  bool is_network_up;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  if ((socket_desc != NULL)
-      && (buf != NULL)
-      && (len > 0))
+  if ((p_socket_desc != NULL) && (buf != NULL) && (len > 0))
   {
-    if (socket_desc->state == COM_SOCKET_CONNECTED)
+    if (p_socket_desc->state == COM_SOCKET_CONNECTED)
     {
       /* closing maybe received, refuse to send data */
-      if (socket_desc->closing == false)
+      if (p_socket_desc->closing == false)
       {
         /* network maybe down, refuse to send data */
         if (com_ip_modem_is_network_up() == false)
@@ -1936,33 +1797,31 @@ int32_t com_send_ip_modem(int32_t sock,
         }
         else
         {
-          com_ip_modem_wakeup_request();
+          com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
 
-          /* if UDP_SERVICE supported,
-             Connect already done by Appli => send() may be changed to sendto()
-             or Connect by COM to use sendto()/recvfrom() services => send() must be changed to sendto() */
-#if (UDP_SERVICE_SUPPORTED == 1U)
-          if (socket_desc->type == (uint8_t)COM_SOCK_DGRAM)
+#if (UDP_SERVICE_SUPPORTED == 1)
+          /* if UDP_SERVICE is supported and socket is using UDP protocol (socket type = DGRAM),
+           * Connect already done by Appli => send() may be changed to sendto()
+           * or Connect by COM to use sendto()/recvfrom() services => send() must be changed to sendto()
+           * else send() service must be used whatever the socket type */
+          if (p_socket_desc->type == (uint8_t)COM_SOCK_DGRAM)
           {
             result = com_sendto_ip_modem(sock, buf, len, flags, NULL, 0);
           }
           else
-#else /* UDP_SERVICE_SUPPORTED == 0 */
+#endif /* UDP_SERVICE_SUPPORTED == 1 */
           {
-            bool is_network_up;
             uint32_t length_to_send;
             uint32_t length_send;
 
             result = COM_SOCKETS_ERR_GENERAL;
             length_send = 0U;
-            socket_desc->state = COM_SOCKET_SENDING;
+            p_socket_desc->state = COM_SOCKET_SENDING;
 
             if (flags == COM_MSG_DONTWAIT)
             {
               length_to_send = COM_MIN((uint32_t)len, COM_MODEM_MAX_TX_DATA_SIZE);
-              if (osCDS_socket_send(socket_desc->id,
-                                    buf, length_to_send)
-                  == CELLULAR_OK)
+              if (osCDS_socket_send(p_socket_desc->id, buf, length_to_send) == CELLULAR_OK)
               {
                 length_send = length_to_send;
                 result = (int32_t)length_send;
@@ -1972,25 +1831,21 @@ int32_t com_send_ip_modem(int32_t sock,
               {
                 PRINT_ERR("snd data DONTWAIT NOK at low level")
               }
-              socket_desc->state = COM_SOCKET_CONNECTED;
+              p_socket_desc->state = COM_SOCKET_CONNECTED;
             }
             else
             {
               is_network_up = com_ip_modem_is_network_up();
               /* Send all data of a big buffer - Whatever the size */
               while ((length_send != (uint32_t)len)
-                     && (socket_desc->closing == false)
+                     && (p_socket_desc->closing == false)
                      && (is_network_up == true)
-                     && (socket_desc->state == COM_SOCKET_SENDING))
+                     && (p_socket_desc->state == COM_SOCKET_SENDING))
               {
-                length_to_send = COM_MIN((((uint32_t)len) - length_send),
-                                         COM_MODEM_MAX_TX_DATA_SIZE);
-                com_ip_modem_wakeup_request();
+                length_to_send = COM_MIN((((uint32_t)len) - length_send), COM_MODEM_MAX_TX_DATA_SIZE);
+                com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
                 /* A tempo is already managed at low-level */
-                if (osCDS_socket_send(socket_desc->id,
-                                      buf + length_send,
-                                      length_to_send)
-                    == CELLULAR_OK)
+                if (osCDS_socket_send(p_socket_desc->id, buf + length_send, length_to_send) == CELLULAR_OK)
                 {
                   length_send += length_to_send;
                   PRINT_INFO("snd data ok")
@@ -1999,16 +1854,15 @@ int32_t com_send_ip_modem(int32_t sock,
                 }
                 else
                 {
-                  socket_desc->state = COM_SOCKET_CONNECTED;
+                  p_socket_desc->state = COM_SOCKET_CONNECTED;
                   PRINT_ERR("snd data NOK at low level")
                 }
                 com_ip_modem_idlemode_request(false);
               }
-              socket_desc->state = COM_SOCKET_CONNECTED;
+              p_socket_desc->state = COM_SOCKET_CONNECTED;
               result = (int32_t)length_send;
             }
           }
-#endif /* UDP_SERVICE_SUPPORTED == 1 */
           com_ip_modem_idlemode_request(false);
         }
       }
@@ -2021,19 +1875,18 @@ int32_t com_send_ip_modem(int32_t sock,
     else
     {
       PRINT_ERR("snd data NOK err state")
-      if (socket_desc->state < COM_SOCKET_CONNECTED)
+      if (p_socket_desc->state < COM_SOCKET_CONNECTED)
       {
         result = COM_SOCKETS_ERR_STATE;
       }
       else
       {
-        result = (socket_desc->state == COM_SOCKET_CLOSING) ? \
-                 COM_SOCKETS_ERR_CLOSING : COM_SOCKETS_ERR_INPROGRESS;
+        result = (p_socket_desc->state == COM_SOCKET_CLOSING) ? COM_SOCKETS_ERR_CLOSING : COM_SOCKETS_ERR_INPROGRESS;
       }
     }
 
     /* Update statistic counter */
-    if (socket_desc->type == (uint8_t)COM_SOCK_STREAM)
+    if (p_socket_desc->type == (uint8_t)COM_SOCK_STREAM)
     {
       com_sockets_statistic_update((result >= 0) ? COM_SOCKET_STAT_SND_OK : COM_SOCKET_STAT_SND_NOK);
     }
@@ -2049,13 +1902,13 @@ int32_t com_send_ip_modem(int32_t sock,
     }
   }
 
-  if (result >= 0)
+  if (result > 0)
   {
-    SOCKET_SET_ERROR(socket_desc, COM_SOCKETS_ERR_OK);
+    SOCKET_SET_ERROR(p_socket_desc, COM_SOCKETS_ERR_OK);
   }
   else
   {
-    SOCKET_SET_ERROR(socket_desc, result);
+    SOCKET_SET_ERROR(p_socket_desc, result);
   }
 
   return (result);
@@ -2092,22 +1945,19 @@ int32_t com_sendto_ip_modem(int32_t sock,
   UNUSED(to);    /* parameter is unused */
   UNUSED(tolen); /* parameter is unused */
 #endif /* UDP_SERVICE_SUPPORTED == 0U */
-  socket_desc_t *socket_desc;
-  int32_t result;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  if ((socket_desc != NULL)
-      && (buf != NULL)
-      && (len > 0))
+  if ((p_socket_desc != NULL) && (buf != NULL) && (len > 0))
   {
-    if (socket_desc->type == (uint8_t)COM_SOCK_STREAM)
+    if (p_socket_desc->type == (uint8_t)COM_SOCK_STREAM)
     {
       /* sendto service may be called and it is changed to send service */
       result = com_send_ip_modem(sock, buf, len, flags);
     }
-    else /* socket_desc->type == (uint8_t)COM_SOCK_DGRAM */
+    else /* p_socket_desc->type == (uint8_t)COM_SOCK_DGRAM */
     {
       /* If Modem doesn't support sendto rather than to test:
          if connect already done by appli
@@ -2126,9 +1976,7 @@ int32_t com_sendto_ip_modem(int32_t sock,
         /* Check remote addr is valid */
         if ((to != NULL) && (tolen != 0))
         {
-          if (com_translate_ip_address(to, tolen,
-                                       &socket_addr)
-              == true)
+          if (com_translate_ip_address(to, tolen, &socket_addr) == true)
           {
             result = COM_SOCKETS_ERR_OK;
           }
@@ -2137,22 +1985,17 @@ int32_t com_sendto_ip_modem(int32_t sock,
         /* No address provided by connect previously done */
         /* a send translate to sendto */
         /* Use IPaddress of connect */
-        else if ((to == NULL) && (tolen == 0)
-                 && (socket_desc->remote_addr.addr != 0U))
+        else if ((to == NULL) && (tolen == 0) && (p_socket_desc->remote_addr.addr != 0U))
         {
           com_sockaddr_in_t sockaddr_in;
           com_ip_addr_t remote_addr;
           uint16_t remote_port;
 
-          remote_addr.addr = socket_desc->remote_addr.addr;
-          remote_port = socket_desc->remote_port;
-          com_convert_ipaddr_port_to_sockaddr(&remote_addr,
-                                              remote_port,
-                                              &sockaddr_in);
+          remote_addr.addr = p_socket_desc->remote_addr.addr;
+          remote_port = p_socket_desc->remote_port;
+          com_convert_ipaddr_port_to_sockaddr(&remote_addr, remote_port, &sockaddr_in);
 
-          if (com_translate_ip_address((com_sockaddr_t *)&sockaddr_in,
-                                       (int32_t)sizeof(sockaddr_in),
-                                       &socket_addr)
+          if (com_translate_ip_address((com_sockaddr_t *)&sockaddr_in, (int32_t)sizeof(sockaddr_in), &socket_addr)
               == true)
           {
             result = COM_SOCKETS_ERR_OK;
@@ -2172,12 +2015,12 @@ int32_t com_sendto_ip_modem(int32_t sock,
           /* If socket state == CREATED implicit bind and connect UDP service must be done */
           /* Without updating internal parameters
              => com_ip_modem_connect must not be called */
-          result = com_ip_modem_connect_udp_service(socket_desc);
+          result = com_ip_modem_connect_udp_service(p_socket_desc);
 
           /* closing maybe received, refuse to send data */
           if ((result == COM_SOCKETS_ERR_OK)
-              && (socket_desc->closing == false)
-              && (socket_desc->state == COM_SOCKET_CONNECTED))
+              && (p_socket_desc->closing == false)
+              && (p_socket_desc->state == COM_SOCKET_CONNECTED))
           {
             /* network maybe down, refuse to send data */
             if (com_ip_modem_is_network_up() == false)
@@ -2192,19 +2035,16 @@ int32_t com_sendto_ip_modem(int32_t sock,
 
               result = COM_SOCKETS_ERR_GENERAL;
               length_send = 0U;
-              socket_desc->state = COM_SOCKET_SENDING;
+              p_socket_desc->state = COM_SOCKET_SENDING;
 
-              com_ip_modem_wakeup_request();
+              com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
 
               if (flags == COM_MSG_DONTWAIT)
               {
                 length_to_send = COM_MIN((uint32_t)len, COM_MODEM_MAX_TX_DATA_SIZE);
 
-                if (osCDS_socket_sendto(socket_desc->id,
-                                        buf, length_to_send,
-                                        socket_addr.ip_type,
-                                        socket_addr.ip_value,
-                                        socket_addr.port)
+                if (osCDS_socket_sendto(p_socket_desc->id, buf, length_to_send,
+                                        socket_addr.ip_type, socket_addr.ip_value, socket_addr.port)
                     == CELLULAR_OK)
                 {
                   length_send = length_to_send;
@@ -2215,27 +2055,22 @@ int32_t com_sendto_ip_modem(int32_t sock,
                 {
                   PRINT_ERR("sndto data DONTWAIT NOK at low level")
                 }
-                socket_desc->state = COM_SOCKET_CONNECTED;
+                p_socket_desc->state = COM_SOCKET_CONNECTED;
               }
               else
               {
                 is_network_up = com_ip_modem_is_network_up();
                 /* Send all data of a big buffer - Whatever the size */
                 while ((length_send != (uint32_t)len)
-                       && (socket_desc->closing == false)
+                       && (p_socket_desc->closing == false)
                        && (is_network_up == true)
-                       && (socket_desc->state == COM_SOCKET_SENDING))
+                       && (p_socket_desc->state == COM_SOCKET_SENDING))
                 {
-                  length_to_send = COM_MIN((((uint32_t)len) - length_send),
-                                           COM_MODEM_MAX_TX_DATA_SIZE);
-                  com_ip_modem_wakeup_request();
+                  length_to_send = COM_MIN((((uint32_t)len) - length_send), COM_MODEM_MAX_TX_DATA_SIZE);
+                  com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
                   /* A tempo is already managed at low-level */
-                  if (osCDS_socket_sendto(socket_desc->id,
-                                          buf + length_send,
-                                          length_to_send,
-                                          socket_addr.ip_type,
-                                          socket_addr.ip_value,
-                                          socket_addr.port)
+                  if (osCDS_socket_sendto(p_socket_desc->id, (buf + length_send), length_to_send,
+                                          socket_addr.ip_type, socket_addr.ip_value, socket_addr.port)
                       == CELLULAR_OK)
                   {
                     length_send += length_to_send;
@@ -2245,12 +2080,12 @@ int32_t com_sendto_ip_modem(int32_t sock,
                   }
                   else
                   {
-                    socket_desc->state = COM_SOCKET_CONNECTED;
+                    p_socket_desc->state = COM_SOCKET_CONNECTED;
                     PRINT_ERR("sndto data NOK at low level")
                   }
                   com_ip_modem_idlemode_request(false);
                 }
-                socket_desc->state = COM_SOCKET_CONNECTED;
+                p_socket_desc->state = COM_SOCKET_CONNECTED;
                 result = (int32_t)length_send;
               }
               com_ip_modem_idlemode_request(false);
@@ -2258,7 +2093,7 @@ int32_t com_sendto_ip_modem(int32_t sock,
           }
           else
           {
-            if (socket_desc->closing == true)
+            if (p_socket_desc->closing == true)
             {
               PRINT_ERR("sndto data NOK socket closing")
               result = COM_SOCKETS_ERR_CLOSING;
@@ -2269,8 +2104,7 @@ int32_t com_sendto_ip_modem(int32_t sock,
             }
           }
 
-          com_sockets_statistic_update((result >= 0) ? \
-                                       COM_SOCKET_STAT_SND_OK : COM_SOCKET_STAT_SND_NOK);
+          com_sockets_statistic_update((result >= 0) ? COM_SOCKET_STAT_SND_OK : COM_SOCKET_STAT_SND_NOK);
         }
         else
         {
@@ -2281,13 +2115,13 @@ int32_t com_sendto_ip_modem(int32_t sock,
     }
   }
 
-  if (result >= 0)
+  if (result > 0)
   {
-    SOCKET_SET_ERROR(socket_desc, COM_SOCKETS_ERR_OK);
+    SOCKET_SET_ERROR(p_socket_desc, COM_SOCKETS_ERR_OK);
   }
   else
   {
-    SOCKET_SET_ERROR(socket_desc, result);
+    SOCKET_SET_ERROR(p_socket_desc, result);
   }
 
   return (result);
@@ -2305,52 +2139,46 @@ int32_t com_sendto_ip_modem(int32_t sock,
   *         a maximum of the interface capacity can be received
   *         at each function call
   * @param  flags     - options
-  * @note   - if flags = COM_MSG_DONTWAIT, application request to not wait
+  * @note
+  *         - if flags = COM_MSG_DONTWAIT, application request to not wait
   *         until data are available at low level
   *         - if flags = COM_MSG_WAIT, application accept to wait
   *         until data are available at low level with respect of potential
   *         timeout COM_SO_RCVTIMEO setting
   * @retval int32_t   - number of bytes received or error value
   */
-int32_t com_recv_ip_modem(int32_t sock,
-                          com_char_t *buf, int32_t len,
-                          int32_t flags)
+int32_t com_recv_ip_modem(int32_t sock, com_char_t *buf, int32_t len, int32_t flags)
 {
-  int32_t result;
-  int32_t len_rcv;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  int32_t len_rcv = 0;
   com_socket_msg_t msg_queue;
   rtosalStatus status_queue;
-  socket_desc_t *socket_desc;
+  socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  len_rcv = 0;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  if ((socket_desc != NULL)
-      && (buf != NULL)
-      && (len > 0))
+  if ((p_socket_desc != NULL) && (buf != NULL) && (len > 0))
   {
     /* Closing maybe received or Network maybe done
        but still some data to read */
-    if (socket_desc->state == COM_SOCKET_CONNECTED)
+    if (p_socket_desc->state == COM_SOCKET_CONNECTED)
     {
       uint32_t length_to_read;
       length_to_read = COM_MIN((uint32_t)len, COM_MODEM_MAX_RX_DATA_SIZE);
-      socket_desc->state = COM_SOCKET_WAITING_RSP;
+      p_socket_desc->state = COM_SOCKET_WAITING;
 
-      com_ip_modem_wakeup_request();
+      com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
 
       /* Empty the queue from possible messages */
-      com_ip_modem_empty_queue(socket_desc->queue);
+      com_ip_modem_empty_queue(p_socket_desc->queue);
 
       if (flags == COM_MSG_DONTWAIT)
       {
 
         /* Application don't want to wait if there is no data available */
-        len_rcv = osCDS_socket_receive(socket_desc->id,
-                                       buf, length_to_read);
+        len_rcv = osCDS_socket_receive(p_socket_desc->id, buf, length_to_read);
         result = (len_rcv < 0) ? COM_SOCKETS_ERR_GENERAL : COM_SOCKETS_ERR_OK;
-        socket_desc->state = COM_SOCKET_CONNECTED;
+        p_socket_desc->state = COM_SOCKET_CONNECTED;
         PRINT_INFO("rcv data DONTWAIT")
       }
       else
@@ -2358,35 +2186,38 @@ int32_t com_recv_ip_modem(int32_t sock,
         /* Maybe still some data available
            because application don't read all data with previous calls */
         PRINT_DBG("rcv data waiting")
-        len_rcv = osCDS_socket_receive(socket_desc->id,
-                                       buf, length_to_read);
+        len_rcv = osCDS_socket_receive(p_socket_desc->id, buf, length_to_read);
         PRINT_DBG("rcv data waiting exit")
 
         if (len_rcv == 0)
         {
           /* Waiting for Distant response or Closure Socket or Timeout */
           msg_queue = 0U;
-          status_queue = rtosalMessageQueueGet(socket_desc->queue, &msg_queue, socket_desc->rcv_timeout);
-          if (status_queue == osEventTimeout)
+          status_queue = rtosalMessageQueueGet(p_socket_desc->queue, &msg_queue, p_socket_desc->rcv_timeout);
+          /* For Timeout returned result :
+           * osEventTimeout in case cmsisV1
+           * osErrorTimeoutResource = osErrorTimeout in case cmsisV2
+           * osErrorTimeoutResource defined for cmsisV1 and V2 so better than osErrorTimeout */
+          if ((status_queue == osEventTimeout) || (status_queue == osErrorTimeoutResource))
           {
             result = COM_SOCKETS_ERR_TIMEOUT;
-            socket_desc->state = COM_SOCKET_CONNECTED;
+            p_socket_desc->state = COM_SOCKET_CONNECTED;
             PRINT_INFO("rcv data exit timeout")
           }
           else
           {
             /* A message is in the queue and it it a SOCKET one */
-            if ((msg_queue != 0U) && (GET_SOCKET_MSG_TYPE(msg_queue) == COM_SOCKET_MSG))
+            com_socket_msg_type_t msg_type = GET_SOCKET_MSG_TYPE(msg_queue);
+            com_socket_msg_type_t msg_id   = GET_SOCKET_MSG_ID(msg_queue);
+            if ((msg_queue != 0U) && (msg_type == COM_SOCKET_MSG))
             {
-              switch (GET_SOCKET_MSG_ID(msg_queue))
+              switch (msg_id)
               {
                 case COM_DATA_RCV :
                 {
-                  len_rcv = osCDS_socket_receive(socket_desc->id,
-                                                 buf, length_to_read);
-                  result = (len_rcv < 0) ? \
-                           COM_SOCKETS_ERR_GENERAL : COM_SOCKETS_ERR_OK;
-                  socket_desc->state = COM_SOCKET_CONNECTED;
+                  len_rcv = osCDS_socket_receive(p_socket_desc->id, buf, length_to_read);
+                  result = (len_rcv < 0) ? COM_SOCKETS_ERR_GENERAL : COM_SOCKETS_ERR_OK;
+                  p_socket_desc->state = COM_SOCKET_CONNECTED;
                   if (len_rcv == 0)
                   {
                     PRINT_DBG("rcv data exit with no data")
@@ -2397,7 +2228,7 @@ int32_t com_recv_ip_modem(int32_t sock,
                 case COM_CLOSING_RCV :
                 {
                   result = COM_SOCKETS_ERR_CLOSING;
-                  socket_desc->state = COM_SOCKET_CLOSING;
+                  p_socket_desc->state = COM_SOCKET_CONNECTED;
                   PRINT_INFO("rcv data exit socket closing")
                   break;
                 }
@@ -2405,7 +2236,7 @@ int32_t com_recv_ip_modem(int32_t sock,
                 {
                   /* Impossible case */
                   result = COM_SOCKETS_ERR_GENERAL;
-                  socket_desc->state = COM_SOCKET_CONNECTED;
+                  p_socket_desc->state = COM_SOCKET_CONNECTED;
                   PRINT_ERR("rcv data exit NOK impossible case")
                   break;
                 }
@@ -2415,7 +2246,7 @@ int32_t com_recv_ip_modem(int32_t sock,
             {
               /* Error or empty queue */
               result = COM_SOCKETS_ERR_GENERAL;
-              socket_desc->state = COM_SOCKET_CONNECTED;
+              p_socket_desc->state = COM_SOCKET_CONNECTED;
               PRINT_ERR("rcv data msg NOK or empty queue")
             }
           }
@@ -2423,35 +2254,34 @@ int32_t com_recv_ip_modem(int32_t sock,
         else
         {
           result = (len_rcv < 0) ? COM_SOCKETS_ERR_GENERAL : COM_SOCKETS_ERR_OK;
-          socket_desc->state = COM_SOCKET_CONNECTED;
+          p_socket_desc->state = COM_SOCKET_CONNECTED;
           PRINT_INFO("rcv data exit data available or err low level")
         }
       }
 
       /* Empty the queue from possible messages */
-      com_ip_modem_empty_queue(socket_desc->queue);
+      com_ip_modem_empty_queue(p_socket_desc->queue);
 
       com_ip_modem_idlemode_request(false);
     }
     else
     {
       PRINT_ERR("rcv data NOK err state")
-      if (socket_desc->state < COM_SOCKET_CONNECTED)
+      if (p_socket_desc->state < COM_SOCKET_CONNECTED)
       {
         result = COM_SOCKETS_ERR_STATE;
       }
       else
       {
-        result = (socket_desc->state == COM_SOCKET_CLOSING) ? \
-                 COM_SOCKETS_ERR_CLOSING : COM_SOCKETS_ERR_INPROGRESS;
+        result = (p_socket_desc->state == COM_SOCKET_CLOSING) ? COM_SOCKETS_ERR_CLOSING : COM_SOCKETS_ERR_INPROGRESS;
       }
     }
 
-    com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? \
-                                 COM_SOCKET_STAT_RCV_OK : COM_SOCKET_STAT_RCV_NOK);
+    com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? COM_SOCKET_STAT_RCV_OK : COM_SOCKET_STAT_RCV_NOK);
   }
 
-  SOCKET_SET_ERROR(socket_desc, result);
+  SOCKET_SET_ERROR(p_socket_desc, result);
+
   return ((result == COM_SOCKETS_ERR_OK) ? len_rcv : result);
 }
 
@@ -2467,7 +2297,8 @@ int32_t com_recv_ip_modem(int32_t sock,
   *         a maximum of the interface capacity can be received
   *         at each function call
   * @param  flags     - options
-  * @note   - if flags = COM_MSG_DONTWAIT, application request to not wait
+  * @note
+  *         - if flags = COM_MSG_DONTWAIT, application request to not wait
   *         until data are available at low level
   *         - if flags = COM_MSG_WAIT, application accept to wait
   *         until data are available at low level with respect of potential
@@ -2479,53 +2310,38 @@ int32_t com_recv_ip_modem(int32_t sock,
   * @param  fromlen   - remote IP length
   * @retval int32_t   - number of bytes received or error value
   */
-int32_t com_recvfrom_ip_modem(int32_t sock,
-                              com_char_t *buf, int32_t len,
-                              int32_t flags,
+int32_t com_recvfrom_ip_modem(int32_t sock, com_char_t *buf, int32_t len, int32_t flags,
                               com_sockaddr_t *from, int32_t *fromlen)
 {
-  int32_t result;
-  int32_t len_rcv;
-  socket_desc_t *socket_desc;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  int32_t len_rcv = 0;
+  socket_desc_t *p_socket_desc;
   CS_CHAR_t     ip_addr_value[40];
-  uint16_t      ip_remote_port;
+  uint16_t      ip_remote_port = 0U;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  len_rcv = 0;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  ip_remote_port = 0U;
-  (void)strcpy((CSIP_CHAR_t *)&ip_addr_value[0],
-               (const CSIP_CHAR_t *)"0.0.0.0");
+  (void)strcpy((CSIP_CHAR_t *)&ip_addr_value[0], (const CSIP_CHAR_t *)"0.0.0.0");
 
-  if ((socket_desc != NULL)
-      && (buf != NULL)
-      && (len > 0))
+  if ((p_socket_desc != NULL) && (buf != NULL) && (len > 0))
   {
-    if (socket_desc->type == (uint8_t)COM_SOCK_STREAM)
+    if (p_socket_desc->type == (uint8_t)COM_SOCK_STREAM)
     {
       /* recvfrom service may be called and it is changed to recv service */
       result = com_recv_ip_modem(sock, buf, len, flags);
       /* If data received set remote addr parameter to the connected addr */
-      if ((result > 0)
-          && (from != NULL)
-          && (fromlen != NULL)
-          && (*fromlen >= (int32_t)sizeof(com_sockaddr_in_t)))
+      if ((result > 0) && (from != NULL) && (fromlen != NULL) && (*fromlen >= (int32_t)sizeof(com_sockaddr_in_t)))
       {
         com_ip_addr_t remote_addr;
         uint16_t remote_port;
 
-        remote_addr.addr = socket_desc->remote_addr.addr;
-        remote_port = socket_desc->remote_port;
-
-        com_convert_ipaddr_port_to_sockaddr(&remote_addr,
-                                            remote_port,
-                                            (com_sockaddr_in_t *)from);
-
+        remote_addr.addr = p_socket_desc->remote_addr.addr;
+        remote_port = p_socket_desc->remote_port;
+        com_convert_ipaddr_port_to_sockaddr(&remote_addr, remote_port, (com_sockaddr_in_t *)from);
         *fromlen = (int32_t)sizeof(com_sockaddr_in_t);
       }
     }
-    else /* socket_desc->type == (uint8_t)COM_SOCK_DGRAM */
+    else /* p_socket_desc->type == (uint8_t)COM_SOCK_DGRAM */
     {
       /* If Modem doesn't support recvfrom rather than to test:
          if connect already done by appli
@@ -2539,38 +2355,32 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
       {
         rtosalStatus status_queue;
         com_socket_msg_t msg_queue;
-        CS_IPaddrType_t ip_addr_type;
+        CS_IPaddrType_t ip_addr_type = CS_IPAT_INVALID;
 
-        ip_addr_type = CS_IPAT_INVALID;
-
-        com_ip_modem_wakeup_request();
+        com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
 
         /* If socket state == CREATED implicit bind and connect must be done */
         /* Without updating internal parameters
            => com_ip_modem_connect must not be called */
-        result = com_ip_modem_connect_udp_service(socket_desc);
+        result = com_ip_modem_connect_udp_service(p_socket_desc);
 
         /* closing maybe received, refuse to send data */
-        if ((result == COM_SOCKETS_ERR_OK)
-            && (socket_desc->state == COM_SOCKET_CONNECTED))
+        if ((result == COM_SOCKETS_ERR_OK) && (p_socket_desc->state == COM_SOCKET_CONNECTED))
         {
           uint32_t length_to_read;
           length_to_read = COM_MIN((uint32_t)len, COM_MODEM_MAX_RX_DATA_SIZE);
-          socket_desc->state = COM_SOCKET_WAITING_FROM;
+          p_socket_desc->state = COM_SOCKET_WAITING;
 
           /* Empty the queue from possible messages */
-          com_ip_modem_empty_queue(socket_desc->queue);
+          com_ip_modem_empty_queue(p_socket_desc->queue);
 
           if (flags == COM_MSG_DONTWAIT)
           {
             /* Application don't want to wait if there is no data available */
-            len_rcv = osCDS_socket_receivefrom(socket_desc->id,
-                                               buf, length_to_read,
-                                               &ip_addr_type,
-                                               &ip_addr_value[0],
-                                               &ip_remote_port);
+            len_rcv = osCDS_socket_receivefrom(p_socket_desc->id, buf, length_to_read,
+                                               &ip_addr_type, &ip_addr_value[0], &ip_remote_port);
             result = (len_rcv < 0) ? COM_SOCKETS_ERR_GENERAL : COM_SOCKETS_ERR_OK;
-            socket_desc->state = COM_SOCKET_CONNECTED;
+            p_socket_desc->state = COM_SOCKET_CONNECTED;
             PRINT_INFO("rcvfrom data DONTWAIT")
           }
           else
@@ -2578,11 +2388,8 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
             /* Maybe still some data available
                because application don't read all data with previous calls */
             PRINT_DBG("rcvfrom data waiting")
-            len_rcv = osCDS_socket_receivefrom(socket_desc->id,
-                                               buf, length_to_read,
-                                               &ip_addr_type,
-                                               &ip_addr_value[0],
-                                               &ip_remote_port);
+            len_rcv = osCDS_socket_receivefrom(p_socket_desc->id, buf, length_to_read,
+                                               &ip_addr_type, &ip_addr_value[0], &ip_remote_port);
             PRINT_DBG("rcvfrom data waiting exit")
 
             if (len_rcv == 0)
@@ -2590,31 +2397,33 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
               /* Waiting for Distant response or Closure Socket or Timeout */
               PRINT_DBG("rcvfrom data waiting on MSGqueue")
               msg_queue = 0U;
-              status_queue = rtosalMessageQueueGet(socket_desc->queue, &msg_queue, socket_desc->rcv_timeout);
+              status_queue = rtosalMessageQueueGet(p_socket_desc->queue, &msg_queue, p_socket_desc->rcv_timeout);
               PRINT_DBG("rcvfrom data exit from MSGqueue")
-              if (status_queue == osEventTimeout)
+              /* For Timeout returned result :
+               * osEventTimeout in case cmsisV1
+               * osErrorTimeoutResource = osErrorTimeout in case cmsisV2
+               * osErrorTimeoutResource defined for cmsisV1 and V2 so better than osErrorTimeout */
+              if ((status_queue == osEventTimeout) || (status_queue == osErrorTimeoutResource))
               {
                 result = COM_SOCKETS_ERR_TIMEOUT;
-                socket_desc->state = COM_SOCKET_CONNECTED;
+                p_socket_desc->state = COM_SOCKET_CONNECTED;
                 PRINT_INFO("rcvfrom data exit timeout")
               }
               else
               {
                 /* A message is in the queue and it it a SOCKET one */
-                if ((msg_queue != 0U) && (GET_SOCKET_MSG_TYPE(msg_queue) == COM_SOCKET_MSG))
+                com_socket_msg_type_t msg_type = GET_SOCKET_MSG_TYPE(msg_queue);
+                com_socket_msg_type_t msg_id   = GET_SOCKET_MSG_ID(msg_queue);
+                if ((msg_queue != 0U) && (msg_type == COM_SOCKET_MSG))
                 {
-                  switch (GET_SOCKET_MSG_ID(msg_queue))
+                  switch (msg_id)
                   {
                     case COM_DATA_RCV :
                     {
-                      len_rcv = osCDS_socket_receivefrom(socket_desc->id,
-                                                         buf, length_to_read,
-                                                         &ip_addr_type,
-                                                         &ip_addr_value[0],
-                                                         &ip_remote_port);
-                      result = (len_rcv < 0) ? \
-                               COM_SOCKETS_ERR_GENERAL : COM_SOCKETS_ERR_OK;
-                      socket_desc->state = COM_SOCKET_CONNECTED;
+                      len_rcv = osCDS_socket_receivefrom(p_socket_desc->id, buf, length_to_read,
+                                                         &ip_addr_type, &ip_addr_value[0], &ip_remote_port);
+                      result = (len_rcv < 0) ? COM_SOCKETS_ERR_GENERAL : COM_SOCKETS_ERR_OK;
+                      p_socket_desc->state = COM_SOCKET_CONNECTED;
                       if (len_rcv == 0)
                       {
                         PRINT_DBG("rcvfrom data exit with no data")
@@ -2625,8 +2434,7 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
                     case COM_CLOSING_RCV :
                     {
                       result = COM_SOCKETS_ERR_CLOSING;
-                      /* socket_desc->state = COM_SOCKET_CLOSING; */
-                      socket_desc->state = COM_SOCKET_CONNECTED;
+                      p_socket_desc->state = COM_SOCKET_CONNECTED;
                       PRINT_INFO("rcvfrom data exit socket closing")
                       break;
                     }
@@ -2634,7 +2442,7 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
                     {
                       /* Impossible case */
                       result = COM_SOCKETS_ERR_GENERAL;
-                      socket_desc->state = COM_SOCKET_CONNECTED;
+                      p_socket_desc->state = COM_SOCKET_CONNECTED;
                       PRINT_ERR("rcvfrom data exit NOK impossible case")
                       break;
                     }
@@ -2644,7 +2452,7 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
                 {
                   /* Error or empty queue */
                   result = COM_SOCKETS_ERR_GENERAL;
-                  socket_desc->state = COM_SOCKET_CONNECTED;
+                  p_socket_desc->state = COM_SOCKET_CONNECTED;
                   PRINT_ERR("rcvfrom data msg NOK or empty queue")
                 }
               }
@@ -2652,35 +2460,29 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
             else
             {
               result = (len_rcv < 0) ? COM_SOCKETS_ERR_GENERAL : COM_SOCKETS_ERR_OK;
-              socket_desc->state = COM_SOCKET_CONNECTED;
+              p_socket_desc->state = COM_SOCKET_CONNECTED;
               PRINT_INFO("rcvfrom data exit data available or err low level")
             }
           }
 
           /* Empty the queue from possible messages */
-          com_ip_modem_empty_queue(socket_desc->queue);
+          com_ip_modem_empty_queue(p_socket_desc->queue);
         }
         else
         {
-          result = (socket_desc->state == COM_SOCKET_CLOSING) ? \
-                   COM_SOCKETS_ERR_CLOSING : COM_SOCKETS_ERR_INPROGRESS;
+          result = (p_socket_desc->state == COM_SOCKET_CLOSING) ? COM_SOCKETS_ERR_CLOSING : COM_SOCKETS_ERR_INPROGRESS;
         }
         com_ip_modem_idlemode_request(false);
 
-        com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? \
-                                     COM_SOCKET_STAT_RCV_OK : COM_SOCKET_STAT_RCV_NOK);
+        com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? COM_SOCKET_STAT_RCV_OK : COM_SOCKET_STAT_RCV_NOK);
       }
 #endif /* UDP_SERVICE_SUPPORTED == 0U */
     }
 
     /* Update output from and fromlen parameters */
-    if ((len_rcv > 0)
-        && (from != NULL)
-        && (fromlen != NULL)
-        && (*fromlen >= (int32_t)sizeof(com_sockaddr_in_t)))
+    if ((len_rcv > 0) && (from != NULL) && (fromlen != NULL) && (*fromlen >= (int32_t)sizeof(com_sockaddr_in_t)))
     {
-      if (com_convert_IPString_to_sockaddr(ip_remote_port, (com_char_t *)(&ip_addr_value[0]), from)
-          == true)
+      if (com_convert_IPString_to_sockaddr(ip_remote_port, (com_char_t *)(&ip_addr_value[0]), from) == true)
       {
         *fromlen = (int32_t)sizeof(com_sockaddr_in_t);
       }
@@ -2691,7 +2493,8 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
     }
   }
 
-  SOCKET_SET_ERROR(socket_desc, result);
+  SOCKET_SET_ERROR(p_socket_desc, result);
+
   return ((result == COM_SOCKETS_ERR_OK) ? len_rcv : result);
 }
 
@@ -2706,17 +2509,15 @@ int32_t com_recvfrom_ip_modem(int32_t sock,
   */
 int32_t com_closesocket_ip_modem(int32_t sock)
 {
-  int32_t result;
-  socket_desc_t *socket_desc;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  socket_desc = com_ip_modem_find_socket(sock, false);
+  p_socket_desc = com_ip_modem_find_socket(sock, false);
 
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
     /* If socket is currently under process refused to close it */
-    if ((socket_desc->state == COM_SOCKET_SENDING)
-        || (socket_desc->state == COM_SOCKET_WAITING_RSP))
+    if ((p_socket_desc->state == COM_SOCKET_SENDING) || (p_socket_desc->state == COM_SOCKET_WAITING))
     {
       PRINT_ERR("close socket NOK err state")
       result = COM_SOCKETS_ERR_INPROGRESS;
@@ -2724,9 +2525,8 @@ int32_t com_closesocket_ip_modem(int32_t sock)
     else
     {
       result = COM_SOCKETS_ERR_GENERAL;
-      com_ip_modem_wakeup_request();
-      if (osCDS_socket_close(sock, 0U)
-          == CELLULAR_OK)
+      com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
+      if (osCDS_socket_close(sock, 0U) == CELLULAR_OK)
       {
         com_ip_modem_delete_socket_desc(sock, false);
         result = COM_SOCKETS_ERR_OK;
@@ -2738,10 +2538,8 @@ int32_t com_closesocket_ip_modem(int32_t sock)
       }
       com_ip_modem_idlemode_request(true);
     }
-    com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? \
-                                 COM_SOCKET_STAT_CLS_OK : COM_SOCKET_STAT_CLS_NOK);
+    com_sockets_statistic_update((result == COM_SOCKETS_ERR_OK) ? COM_SOCKET_STAT_CLS_OK : COM_SOCKET_STAT_CLS_NOK);
   }
-
 
   return (result);
 }
@@ -2759,37 +2557,25 @@ int32_t com_closesocket_ip_modem(int32_t sock)
   * @note   only IPv4 address is managed
   * @retval int32_t   - ok or error value
   */
-int32_t com_gethostbyname_ip_modem(const com_char_t *name,
-                                   com_sockaddr_t   *addr)
+int32_t com_gethostbyname_ip_modem(const com_char_t *name, com_sockaddr_t   *addr)
 {
-  int32_t result;
-  CS_PDN_conf_id_t PDN_conf_id;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  CS_PDN_conf_id_t PDN_conf_id = CS_PDN_CONFIG_DEFAULT;
   CS_DnsReq_t  dns_req;
   CS_DnsResp_t dns_resp;
 
-  PDN_conf_id = CS_PDN_CONFIG_DEFAULT;
-  result = COM_SOCKETS_ERR_PARAMETER;
-
-  if ((name != NULL)
-      && (addr != NULL))
+  if ((name != NULL) && (addr != NULL))
   {
     if (strlen((const CSIP_CHAR_t *)name) <= sizeof(dns_req.host_name))
     {
-      (void)strcpy((CSIP_CHAR_t *)&dns_req.host_name[0],
-                   (const CSIP_CHAR_t *)name);
+      (void)strcpy((CSIP_CHAR_t *)&dns_req.host_name[0], (const CSIP_CHAR_t *)name);
 
       result = COM_SOCKETS_ERR_GENERAL;
-      com_ip_modem_wakeup_request();
-      if (osCDS_dns_request(PDN_conf_id,
-                            &dns_req,
-                            &dns_resp)
-          == CELLULAR_OK)
+      com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
+      if (osCDS_dns_request(PDN_conf_id, &dns_req, &dns_resp) == CELLULAR_OK)
       {
         PRINT_INFO("DNS resolution OK - Remote: %s IP: %s", name, dns_resp.host_addr)
-        if (com_convert_IPString_to_sockaddr(0U,
-                                             (com_char_t *)&dns_resp.host_addr[0],
-                                             addr)
-            == true)
+        if (com_convert_IPString_to_sockaddr(0U, (com_char_t *)&dns_resp.host_addr[0], addr) == true)
         {
           PRINT_DBG("DNS conversion OK")
           result = COM_SOCKETS_ERR_OK;
@@ -2820,13 +2606,12 @@ int32_t com_gethostbyname_ip_modem(const com_char_t *name,
   * @param  namelen   - name length
   * @retval int32_t   - COM_SOCKETS_ERR_UNSUPPORTED
   */
-int32_t com_getpeername_ip_modem(int32_t sock,
-                                 com_sockaddr_t *name, int32_t *namelen)
+int32_t com_getpeername_ip_modem(int32_t sock, com_sockaddr_t *name, int32_t *namelen)
 {
   UNUSED(sock);
   UNUSED(name);
   UNUSED(namelen);
-  return COM_SOCKETS_ERR_UNSUPPORTED;
+  return (COM_SOCKETS_ERR_UNSUPPORTED);
 }
 
 
@@ -2839,13 +2624,12 @@ int32_t com_getpeername_ip_modem(int32_t sock,
   * @param  namelen   - name length
   * @retval int32_t   - COM_SOCKETS_ERR_UNSUPPORTED
   */
-int32_t com_getsockname_ip_modem(int32_t sock,
-                                 com_sockaddr_t *name, int32_t *namelen)
+int32_t com_getsockname_ip_modem(int32_t sock, com_sockaddr_t *name, int32_t *namelen)
 {
   UNUSED(sock);
   UNUSED(name);
   UNUSED(namelen);
-  return COM_SOCKETS_ERR_UNSUPPORTED;
+  return (COM_SOCKETS_ERR_UNSUPPORTED);
 }
 
 
@@ -2861,27 +2645,25 @@ int32_t com_getsockname_ip_modem(int32_t sock,
 int32_t com_ping_ip_modem(void)
 {
   int32_t result;
-  socket_desc_t *socket_desc;
+  socket_desc_t *p_socket_desc;
 
-  /* Need to create a new socket_desc ? */
-  socket_desc = com_ip_modem_provide_socket_desc(true);
-  if (socket_desc == NULL)
+  /* Need to create a new p_socket_desc ? */
+  p_socket_desc = com_ip_modem_provide_socket_desc(true);
+  if (p_socket_desc == NULL)
   {
     result = COM_SOCKETS_ERR_NOMEMORY;
     PRINT_ERR("create ping NOK no memory")
-    /* Socket descriptor is not existing in COM
-       and nothing to do at low level */
+    /* Socket descriptor is not existing in COM and nothing to do at low level */
   }
   else
   {
-    /* Socket state is set directly to CREATED
-       because nothing else as to be done */
+    /* Socket state is set directly to CREATED because nothing else as to be done */
     result = COM_SOCKETS_ERR_OK;
-    socket_desc->state = COM_SOCKET_CREATED;
+    p_socket_desc->state = COM_SOCKET_CREATED;
     com_ip_modem_wakeup_request(); /* to avoid to be stopped by a close socket */
   }
 
-  return ((result == COM_SOCKETS_ERR_OK) ? socket_desc->id : result);
+  return ((result == COM_SOCKETS_ERR_OK) ? p_socket_desc->id : result);
 }
 
 
@@ -2895,37 +2677,29 @@ int32_t com_ping_ip_modem(void)
   * @param  rsp      - ping response
   * @retval int32_t  - ok or error value
   */
-int32_t com_ping_process_ip_modem(int32_t ping,
-                                  const com_sockaddr_t *addr, int32_t addrlen,
+int32_t com_ping_process_ip_modem(int32_t ping, const com_sockaddr_t *addr, int32_t addrlen,
                                   uint8_t timeout, com_ping_rsp_t *rsp)
 {
-  int32_t  result;
+  int32_t  result = COM_SOCKETS_ERR_PARAMETER;
   uint32_t timeout_ms;
-  socket_desc_t *socket_desc;
+  socket_desc_t *p_socket_desc;
   socket_addr_t  socket_addr;
   CS_Ping_params_t ping_params;
   CS_PDN_conf_id_t PDN_conf_id;
   rtosalStatus status_queue;
   com_socket_msg_t msg_queue;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-
-  socket_desc = com_ip_modem_find_socket(ping, true);
+  p_socket_desc = com_ip_modem_find_socket(ping, true);
 
   /* Check parameters validity and context */
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
     /* No need each time to close the connection */
-    if ((socket_desc->state == COM_SOCKET_CREATED)
-        || (socket_desc->state == COM_SOCKET_CONNECTED))
+    if ((p_socket_desc->state == COM_SOCKET_CREATED) || (p_socket_desc->state == COM_SOCKET_CONNECTED))
     {
-      if ((timeout != 0U)
-          && (rsp != NULL)
-          && (addr != NULL))
+      if ((timeout != 0U) && (rsp != NULL) && (addr != NULL))
       {
-        if (com_translate_ip_address(addr, addrlen,
-                                     &socket_addr)
-            == true)
+        if (com_translate_ip_address(addr, addrlen, &socket_addr) == true)
         {
           /* Parameters are valid */
           result = COM_SOCKETS_ERR_OK;
@@ -2958,7 +2732,7 @@ int32_t com_ping_process_ip_modem(int32_t ping,
       else
       {
         /* No ping in progress => assign id to ping_socket_id */
-        ping_socket_id = socket_desc->id;
+        ping_socket_id = p_socket_desc->id;
         /* result already set to the correct value COM_SOCKETS_ERR_OK */
       }
       (void)rtosalMutexRelease(ComSocketsMutexHandle);
@@ -2968,26 +2742,21 @@ int32_t com_ping_process_ip_modem(int32_t ping,
         PDN_conf_id = CS_PDN_CONFIG_DEFAULT;
         ping_params.timeout = timeout;
         ping_params.pingnum = 1U;
-        (void)strcpy((CSIP_CHAR_t *)&ping_params.host_addr[0],
-                     (const CSIP_CHAR_t *)&socket_addr.ip_value[0]);
-        socket_desc->rsp   = rsp;
+        (void)strcpy((CSIP_CHAR_t *)&ping_params.host_addr[0], (const CSIP_CHAR_t *)&socket_addr.ip_value[0]);
+        p_socket_desc->p_ping_rsp = rsp;
 
-        com_ip_modem_wakeup_request();
+        com_ip_modem_wakeup_request(); /* Before to interact with the modem, wakeup it */
 
         /* Empty the queue from possible messages */
-        com_ip_modem_empty_queue(socket_desc->queue);
+        com_ip_modem_empty_queue(p_socket_desc->queue);
 
         /* In order to receive response whatever the moment URC is received
-           do not go under SENDING then WAITING_RSP state
-           set the state in WAITING_RSP directly */
-        socket_desc->state = COM_SOCKET_WAITING_RSP;
+           do not go under SENDING then WAITING state, set the state in WAITING directly */
+        p_socket_desc->state = COM_SOCKET_WAITING;
 
         /* Case 1) URC received before Reply
            Case 2) Reply received before URC */
-        if (osCDS_ping(PDN_conf_id,
-                       &ping_params,
-                       com_ip_modem_ping_rsp_cb)
-            == CELLULAR_OK)
+        if (osCDS_ping(PDN_conf_id, &ping_params, com_ip_modem_ping_rsp_cb) == CELLULAR_OK)
         {
           /* Case 1) URC already available in the queue -> timeout not apply */
           /* Case 2) URC are still expected -> timeout apply */
@@ -2998,22 +2767,27 @@ int32_t com_ping_process_ip_modem(int32_t ping,
 #endif /* PING_URC_RECEIVED_AFTER_REPLY == 1U */
 
           msg_queue = 0U;
-          status_queue = rtosalMessageQueueGet(socket_desc->queue, &msg_queue, timeout_ms);
-
-          if (status_queue == osEventTimeout)
+          status_queue = rtosalMessageQueueGet(p_socket_desc->queue, &msg_queue, timeout_ms);
+          /* For Timeout returned result :
+           * osEventTimeout in case cmsisV1
+           * osErrorTimeoutResource = osErrorTimeout in case cmsisV2
+           * osErrorTimeoutResource defined for cmsisV1 and V2 so better than osErrorTimeout */
+          if ((status_queue == osEventTimeout) || (status_queue == osErrorTimeoutResource))
           {
             /* Case 1) Impossible case or URC lost */
             /* Case 2) No URC available */
             result = COM_SOCKETS_ERR_TIMEOUT;
-            socket_desc->state = COM_SOCKET_CONNECTED;
+            p_socket_desc->state = COM_SOCKET_CONNECTED;
             PRINT_INFO("ping exit timeout")
           }
           else
           {
             /* A message is in the queue and it it a PING one */
-            if ((msg_queue != 0U) && (GET_SOCKET_MSG_TYPE(msg_queue) == COM_PING_MSG))
+            com_socket_msg_type_t msg_type = GET_SOCKET_MSG_TYPE(msg_queue);
+            com_socket_msg_type_t msg_id   = GET_SOCKET_MSG_ID(msg_queue);
+            if ((msg_queue != 0U) && (msg_type == COM_PING_MSG))
             {
-              switch (GET_SOCKET_MSG_ID(msg_queue))
+              switch (msg_id)
               {
                 case COM_DATA_RCV :
                 {
@@ -3030,29 +2804,33 @@ int32_t com_ping_process_ip_modem(int32_t ping,
                   while (wait == true)
                   {
                     msg_queue = 0U;
-                    status_queue = rtosalMessageQueueGet(socket_desc->queue, &msg_queue, timeout_ms);
-                    if (status_queue == osEventTimeout)
+                    status_queue = rtosalMessageQueueGet(p_socket_desc->queue, &msg_queue, timeout_ms);
+                    /* For Timeout returned result :
+                     * osEventTimeout in case cmsisV1
+                     * osErrorTimeoutResource = osErrorTimeout in case cmsisV2
+                     * osErrorTimeoutResource defined for cmsisV1 and V2 so better than osErrorTimeout */
+                    if ((status_queue == osEventTimeout) || (status_queue == osErrorTimeoutResource))
                     {
                       wait = false;
                     }
                     else
                     {
-                      if ((msg_queue != 0U)
-                          && (GET_SOCKET_MSG_TYPE(msg_queue) == COM_PING_MSG)
-                          && (GET_SOCKET_MSG_ID(msg_queue) == COM_CLOSING_RCV))
+                      msg_type = GET_SOCKET_MSG_TYPE(msg_queue);
+                      msg_id   = GET_SOCKET_MSG_ID(msg_queue);
+                      if ((msg_queue != 0U) && (msg_type == COM_PING_MSG) && (msg_id == COM_CLOSING_RCV))
                       {
                         wait = false;
                       }
                     }
                   }
-                  socket_desc->state = COM_SOCKET_CONNECTED;
+                  p_socket_desc->state = COM_SOCKET_CONNECTED;
                   break;
                 }
                 case COM_CLOSING_RCV :
                 {
                   /* Impossible case */
                   result = COM_SOCKETS_ERR_GENERAL;
-                  socket_desc->state = COM_SOCKET_CONNECTED;
+                  p_socket_desc->state = COM_SOCKET_CONNECTED;
                   PRINT_ERR("rcv data exit NOK closing case")
                   break;
                 }
@@ -3060,7 +2838,7 @@ int32_t com_ping_process_ip_modem(int32_t ping,
                 {
                   /* Impossible case */
                   result = COM_SOCKETS_ERR_GENERAL;
-                  socket_desc->state = COM_SOCKET_CONNECTED;
+                  p_socket_desc->state = COM_SOCKET_CONNECTED;
                   PRINT_ERR("rcv data exit NOK impossible case")
                   break;
                 }
@@ -3070,7 +2848,7 @@ int32_t com_ping_process_ip_modem(int32_t ping,
             {
               /* Error or empty queue */
               result = COM_SOCKETS_ERR_GENERAL;
-              socket_desc->state = COM_SOCKET_CONNECTED;
+              p_socket_desc->state = COM_SOCKET_CONNECTED;
               PRINT_ERR("ping data msg NOK or empty queue")
             }
           }
@@ -3078,13 +2856,13 @@ int32_t com_ping_process_ip_modem(int32_t ping,
         else
         {
           result = COM_SOCKETS_ERR_GENERAL;
-          socket_desc->state = COM_SOCKET_CONNECTED;
+          p_socket_desc->state = COM_SOCKET_CONNECTED;
           PRINT_ERR("ping send NOK at low level")
         }
         com_ip_modem_idlemode_request(false);
 
         /* Empty the queue from possible messages */
-        com_ip_modem_empty_queue(socket_desc->queue);
+        com_ip_modem_empty_queue(p_socket_desc->queue);
 
         /* Release Ping */
         ping_socket_id = COM_SOCKET_INVALID_ID;
@@ -3097,7 +2875,7 @@ int32_t com_ping_process_ip_modem(int32_t ping,
     }
   }
 
-  return result;
+  return (result);
 }
 
 
@@ -3109,17 +2887,15 @@ int32_t com_ping_process_ip_modem(int32_t ping,
   */
 int32_t com_closeping_ip_modem(int32_t ping)
 {
-  int32_t result;
-  const socket_desc_t *socket_desc;
+  int32_t result = COM_SOCKETS_ERR_PARAMETER;
+  const socket_desc_t *p_socket_desc;
 
-  result = COM_SOCKETS_ERR_PARAMETER;
-  socket_desc = com_ip_modem_find_socket(ping, true);
+  p_socket_desc = com_ip_modem_find_socket(ping, true);
 
-  if (socket_desc != NULL)
+  if (p_socket_desc != NULL)
   {
     /* If socket is currently under process refused to close it */
-    if ((socket_desc->state == COM_SOCKET_SENDING)
-        || (socket_desc->state == COM_SOCKET_WAITING_RSP))
+    if ((p_socket_desc->state == COM_SOCKET_SENDING) || (p_socket_desc->state == COM_SOCKET_WAITING))
     {
       PRINT_ERR("close ping NOK err state")
       result = COM_SOCKETS_ERR_INPROGRESS;
@@ -3133,7 +2909,7 @@ int32_t com_closeping_ip_modem(int32_t ping)
     }
   }
 
-  return result;
+  return (result);
 }
 
 #endif /* USE_COM_PING == 1 */
@@ -3151,9 +2927,7 @@ int32_t com_closeping_ip_modem(int32_t ping)
   */
 bool com_init_ip_modem(void)
 {
-  bool result;
-
-  result = false;
+  bool result = false;
 
   /* Inititalize Network status */
   com_sockets_network_is_up = false; /* Network status update by Datacache see com_socket_datacache_cb() */
@@ -3168,12 +2942,12 @@ bool com_init_ip_modem(void)
   }
 
   /* Initialize Mutex to protect socket descriptor list access */
-  ComSocketsMutexHandle = rtosalMutexNew(NULL);
+  ComSocketsMutexHandle = rtosalMutexNew((const rtosal_char_t *)"COMSOCKIP_MUT_SOCKET_LIST");
   if (ComSocketsMutexHandle != NULL)
   {
     /* Create always the first element of the list */
-    socket_desc_list = com_ip_modem_create_socket_desc();
-    if (socket_desc_list != NULL)
+    p_socket_desc_list = com_ip_modem_create_socket_desc();
+    if (p_socket_desc_list != NULL)
     {
       result = true;
     }
@@ -3181,8 +2955,9 @@ bool com_init_ip_modem(void)
 
 #if (USE_LOW_POWER == 1)
   /* Initialize Timer inactivity and its Mutex to check inactivity on socket */
-  ComTimerInactivityId = rtosalTimerNew(NULL, (os_ptimer)com_ip_modem_timer_inactivity_cb, osTimerOnce, NULL);
-  ComTimerInactivityMutexHandle = rtosalMutexNew(NULL);
+  ComTimerInactivityId = rtosalTimerNew((const rtosal_char_t *)"COMSOCKIP_TIM_INACTIVITY",
+                                        (os_ptimer)com_ip_modem_timer_inactivity_cb, osTimerOnce, NULL);
+  ComTimerInactivityMutexHandle = rtosalMutexNew((const rtosal_char_t *)"COMSOCKIP_MUT_INACTIVITY");
   if ((ComTimerInactivityId == NULL) || (ComTimerInactivityMutexHandle == NULL))
   {
     com_timer_inactivity_state = COM_TIMER_INVALID;
@@ -3199,7 +2974,7 @@ bool com_init_ip_modem(void)
   com_local_port = 0U; /* com_start_ip in charge to initialize it to a random value */
 #endif /* UDP_SERVICE_SUPPORTED == 1U */
 
-  return result;
+  return (result);
 }
 
 
@@ -3232,4 +3007,5 @@ void com_start_ip_modem(void)
 
 #endif /* USE_SOCKETS_TYPE == USE_SOCKETS_MODEM */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+#endif /* USE_COM_SOCKETS == 1 */
+

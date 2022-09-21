@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -286,7 +285,7 @@ static uint32_t EEPROM_WriteLessThanPage(uint16_t addr, uint8_t *pBuffer, uint16
 
 static uint32_t EEPROM_WriteMoreThanPage(uint16_t addr, uint8_t *pBuffer, uint16_t WriteAddr, uint16_t NumByteToWrite)
 {
-  uint32_t status = EEPROM_OK;
+  uint32_t status;
 
   uint16_t numofpage;
   uint16_t numofsingle;
@@ -299,16 +298,15 @@ static uint32_t EEPROM_WriteMoreThanPage(uint16_t addr, uint8_t *pBuffer, uint16
   numofpage =  numByteToWrite / EEPROM_PAGESIZE;
   numofsingle = numByteToWrite % EEPROM_PAGESIZE;
 
-  if (count != 0U)
+  uint8_t *pBufCopy = pBuffer;
+
+  /* Store the number of data to be written */
+  dataindex = count;
+  status = BSP_EEPROM_WritePage(pBufCopy, writeAdd, (uint16_t *)(&dataindex));
+  if (status == EEPROM_OK)
   {
-    /* Store the number of data to be written */
-    dataindex = count;
-    status = BSP_EEPROM_WritePage(pBuffer, writeAdd, (uint16_t *)(&dataindex));
-    if (status == EEPROM_OK)
-    {
-      writeAdd += count;
-      pBuffer += count;
-    }
+    writeAdd += count;
+    pBufCopy += count;
   }
 
   if (status == EEPROM_OK)
@@ -318,11 +316,11 @@ static uint32_t EEPROM_WriteMoreThanPage(uint16_t addr, uint8_t *pBuffer, uint16
       numofpage--;
       /* Store the number of data to be written */
       dataindex = EEPROM_PAGESIZE;
-      status = BSP_EEPROM_WritePage(pBuffer, writeAdd, (uint16_t *)(&dataindex));
+      status = BSP_EEPROM_WritePage(pBufCopy, writeAdd, (uint16_t *)(&dataindex));
       if (status == EEPROM_OK)
       {
         writeAdd +=  EEPROM_PAGESIZE;
-        pBuffer += EEPROM_PAGESIZE;
+        pBufCopy += EEPROM_PAGESIZE;
       }
       else
       {
@@ -337,7 +335,7 @@ static uint32_t EEPROM_WriteMoreThanPage(uint16_t addr, uint8_t *pBuffer, uint16
       {
         /* Store the number of data to be written */
         dataindex = numofsingle;
-        status = BSP_EEPROM_WritePage(pBuffer, writeAdd, (uint16_t *)(&dataindex));
+        status = BSP_EEPROM_WritePage(pBufCopy, writeAdd, (uint16_t *)(&dataindex));
       }
     }
   }
@@ -356,13 +354,15 @@ static uint32_t EEPROM_WriteBufferAligned(uint8_t *pBuffer, uint16_t WriteAddr, 
   numofpage =  NumByteToWrite / EEPROM_PAGESIZE;
   numofsingle = NumByteToWrite % EEPROM_PAGESIZE;
 
+  uint8_t *pBufCopy = pBuffer;
+
   /* If NumByteToWrite < EEPROM_PAGESIZE */
   if (numofpage == 0U)
   {
     /* Store the number of data to be written */
     dataindex = numofsingle;
     /* Start writing data */
-    status = BSP_EEPROM_WritePage(pBuffer, writeAdd, (uint16_t *)(&dataindex));
+    status = BSP_EEPROM_WritePage(pBufCopy, writeAdd, (uint16_t *)(&dataindex));
   }
   /* If NumByteToWrite > EEPROM_PAGESIZE */
   else
@@ -372,11 +372,11 @@ static uint32_t EEPROM_WriteBufferAligned(uint8_t *pBuffer, uint16_t WriteAddr, 
       numofpage--;
       /* Store the number of data to be written */
       dataindex = EEPROM_PAGESIZE;
-      status = BSP_EEPROM_WritePage(pBuffer, writeAdd, (uint16_t *)(&dataindex));
+      status = BSP_EEPROM_WritePage(pBufCopy, writeAdd, (uint16_t *)(&dataindex));
       if (status == EEPROM_OK)
       {
         writeAdd +=  EEPROM_PAGESIZE;
-        pBuffer += EEPROM_PAGESIZE;
+        pBufCopy += EEPROM_PAGESIZE;
       }
       else
       {
@@ -391,7 +391,7 @@ static uint32_t EEPROM_WriteBufferAligned(uint8_t *pBuffer, uint16_t WriteAddr, 
       {
         /* Store the number of data to be written */
         dataindex = numofsingle;
-        status = BSP_EEPROM_WritePage(pBuffer, writeAdd, (uint16_t *)(&dataindex));
+        status = BSP_EEPROM_WritePage(pBufCopy, writeAdd, (uint16_t *)(&dataindex));
       }
     }
   }
@@ -436,5 +436,3 @@ static uint32_t EEPROM_WriteBufferNotAligned(uint16_t addr, uint8_t *pBuffer, ui
 /**
   * @}
   */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

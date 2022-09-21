@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -35,12 +34,20 @@
 #endif /* USE_TRACE_ERROR_HANDLER */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef struct
+{
+  dbg_channels_t  channel; /* channel where error occurred */
+  int32_t         errorId; /* number identifying the error in the channel */
+  error_gravity_t gravity; /* error gravity */
+  uint32_t        count;   /* count how many errors have been logged since the beginning */
+} error_handler_desc_t;
+
 /* Private defines -----------------------------------------------------------*/
 #define MAX_ERROR_ENTRIES (32U)     /* log only last MAX_ERROR_ENTRIES errors */
 #define MAX_ERROR_COUNTER (0xFFFFU) /* count how many errors have been logged since the beginning */
 
 /* Private variables ---------------------------------------------------------*/
-static error_handler_decript_t errors_table[MAX_ERROR_ENTRIES]; /* error array */
+static error_handler_desc_t errors_table[MAX_ERROR_ENTRIES]; /* errors table */
 static uint16_t error_counter = 0U; /* total number of errors */
 static uint16_t error_index;        /* current error index */
 
@@ -48,11 +55,16 @@ static uint16_t error_index;        /* current error index */
 /* Private function prototypes -----------------------------------------------*/
 
 /* Functions Definition ------------------------------------------------------*/
+/**
+  * @brief  Initialize error handler module
+  * @param  -
+  * @retval -
+  */
 void ERROR_Handler_Init(void)
 {
-  uint32_t i;
+  uint8_t i;
 
-  /* initialize error array */
+  /* Initialize error array */
   for (i = 0U; i < MAX_ERROR_ENTRIES; i++)
   {
     errors_table[i].channel = DBG_CHAN_ERROR_HANDLER; /* default value = self (ie no error) */
@@ -62,6 +74,13 @@ void ERROR_Handler_Init(void)
   error_index = 0U; /* current error index */
 }
 
+/**
+  * @brief  Log an error
+  * @param  chan    - channel/component in error
+  * @param  errorId - error value to log
+  * @param  gravity - error gravity to log - if equal to ERROR_FATAL then a SystemReset() is done
+  * @retval -
+  */
 void ERROR_Handler(dbg_channels_t chan, int32_t errorId, error_gravity_t gravity)
 {
   /* if this is the very first error, init error array */
@@ -95,9 +114,14 @@ void ERROR_Handler(dbg_channels_t chan, int32_t errorId, error_gravity_t gravity
   error_index = (error_index + 1U) %  MAX_ERROR_ENTRIES;
 }
 
+/**
+  * @brief  Dump all errors logged with a trace
+  * @param  -
+  * @retval -
+  */
 void ERROR_Dump_All(void)
 {
-  uint32_t i;
+  uint8_t i;
   if (error_counter > 0U)
   {
     /* Dump errors array */
@@ -105,17 +129,18 @@ void ERROR_Dump_All(void)
     {
       if (errors_table[i].gravity != ERROR_NO)
       {
-        PRINT_INFO("DUMP ERROR[%ld] (#%ld): channel=%d / errorId=%ld / gravity=%d",
-                   i,
-                   errors_table[i].count,
-                   errors_table[i].channel,
-                   errors_table[i].errorId,
-                   errors_table[i].gravity)
+        PRINT_INFO("DUMP ERROR[%d] (#%ld): channel=%d / errorId=%ld / gravity=%d",
+                   i, errors_table[i].count, errors_table[i].channel, errors_table[i].errorId, errors_table[i].gravity)
       }
     }
   }
 }
 
+/**
+  * @brief  Dump the last error logged
+  * @param  -
+  * @retval -
+  */
 void ERROR_Dump_Last(void)
 {
 #if (USE_TRACE_ERROR_HANDLER == 1U)
@@ -134,13 +159,8 @@ void ERROR_Dump_Last(void)
     }
 
     PRINT_INFO("DUMP LAST ERROR[%d] (#%ld): channel=%d / errorId=%ld / gravity=%d",
-               previous_index,
-               errors_table[previous_index].count,
-               errors_table[previous_index].channel,
-               errors_table[previous_index].errorId,
-               errors_table[previous_index].gravity)
+               previous_index, errors_table[previous_index].count, errors_table[previous_index].channel,
+               errors_table[previous_index].errorId, errors_table[previous_index].gravity)
   }
 #endif  /* (USE_TRACE_ERROR_HANDLER == 1U) */
 }
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

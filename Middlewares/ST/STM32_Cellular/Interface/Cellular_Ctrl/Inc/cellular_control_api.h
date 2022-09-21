@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -27,9 +26,8 @@ extern "C" {
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "plf_config.h"
 #include "cellular_control_common.h"
-#include "com_sockets.h"
+#include "com_sockets_addr_compat.h"
 
 /** @defgroup CELLULAR_CTRL CTRL: Control Module
   * @{
@@ -58,7 +56,7 @@ extern "C" {
 #define CELLULAR_VERSION_FIRMWARE_NAME_LEN     (uint8_t)15
 
 /** @brief Cellular firmware major version values */
-#define CELLULAR_VERSION_MAJOR   6U
+#define CELLULAR_VERSION_MAJOR   7U
 /** @brief Cellular firmware minor version values */
 #define CELLULAR_VERSION_MINOR   0U
 /** @brief Cellular firmware patch version values */
@@ -86,8 +84,8 @@ extern "C" {
 #define CELLULAR_CONCURENT_REGISTRATION_CB_MAX_NB (1U)
 #endif /* CELLULAR_CONCURENT_REGISTRATION_CB_MAX_NB */
 
-#define CA_ICCID_SIZE_MAX                   (uint8_t)(20U + 1U) /*!< ICCID size max: 22U + 1U for \0                  */
-#define CA_IMSI_SIZE_MAX                    (uint8_t)(15U + 1U) /*!< IMSI size max: 16U + 1U for \0                   */
+#define CA_ICCID_SIZE_MAX                   (uint8_t)(20U + 1U) /*!< ICCID size max: 20U + 1U for \0                  */
+#define CA_IMSI_SIZE_MAX                    (uint8_t)(15U + 1U) /*!< IMSI size max: 15U + 1U for \0                   */
 #define CA_MCC_SIZE_MAX                     (uint8_t)(3U + 1U)  /*!< MCC size max: 3U + 1U for \0                     */
 #define CA_MNC_SIZE_MAX                     (uint8_t)(3U + 1U)  /*!< MNC size max: 3U + 1U for \0                     */
 #define CA_MSIN_SIZE_MAX                    (uint8_t)(10U + 1U) /*!< MSIN size max: 10U + 1U for \0                   */
@@ -340,23 +338,6 @@ typedef struct
 } cellular_imsi_t;
 
 /**
-  * @brief  Structure definition of IMSI:\n
-  *         The first three digits represent the MCC: Mobile Country Code.\n
-  *         The next two or three digits represent the MNC: Mobile Network Code;
-  *         2-digit: European standard or 3-digit: North American standard.\n
-  *         The remaining digits are the MSIN: Mobile Subscription Identification Number.
-  */
-typedef struct
-{
-  uint8_t                         mcc_len;                       /*!< len of MCC value           */
-  uint8_t                         mcc_value[CA_MCC_SIZE_MAX];    /*!< MCC value. Format: octets  */
-  uint8_t                         mnc_len;                       /*!< len of MNC value           */
-  uint8_t                         mnc_value[CA_MNC_SIZE_MAX];    /*!< MNC value. Format: octets  */
-  uint8_t                         msin_len;                      /*!< len of MSIN value          */
-  uint8_t                         msin_value[CA_MSIN_SIZE_MAX];  /*!< MSIN value. Format: octets */
-} cellular_imsi_def_t;
-
-/**
   * @brief  Structure definition of IMEI: International Mobile Equipment Identity.\n
   *         IMEI (15 decimal digits: 14 digits plus a check digit)
   *         or IMEISV (16 decimal digits: 14 digits plus two software version digits)
@@ -545,16 +526,29 @@ typedef struct
   */
 typedef struct
 {
-  cellular_iccid_t                iccid;                              /*!< ICCID                                  */
-  cellular_imsi_t                 imsi;                               /*!< IMSI                                   */
-  uint8_t                         sim_index;                          /*!< SIM index in the configuration table;
-  if (sim_status[sim_index] = CA_SIM_READY) then sim_index is the active sim and sim_slot_type[sim_index] its type.\n
-  if ((sim_index = sim_slot_nb) and (sim_status[sim_index] != CA_SIM_READY)) then no sim can be activated.        */
-  uint8_t                         sim_slot_nb;                             /*!< SIM slot nb defined in next fields   */
-  ca_sim_slot_type_t              sim_slot_type[PLF_CELLULAR_SIM_SLOT_NB]; /*!< Type of available SIM slots          */
-  ca_sim_status_t                 sim_status[PLF_CELLULAR_SIM_SLOT_NB];    /*!< Status of available SIM slots        */
-  cellular_pdn_t                  pdn[PLF_CELLULAR_SIM_SLOT_NB];           /*!< PDN to use is specific to a SIM slot */
+  cellular_iccid_t                iccid;                       /*!< ICCID                                             */
+  cellular_imsi_t                 imsi;                        /*!< IMSI                                              */
+  uint8_t                         sim_index;                   /*!< SIM slot index
+  if (sim_status = CA_SIM_READY) then sim_index is the active sim and sim_slot_type its type.\n
+  if ((sim_index = sim_slot_nb) and\n
+      (sim_status != [CA_SIM_READY, CA_SIM_STATUS_UNKNOWN, CA_SIM_CONNECTION_ONGOING]\n
+  then no sim can be activated. */
+  uint8_t                         sim_slot_nb;                 /*!< nb of SIM slots defined in in the platform        */
+  ca_sim_slot_type_t              sim_slot_type;               /*!< Type of SIM slot                                  */
+  ca_sim_status_t                 sim_status;                  /*!< Status of SIM slot                                */
+  cellular_pdn_t                  pdn;                         /*!< PDN to use for this SIM slot                      */
 } cellular_sim_info_t;
+
+/**
+  * @brief  Structure definition of SIM information index.
+  */
+typedef struct
+{
+  uint8_t                         sim_slot_nb;                 /*!< nb of SIM slots defined in in the platform        */
+  ca_sim_slot_type_t              sim_slot_type;               /*!< Type of SIM slot                                  */
+  ca_sim_status_t                 sim_status;                  /*!< Status of SIM slot                                */
+  cellular_pdn_t                  pdn;                         /*!< PDN to use for this SIM slot                      */
+} cellular_sim_info_index_t;
 
 /**
   * @brief  Structure definition of NFMC information.
@@ -604,12 +598,13 @@ typedef struct
 } cellular_power_psm_config_t;
 
 /**
-  * @brief Structure definition of
+  * @brief Structure definition of eDRX low power
   */
 typedef struct
 {
-  ca_eidrx_act_type_t             act_type;
-  uint8_t                         req_value;
+  ca_eidrx_act_type_t             act_type;               /*!< Access technology on which activate eiDRX          */
+  uint8_t                         req_value;              /*!< eiDRX value : Cycle length and Paging Time Window
+                                                              length cf 3GPP TS 24.008, subclause 10.5.5.32       */
 } cellular_power_eidrx_config_t;
 
 /**
@@ -707,6 +702,16 @@ typedef void (* cellular_power_info_cb_t)(ca_event_type_t event, const cellular_
   * @retval -
   */
 void cellular_init(void);
+
+/**
+  * @brief  Deinitialize cellular software from memory.
+  * @param  -
+  * @retval cellular_result_t         The code indicating if the operation is successful otherwise an error code
+  *                                   indicating the cause of the error.\n
+  *         CELLULAR_SUCCESS if OK.\n
+  *         CELLULAR_ERR_NOTIMPLEMENTED if not yet implemented.
+  */
+cellular_result_t cellular_deinit(void);
 
 /**
   * @brief  Start cellular software with boot modem
@@ -867,11 +872,24 @@ cellular_result_t cellular_set_nwk_attachment_timeout(uint32_t nwk_attachment_ti
 void cellular_get_signal_info(cellular_signal_info_t *const p_signal_info);
 
 /**
-  * @brief         Get SIM information.
+  * @brief         Get information on SIM in use.
   * @param[in,out] p_sim_info - The sim info structure to contain the response.
   * @retval -
   */
 void cellular_get_sim_info(cellular_sim_info_t *const p_sim_info);
+
+/**
+  * @brief         Get information on a particular SIM.
+  * @param[in]     sim_index        - The index of the sim.
+  * @param[in,out] p_sim_info_index - The sim info index structure to contain the response.
+  * @retval        cellular_result_t        The code indicating if the operation is successful otherwise an error code
+  *                                         indicating the cause of the error.\n
+  *                CELLULAR_SUCCESS         if sim information is available and is present in p_sim_info.\n
+  *                CELLULAR_ERR_BADARGUMENT if sim_index is out of range,
+  *                                         p_sim_info_index contains no valid information.
+  */
+cellular_result_t cellular_get_sim_info_from_index(uint8_t sim_index,
+                                                   cellular_sim_info_index_t *const p_sim_info_index);
 
 /**
   * @brief         Get NFMC information.
@@ -1041,7 +1059,7 @@ cellular_result_t cellular_ip_info_cb_deregistration(cellular_ip_info_cb_t cellu
   *            CELLULAR_ERR_NOMEMORY     No more memory to register the callback.
   */
 cellular_result_t cellular_power_info_cb_registration(cellular_power_info_cb_t cellular_power_info_cb,
-                                                      void *constp_callback_ctx);
+                                                      void *const p_callback_ctx);
 /**
   * @brief     Deregister a Power information callback.
   * @param[in] cellular_power_info_cb  - The callback to deregister.
@@ -1067,5 +1085,3 @@ cellular_result_t cellular_power_info_cb_deregistration(cellular_power_info_cb_t
 #endif
 
 #endif /* CELLULAR_CONTROL_API_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

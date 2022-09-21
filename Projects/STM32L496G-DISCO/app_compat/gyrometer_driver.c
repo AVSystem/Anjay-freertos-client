@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,5 @@ get_angular_velocity(three_axis_sensor_values_t *out_angular_velocity) {
 
 const three_axis_sensor_driver_t BSP_GYROMETER_DRIVER = {
     .init = gyrometer_init,
-    .read = get_angular_velocity,
-    .unit = "deg/s",
-    .name = "gyrometer"
+    .read = get_angular_velocity
 };

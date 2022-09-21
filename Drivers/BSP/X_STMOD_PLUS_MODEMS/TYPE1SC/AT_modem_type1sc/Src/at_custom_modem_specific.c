@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -25,26 +24,28 @@
  * AT+<X>      : EXECUTION COMMAND
 */
 
-/* TYPE1SC COMPILATION FLAGS to define in project option if needed:*/
-
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "at_core.h"
 #include "at_modem_api.h"
 #include "at_modem_common.h"
 #include "at_modem_signalling.h"
-#include "at_modem_socket.h"
 #include "at_custom_modem_specific.h"
+#include "at_custom_modem_sid.h"
 #include "at_custom_modem_signalling.h"
-#include "at_custom_modem_socket.h"
 #include "at_datapack.h"
 #include "at_util.h"
-#include "sysctrl_specific.h"
+#include "at_custom_sysctrl.h"
 #include "cellular_runtime_standard.h"
 #include "cellular_runtime_custom.h"
 #include "plf_config.h"
 #include "plf_modem_config.h"
 #include "error_handler.h"
+
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+#include "at_modem_socket.h"
+#include "at_custom_modem_socket.h"
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
 #if defined(USE_MODEM_TYPE1SC)
 #if defined(HWREF_MURATA_TYPE1SC_EVK)
@@ -53,14 +54,21 @@
 #endif /* HWREF_MURATA_TYPE1SC_EVK */
 #endif /* USE_MODEM_TYPE1SC */
 
-/* Private typedef -----------------------------------------------------------*/
-#define SUPPORT_BOOTEV     (1)   /* support or not %BOOTEV (0 or 1) */
-#define USE_AT_IFC         (1)   /* 1 to use AT+IFC to set Hw Flow Control mode
-                                  * 0 to use AT&K3 */
-#define MURATA_CMD_SUBSET  (0)   /* In Murata implementation, only a subset of ALTAIR AT commands is supported
-                                  * set this flag to 1 for Murata */
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
 
-/* Private macros ------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC AT_CUSTOM ALTAIR_T1SC
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC AT_CUSTOM ALTAIR_T1SC SPECIFIC
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Private_Macros AT_CUSTOM ALTAIR_T1SC SPECIFIC Private Macros
+  * @{
+  */
 #if (USE_TRACE_ATCUSTOM_SPECIFIC == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -81,37 +89,40 @@
 #define PRINT_ERR(...)   __NOP(); /* Nothing to do */
 #endif /* USE_TRACE_ATCUSTOM_SPECIFIC */
 
-/* Private defines -----------------------------------------------------------*/
-#define CHECK_STEP(stepval) (p_atp_ctxt->step == stepval)
+/**
+  * @}
+  */
 
-/* ###########################  START CUSTOMIZATION PART  ########################### */
-#define TYPE1SC_DEFAULT_TIMEOUT       ((uint32_t)15000)
-#define TYPE1SC_CSQ_TIMEOUT           ((uint32_t)25000)
-#define TYPE1SC_ESCAPE_TIMEOUT        ((uint32_t)3000)   /* max time allowed to receive a response to an Escape cmd */
-#define TYPE1SC_COPS_TIMEOUT          ((uint32_t)180000) /* 180 sec */
-#define TYPE1SC_CGATT_TIMEOUT         ((uint32_t)140000) /* 140 sec */
-#define TYPE1SC_CGACT_TIMEOUT         ((uint32_t)150000) /* 150 sec */
-#define TYPE1SC_ATH_TIMEOUT           ((uint32_t)90000)  /* 90 sec */
-#define TYPE1SC_AT_TIMEOUT            ((uint32_t)1000)   /* timeout for AT */
-#define TYPE1SC_SOCKET_PROMPT_TIMEOUT ((uint32_t)10000)
-#define TYPE1SC_PING_TIMEOUT          ((uint32_t)15000)  /* 15 sec */
-#define TYPE1SC_ATK_TIMEOUT           ((uint32_t)3000)   /* initially set to 1 sec but seems not enough sometimes... */
-#define TYPE1SC_CPSMS_TIMEOUT         ((uint32_t)60000)
-#define TYPE1SC_CEDRX_TIMEOUT         ((uint32_t)60000)
-#define TYPE1SC_BOOTEV_TIMEOUT        ((uint32_t)5000) /* maxiboot time allowed to wait %BOOTEV*/
-#define TYPE1SC_SIMREADY_TIMEOUT      ((uint32_t)3000U)
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Private_Defines AT_CUSTOM ALTAIR_T1SC SPECIFIC Private Defines
+  * @{
+  */
+#define SUPPORT_BOOTEV     (1)   /* support or not %BOOTEV (0 or 1) */
+#define USE_AT_IFC         (1)   /* 1 to use AT+IFC to set Hw Flow Control mode
+                                  * 0 to use AT&K3 */
+#define MURATA_CMD_SUBSET  (0)   /* In Murata implementation, only a subset of ALTAIR AT commands is supported
+                                  * set this flag to 1 for Murata */
+/**
+  * @}
+  */
 
-#define TYPE1SC_MODEM_SYNCHRO_AT_MAX_RETRIES ((uint8_t)30U)
-#define TYPE1SC_MAX_SIM_STATUS_RETRIES  ((uint8_t)20U) /* maximum number of retries to wait SIM ready */
-/* Global variables ----------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Private_Variables AT_CUSTOM ALTAIR_T1SC SPECIFIC Private Variables
+  * @{
+  */
 /* TYPE1SC Modem device context */
 static atcustom_modem_context_t TYPE1SC_ctxt;
+/**
+  * @}
+  */
 
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Exported_Variables AT_CUSTOM ALTAIR_T1SC SPECIFIC Exported Variables
+  * @{
+  */
 /* shared variables specific to Type1SC */
 type1sc_shared_variables_t type1sc_shared =
 {
   .sim_status_retries = 0U,
   .SocketCmd_Allocated_SocketID = AT_FALSE,
+  .SocketCmd_Activated = AT_FALSE,
   .setcfg_function = SETGETCFG_UNDEFINED,
   .getcfg_function = SETGETCFG_UNDEFINED,
   .syscfg_function = SETGETSYSCFG_UNDEFINED,
@@ -121,19 +132,19 @@ type1sc_shared_variables_t type1sc_shared =
   .modem_sim_same_as_selected = true,
   .host_lp_state  = HOST_LP_STATE_IDLE,
 };
+/**
+  * @}
+  */
 
-/* Private variables ---------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Exported_Functions AT_CUSTOM ALTAIR_T1SC SPECIFIC Exported Functions
+  * @{
+  */
 
-/* Private function prototypes -----------------------------------------------*/
-static void reinitSyntaxAutomaton_TYPE1SC(void);
-static void reset_variables_TYPE1SC(void);
-static void type1sc_modem_init(atcustom_modem_context_t *p_modem_ctxt);
-static void type1sc_modem_reset(atcustom_modem_context_t *p_modem_ctxt);
-static at_bool_t init_type1sc_low_power(atcustom_modem_context_t *p_modem_ctxt);
-static at_bool_t set_type1sc_low_power(atcustom_modem_context_t *p_modem_ctxt);
-static void low_power_event(ATCustom_T1SC_LP_event_t event, bool called_under_it);
-
-/* Functions Definition ------------------------------------------------------*/
+/**
+  * @brief  Initialize specific AT commands.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @retval none
+  */
 void ATCustom_TYPE1SC_init(atparser_context_t *p_atp_ctxt)
 {
   /* Commands Look-up table */
@@ -214,6 +225,8 @@ void ATCustom_TYPE1SC_init(atparser_context_t *p_atp_ctxt)
     {CMD_AT_NOTIFYEV, "%NOTIFYEV", TYPE1SC_DEFAULT_TIMEOUT, fCmdBuild_NOTIFYEV_TYPE1SC, fRspAnalyze_NOTIFYEV_TYPE1SC},
     {CMD_AT_SETBDELAY, "%SETBDELAY", TYPE1SC_DEFAULT_TIMEOUT, fCmdBuild_SETBDELAY_TYPE1SC,  fRspAnalyze_None},
     {CMD_AT_PDNRDP,     "%PDNRDP",   TYPE1SC_DEFAULT_TIMEOUT, fCmdBuild_PDNRDP_TYPE1SC,  fRspAnalyze_PDNRDP_TYPE1SC},
+
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
     /* MODEM SPECIFIC COMMANDS USED FOR SOCKET MODE */
     {CMD_AT_PDNACT,                 "%PDNACT",      TYPE1SC_DEFAULT_TIMEOUT,  fCmdBuild_PDNACT, fRspAnalyze_PDNACT},
     {
@@ -252,16 +265,17 @@ void ATCustom_TYPE1SC_init(atparser_context_t *p_atp_ctxt)
       CMD_AT_PINGCMD,                "%PINGCMD",     TYPE1SC_PING_TIMEOUT,
       fCmdBuild_PINGCMD,              fRspAnalyze_PINGCMD
     },
+    {CMD_AT_SOCKETEV,   "%SOCKETEV",  TYPE1SC_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,    fRspAnalyze_SOCKETEV},
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
 
     /* MODEM SPECIFIC EVENTS */
-    {CMD_AT_SOCKETEV,   "%SOCKETEV",  TYPE1SC_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,    fRspAnalyze_SOCKETEV},
     {CMD_AT_BOOTEV,     "%BOOTEV",    TYPE1SC_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,    fRspAnalyze_None},
 
   };
 #define SIZE_ATCMD_TYPE1SC_LUT ((uint16_t) (sizeof (ATCMD_TYPE1SC_LUT) / sizeof (atcustom_LUT_t)))
 
   /* common init */
-  type1sc_modem_init(&TYPE1SC_ctxt);
+  ATC_TYPE1SC_modem_init(&TYPE1SC_ctxt);
 
   /* ###########################  START CUSTOMIZATION PART  ########################### */
   TYPE1SC_ctxt.modem_LUT_size = SIZE_ATCMD_TYPE1SC_LUT;
@@ -273,6 +287,11 @@ void ATCustom_TYPE1SC_init(atparser_context_t *p_atp_ctxt)
   /* ###########################  END CUSTOMIZATION PART  ########################### */
 }
 
+/**
+  * @brief  Check if message received is complete.
+  * @param  rxChar Character received from modem.
+  * @retval uint8_t Returns 1 if message is complete, else returns 0.
+  */
 uint8_t ATCustom_TYPE1SC_checkEndOfMsgCallback(uint8_t rxChar)
 {
   uint8_t last_char = 0U;
@@ -354,1250 +373,49 @@ uint8_t ATCustom_TYPE1SC_checkEndOfMsgCallback(uint8_t rxChar)
   return (last_char);
 }
 
+/**
+  * @brief  Returns the next AT command to send in the current context.
+  * @param  p_at_ctxt Pointer to the structure of AT context.
+  * @param  p_ATcmdTimeout Pointer to timeout value allocated for this command.
+  * @retval at_status_t
+  */
 at_status_t ATCustom_TYPE1SC_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeout)
 {
-  at_status_t retval = ATSTATUS_OK;
+  at_status_t retval;
   atparser_context_t *p_atp_ctxt = &(p_at_ctxt->parser);
-  at_msg_t curSID = p_atp_ctxt->current_SID;
 
-  PRINT_API("enter ATCustom_TYPE1SC_getCmd() for SID %d", curSID)
+  PRINT_API("enter ATCustom_TYPE1SC_getCmd() for SID %d", p_atp_ctxt->current_SID)
 
   /* retrieve parameters from SID command (will update SID_ctxt) */
-  if (atcm_retrieve_SID_parameters(&TYPE1SC_ctxt, p_atp_ctxt) != ATSTATUS_OK)
-  {
-    retval = ATSTATUS_ERROR;
-    goto exit_ATCustom_TYPE1SC_getCmd;
-  }
+  retval = atcm_retrieve_SID_parameters(&TYPE1SC_ctxt, p_atp_ctxt);
 
-  /* new command: reset command context */
-  atcm_reset_CMD_context(&TYPE1SC_ctxt.CMD_ctxt);
-
-  /* For each SID, athe sequence of AT commands to send id defined (it can be dynamic)
-  * Determine and prepare the next command to send for this SID
-  */
-
-  /* ###########################  START CUSTOMIZATION PART  ########################### */
-  if (curSID == (at_msg_t) SID_CS_CHECK_CNX)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_MODEM_CONFIG)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if ((curSID == (at_msg_t) SID_CS_POWER_ON) ||
-           (curSID == (at_msg_t) SID_CS_RESET))
-  {
-    uint8_t common_start_sequence_step = TYPE1SC_MODEM_SYNCHRO_AT_MAX_RETRIES + 1U;
-    static bool reprogram_bdelay = false;
-
-    /* POWER_ON and RESET are almost the same, specific differences are managed case by case */
-    if ((curSID == (at_msg_t) SID_CS_RESET) && (TYPE1SC_ctxt.SID_ctxt.reset_type != CS_RESET_HW))
-    {
-      /* for reset, only HW reset is supported */
-      PRINT_ERR("Reset type (%d) not supported", TYPE1SC_ctxt.SID_ctxt.reset_type)
-      retval = ATSTATUS_ERROR;
-    }
-    else
-    {
-      /****************************************************************************
-        * POWER_ON and RESET first steps
-        * try to establish the communiction with the modem by sending "AT" commands
-        ****************************************************************************/
-      if CHECK_STEP((0U))
-      {
-        /* reset modem specific variables */
-        reset_variables_TYPE1SC();
-
-        /* reinit modem at ready status */
-        TYPE1SC_ctxt.persist.modem_at_ready = AT_FALSE;
-
-        /* in case of RESET, reset all the contexts to start from a fresh state */
-        if (curSID == (at_msg_t) SID_CS_RESET)
-        {
-          type1sc_modem_reset(&TYPE1SC_ctxt);
-        }
-
-        /* NOTE:
-          *   ALTAIR modem always boots without HW flow control activated.
-          *   Force the HwFlowControl to none until we use AT&K command to set the requested value.
-          */
-        (void) SysCtrl_TYPE1SC_reinit_channel(p_at_ctxt->ipc_handle, SYSCTRL_HW_FLOW_CONTROL_NONE);
-
-        atcm_program_SKIP_CMD(p_atp_ctxt);
-      }
-      else if ((p_atp_ctxt->step >= 1U) && (p_atp_ctxt->step < TYPE1SC_MODEM_SYNCHRO_AT_MAX_RETRIES))
-      {
-        if (p_atp_ctxt->step >= 11U)
-        {
-          /* we wait too much time, force BDELAY to 0 t to minimize boot time */
-          reprogram_bdelay = true;
-        }
-
-        /* start a loop to wait for modem : send AT commands */
-        if (TYPE1SC_ctxt.persist.modem_at_ready == AT_FALSE)
-        {
-          /* use optional as we are not sure to receive a response from the modem: this allows to avoid to return
-            * an error to upper layer
-            */
-          PRINT_DBG("test connection [try number %d] ", p_atp_ctxt->step)
-          atcm_program_AT_CMD_ANSWER_OPTIONAL(&TYPE1SC_ctxt, p_atp_ctxt,
-                                              ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT, INTERMEDIATE_CMD);
-        }
-        else
-        {
-          /* modem has answered to the command AT: it is ready */
-          PRINT_INFO("modem synchro established, proceed to normal power sequence")
-
-          /* go to next step: jump to POWER ON sequence step */
-          p_atp_ctxt->step = common_start_sequence_step - 1U;
-          atcm_program_SKIP_CMD(p_atp_ctxt);
-        }
-      }
-      else if CHECK_STEP((TYPE1SC_MODEM_SYNCHRO_AT_MAX_RETRIES))
-      {
-        /* if we fall here and the modem is not ready, we have a communication problem */
-        if (TYPE1SC_ctxt.persist.modem_at_ready == AT_FALSE)
-        {
-          /* error, impossible to synchronize with modem */
-          PRINT_ERR("Impossible to sync with modem")
-          retval = ATSTATUS_ERROR;
-        }
-        else
-        {
-          /* continue the boot sequence */
-          atcm_program_SKIP_CMD(p_atp_ctxt);
-        }
-      }
-      /********************************************************************
-        * common power ON/RESET sequence starts here
-        * when communication with modem has been successfully established
-        ********************************************************************/
-      else if CHECK_STEP((common_start_sequence_step))
-      {
-        /* set modem in minimum function in order to let application to configure it before activating the RF */
-        TYPE1SC_ctxt.CMD_ctxt.cfun_value = 0U;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CFUN, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 1U))
-      {
-        /* disable echo */
-        TYPE1SC_ctxt.CMD_ctxt.command_echo = AT_FALSE;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATE, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 2U))
-      {
-        /* request detailed error report */
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CMEE, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 3U))
-      {
-        /* enable full response format */
-        TYPE1SC_ctxt.CMD_ctxt.dce_full_resp_format = AT_TRUE;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATV, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 4U))
-      {
-        /* Read FW revision */
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CGMR, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 5U))
-      {
-#if (MURATA_CMD_SUBSET == 0)
-        /* Read bands configuration */
-        type1sc_shared.getcfg_function = SETGETCFG_BAND;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_GETCFG, INTERMEDIATE_CMD);
-#else
-        atcm_program_SKIP_CMD(p_atp_ctxt);
-#endif /* MURATA_CMD_SUBSET == 0 */
-      }
-      else if CHECK_STEP((common_start_sequence_step + 6U))
-      {
-        /* Read HIFC mode (low power) */
-        type1sc_shared.getcfg_function = SETGETCFG_HIFC_MODE;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_GETACFG, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 7U))
-      {
-        /* Read PMCONF SLEEP mode (low power) */
-        type1sc_shared.getcfg_function = SETGETCFG_PMCONF_SLEEP_MODE;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_GETACFG, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 8U))
-      {
-        /* Read PMCONF MAX ALLOWED (low power) */
-        type1sc_shared.getcfg_function = SETGETCFG_PMCONF_MAX_ALLOWED;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_GETACFG, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 9U))
-      {
-        /* long boot time detected ? try to shorten it */
-        if (reprogram_bdelay == true)
-        {
-          PRINT_INFO("Reprogram modem boot delay")
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt,
-                              ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SETBDELAY, INTERMEDIATE_CMD);
-        }
-        else
-        {
-          PRINT_INFO("Do not reprogram modem boot delay")
-          atcm_program_SKIP_CMD(p_atp_ctxt);
-        }
-      }
-      else if CHECK_STEP((common_start_sequence_step + 10U))
-      {
-        /*  force to disable PSM in case modem was switched off with PSM enabled
-          *  With current FW version, after reboot, modem applies PSM state that was set before
-          *  to switch off. By default, HOST considers that modem starts without PSM, this is why
-          *  we send AT+CPSMS=0 during power on (modem and Host are synchro).
-          *  OPTIM: if modem FW evolves to starts without PSM by default, this command can be removed.
-          */
-        TYPE1SC_ctxt.SID_ctxt.set_power_config.psm_present = CELLULAR_TRUE;
-        TYPE1SC_ctxt.SID_ctxt.set_power_config.psm_mode = PSM_MODE_DISABLE;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
-      }
-#if (CONFIG_MODEM_UART_RTS_CTS == 0)
-      /* --- No HW Flow control requested ----
-        *   This is the default mode when modem is booting, nothing to do.
-        */
-      else if CHECK_STEP((common_start_sequence_step + 11U))
-      {
-#if (USE_AT_IFC == 1)
-        /* apply current Hw Flow Control mode */
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_IFC, INTERMEDIATE_CMD);
-#else
-        atcm_program_AT_CMD_ANSWER_OPTIONAL(&TYPE1SC_ctxt, p_atp_ctxt,
-                                            ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_AND_K0, INTERMEDIATE_CMD);
-#endif /* (USE_AT_IFC == 1) */
-      }
-      else if CHECK_STEP((common_start_sequence_step + 12U))
-      {
-        /* add a tempo */
-        atcm_program_TEMPO(p_atp_ctxt, 3000U, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 13U))
-      {
-        /* Check connection with modem */
-        atcm_program_AT_CMD_ANSWER_OPTIONAL(&TYPE1SC_ctxt, p_atp_ctxt,
-                                            ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT, INTERMEDIATE_CMD);
-      }
-#else
-      /* --- HW Flow control is requested ----
-        *  Send command to set Hw Flow Control
-        *  then reinit UART with HwFlowControl activated and check connection with modem.
-        */
-      else if CHECK_STEP((common_start_sequence_step + 11U))
-      {
-#if (USE_AT_IFC == 1)
-        /* apply current Hw Flow Control mode */
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_IFC, INTERMEDIATE_CMD);
-#else
-        atcm_program_AT_CMD_ANSWER_OPTIONAL(&TYPE1SC_ctxt, p_atp_ctxt,
-                                            ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_AND_K3, INTERMEDIATE_CMD);
-#endif /* (USE_AT_IFC == 1) */
-      }
-      else if CHECK_STEP((common_start_sequence_step + 12U))
-      {
-        (void) SysCtrl_TYPE1SC_reinit_channel(p_at_ctxt->ipc_handle, SYSCTRL_HW_FLOW_CONTROL_RTS_CTS);
-        /* add a tempo */
-        atcm_program_TEMPO(p_atp_ctxt, 3000U, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 13U))
-      {
-        /* Check connection with modem */
-        atcm_program_AT_CMD_ANSWER_OPTIONAL(&TYPE1SC_ctxt, p_atp_ctxt,
-                                            ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT, INTERMEDIATE_CMD);
-      }
-
-#endif /* (CONFIG_MODEM_UART_RTS_CTS == 0) */
-#if (SUPPORT_BOOTEV == 1)
-      else if CHECK_STEP((common_start_sequence_step + 14U))
-      {
-        /* request to receive boot event */
-        type1sc_shared.setcfg_function = SETGETCFG_BOOT_EVENT_TRUE;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SETACFG, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 15U))
-      {
-        if (type1sc_shared.modem_bootev_received == true)
-        {
-          PRINT_INFO("***** BOOTEV already received, continue init sequence *****")
-          atcm_program_SKIP_CMD(p_atp_ctxt);
-        }
-        else
-        {
-          type1sc_shared.modem_waiting_for_bootev = true;
-          PRINT_INFO("***** wait for optional BOOTEV *****")
-          /* wait for +%BOOTEV */
-          atcm_program_TEMPO(p_atp_ctxt, TYPE1SC_BOOTEV_TIMEOUT, INTERMEDIATE_CMD);
-        }
-      }
-#else
-      else if CHECK_STEP((common_start_sequence_step + 14U))
-      {
-        /* request to not receive boot event */
-        type1sc_shared.setcfg_function = SETGETCFG_BOOT_EVENT_FALSE;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SETACFG, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 15U))
-      {
-        atcm_program_SKIP_CMD(p_atp_ctxt);
-      }
-#endif /* (SUPPORT_BOOTEV == 1) */
-      else if CHECK_STEP((common_start_sequence_step + 16U))
-      {
-        /* program events to notify  */
-        type1sc_shared.notifyev_mode = 1U;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_NOTIFYEV, INTERMEDIATE_CMD);
-      }
-      else if CHECK_STEP((common_start_sequence_step + 17U))
-      {
-        /* check connection */
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT, FINAL_CMD);
-      }
-      else if (p_atp_ctxt->step >= (common_start_sequence_step + 18U))
-      {
-        /* error, invalid step */
-        retval = ATSTATUS_ERROR;
-      }
-      else
-      {
-        /* ignore */
-      }
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_POWER_OFF)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* it's upper layer responsibility to manage proper detach before switch off
-        * TYPE1SC_ctxt.CMD_ctxt.cfun_value = 0U;
-        * atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CFUN, FINAL_CMD);
-        */
-      atcm_program_NO_MORE_CMD(p_atp_ctxt);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_INIT_MODEM)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* cfun parameters coming from client API for SID_CS_INIT_MODEM */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CFUN, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      if (TYPE1SC_ctxt.SID_ctxt.modem_init.init == CS_CMI_MINI)
-      {
-        /* Do not check PIN.
-          * It is not activated in this mode.
-          */
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-      else
-      {
-        /* check if CPIN is requested
-          *
-          * if SIM is not ready, we can receive +CME ERROR: SIM BUSY
-          * in this case, retry to send CPIN command until TYPE1SC_MAX_SIM_STATUS_RETRIES
-          */
-        type1sc_shared.sim_status_retries++;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CPIN, INTERMEDIATE_CMD);
-      }
-    }
-    else if CHECK_STEP((2U))
-    {
-      if (type1sc_shared.sim_status_retries > TYPE1SC_MAX_SIM_STATUS_RETRIES)
-      {
-        /* error, max sim status retries reached */
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-        retval = ATSTATUS_ERROR;
-      }
-      else
-      {
-        PRINT_INFO("SIM sim_pin_code_ready %d", TYPE1SC_ctxt.persist.sim_pin_code_ready)
-        PRINT_INFO("SIM sim_state %d", TYPE1SC_ctxt.persist.sim_state)
-        if ((TYPE1SC_ctxt.persist.sim_pin_code_ready == AT_FALSE) &&
-            ((TYPE1SC_ctxt.persist.sim_state == CS_SIMSTATE_SIM_BUSY)))
-        {
-          /* SIM not ready yet, wait before retry */
-          atcm_program_TEMPO(p_atp_ctxt, TYPE1SC_SIMREADY_TIMEOUT, INTERMEDIATE_CMD);
-          /* go back to previous step */
-          p_atp_ctxt->step = p_atp_ctxt->step - 2U;
-          PRINT_INFO("SIM not ready yet")
-        }
-        else
-        {
-          /* continue to next step */
-          atcm_program_SKIP_CMD(p_atp_ctxt);
-        }
-      }
-    }
-    else if CHECK_STEP((3U))
-    {
-      /* reset sim_status_retries */
-      type1sc_shared.sim_status_retries = 0U;
-
-      if (TYPE1SC_ctxt.persist.sim_pin_code_ready == AT_FALSE)
-      {
-        if (strlen((const CRC_CHAR_t *)&TYPE1SC_ctxt.SID_ctxt.modem_init.pincode.pincode) != 0U)
-        {
-          /* send PIN value */
-          PRINT_INFO("CPIN required, we send user value to modem")
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPIN, FINAL_CMD);
-        }
-        else
-        {
-          /* no PIN provided by user */
-          PRINT_INFO("CPIN required but not provided by user")
-          retval = ATSTATUS_ERROR;
-        }
-      }
-      else
-      {
-        PRINT_INFO("CPIN not required")
-        /* no PIN required */
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_GET_DEVICE_INFO)
-  {
-    if CHECK_STEP((0U))
-    {
-      switch (TYPE1SC_ctxt.SID_ctxt.device_info->field_requested)
-      {
-        case CS_DIF_MANUF_NAME_PRESENT:
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CGMI, FINAL_CMD);
-          break;
-
-        case CS_DIF_MODEL_PRESENT:
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CGMM, FINAL_CMD);
-          break;
-
-        case CS_DIF_REV_PRESENT:
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CGMR, FINAL_CMD);
-          break;
-
-        case CS_DIF_SN_PRESENT:
-          TYPE1SC_ctxt.CMD_ctxt.cgsn_write_cmd_param = CGSN_SN;
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CGSN, FINAL_CMD);
-          break;
-
-        case CS_DIF_IMEI_PRESENT:
-          TYPE1SC_ctxt.CMD_ctxt.cgsn_write_cmd_param = CGSN_IMEI;
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGSN, FINAL_CMD);
-          break;
-
-        case CS_DIF_IMSI_PRESENT:
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CIMI, FINAL_CMD);
-          break;
-
-        case CS_DIF_PHONE_NBR_PRESENT:
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CNUM, FINAL_CMD);
-          break;
-
-        case CS_DIF_ICCID_PRESENT:
-          atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CCID, FINAL_CMD);
-          break;
-
-        default:
-          /* error, invalid step */
-          retval = ATSTATUS_ERROR;
-          break;
-      }
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_GET_SIGNAL_QUALITY)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CSQ, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_GET_ATTACHSTATUS)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CGATT, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_REGISTER_NET)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* read registration status */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_COPS, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* check if actual registration status is the expected one or if AcT is explicitly specified */
-      CS_OperatorSelector_t *operatorSelect = &(TYPE1SC_ctxt.SID_ctxt.write_operator_infos);
-      if ((TYPE1SC_ctxt.SID_ctxt.read_operator_infos.mode != operatorSelect->mode) ||
-          (operatorSelect->AcT_present == CELLULAR_TRUE))
-      {
-        /* write registration status */
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_COPS, INTERMEDIATE_CMD);
-      }
-      else
-      {
-        /* skip this step
-          * allow the modem to re-use the last cell that has been found.
-          */
-        atcm_program_SKIP_CMD(p_atp_ctxt);
-      }
-    }
-    else if CHECK_STEP((2U))
-    {
-      /* read registration status */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEREG, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_GET_NETSTATUS)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* read registration status */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEREG, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* read registration status */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CREG, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((2U))
-    {
-      /* read extended error report */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEER, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((3U))
-    {
-      /* read registration status */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_COPS, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SUSBCRIBE_NET_EVENT)
-  {
-    if CHECK_STEP((0U))
-    {
-      CS_UrcEvent_t urcEvent = TYPE1SC_ctxt.SID_ctxt.urcEvent;
-
-      /* is an event linked to CREG or CEREG ? */
-      if ((urcEvent == CS_URCEVENT_EPS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_EPS_LOCATION_INFO) ||
-          (urcEvent == CS_URCEVENT_CS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_CS_LOCATION_INFO))
-      {
-        (void) atcm_subscribe_net_event(&TYPE1SC_ctxt, p_atp_ctxt);
-      }
-      else if ((urcEvent == CS_URCEVENT_GPRS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_GPRS_LOCATION_INFO))
-      {
-        /* CGREG not supported in TYPE1SC
-          *  ignore the request to avoid an error
-          */
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-      else if (urcEvent == CS_URCEVENT_SIGNAL_QUALITY)
-      {
-        /* no command to monitor signal quality with URC in TYPE1SC */
-        retval = ATSTATUS_ERROR;
-      }
-      else
-      {
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_UNSUSBCRIBE_NET_EVENT)
-  {
-    if CHECK_STEP((0U))
-    {
-      CS_UrcEvent_t urcEvent = TYPE1SC_ctxt.SID_ctxt.urcEvent;
-
-      /* is an event linked to CREG, CGREG or CEREG ? */
-      if ((urcEvent == CS_URCEVENT_EPS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_EPS_LOCATION_INFO) ||
-          (urcEvent == CS_URCEVENT_CS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_CS_LOCATION_INFO))
-      {
-        (void) atcm_unsubscribe_net_event(&TYPE1SC_ctxt, p_atp_ctxt);
-      }
-      else if ((urcEvent == CS_URCEVENT_GPRS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_GPRS_LOCATION_INFO))
-      {
-        /* CGREG not supported in TYPE1SC
-          *  ignore the request to avoid an error
-          */
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-      else if (urcEvent == CS_URCEVENT_SIGNAL_QUALITY)
-      {
-        /* no command to monitor signal quality with URC in TYPE1SC */
-        retval = ATSTATUS_ERROR;
-      }
-      else
-      {
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_REGISTER_PDN_EVENT)
-  {
-    if CHECK_STEP((0U))
-    {
-      if (TYPE1SC_ctxt.persist.urc_subscript_pdn_event == CELLULAR_FALSE)
-      {
-        /* set event as subscribed */
-        TYPE1SC_ctxt.persist.urc_subscript_pdn_event = CELLULAR_TRUE;
-
-        /* request PDN events */
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGEREP, FINAL_CMD);
-      }
-      else
-      {
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_DEREGISTER_PDN_EVENT)
-  {
-    if CHECK_STEP((0U))
-    {
-      if (TYPE1SC_ctxt.persist.urc_subscript_pdn_event == CELLULAR_TRUE)
-      {
-        /* set event as unsuscribed */
-        TYPE1SC_ctxt.persist.urc_subscript_pdn_event = CELLULAR_FALSE;
-
-        /* request PDN events */
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGEREP, FINAL_CMD);
-      }
-      else
-      {
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_ATTACH_PS_DOMAIN)
-  {
-    if CHECK_STEP((0U))
-    {
-      TYPE1SC_ctxt.CMD_ctxt.cgatt_write_cmd_param = CGATT_ATTACHED;
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGATT, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_DETACH_PS_DOMAIN)
-  {
-    if CHECK_STEP((0U))
-    {
-      TYPE1SC_ctxt.CMD_ctxt.cgatt_write_cmd_param = CGATT_DETACHED;
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGATT, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_ACTIVATE_PDN)
-  {
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
-    /* SOCKET MODE */
-    if CHECK_STEP((0U))
-    {
-      /* PDN activation */
-      TYPE1SC_ctxt.CMD_ctxt.pdn_state = PDN_STATE_ACTIVATE;
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_PDNACT, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-#else
-    /* DATA MODE */
-    if CHECK_STEP((0U))
-    {
-      /* get IP address */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGPADDR, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATD, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-#endif /* USE_SOCKETS_TYPE */
-  }
-  else if (curSID == (at_msg_t) SID_CS_DEACTIVATE_PDN)
-  {
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
-    /* SOCKET MODE */
-    if CHECK_STEP((0U))
-    {
-      /* PDN deactivation */
-      TYPE1SC_ctxt.CMD_ctxt.pdn_state = PDN_STATE_DEACTIVATE;
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_PDNACT, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-#else
-    /* DATA MODE */
-    /* not implemented yet */
-    retval = ATSTATUS_ERROR;
-#endif /* USE_SOCKETS_TYPE */
-  }
-  else if (curSID == (at_msg_t) SID_CS_DEFINE_PDN)
-  {
-    /* DATA MODE*/
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_PDNSET, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* For ALT1250, it looks that we need to wait sometimes after PDNSET before sending AT+CFUN.
-        * so wait for 2 second
-        */
-      atcm_program_TEMPO(p_atp_ctxt, 2000U, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((2U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_PDNSET, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SET_DEFAULT_PDN)
-  {
-    /* nothing to do here
-      * Indeed, default PDN has been saved automatically during analysis of SID command
-      * cf function: atcm_retrieve_SID_parameters()
-      */
-    atcm_program_NO_MORE_CMD(p_atp_ctxt);
-  }
-  else if (curSID == (at_msg_t) SID_CS_GET_IP_ADDRESS)
-  {
-    /* get IP address */
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGPADDR, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_PDNRDP, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-#else
-    /* DATA MODE*/
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGPADDR, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-#endif /* USE_SOCKETS_TYPE */
-  }
-  else if (curSID == (at_msg_t) SID_CS_DIAL_COMMAND)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* step  - allocate a socket and request a socket_id */
-      type1sc_shared.SocketCmd_Allocated_SocketID = AT_FALSE;
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_ALLOCATE,
-                          INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* step 2 - verify that a socket_id has been allocated then activate the socket*/
-      if (type1sc_shared.SocketCmd_Allocated_SocketID == AT_TRUE)
-      {
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_ACTIVATE,
-                            INTERMEDIATE_CMD);
-      }
-      else
-      {
-        PRINT_ERR("No valid socket_id affected by the modem has been reecived")
-        retval = ATSTATUS_ERROR;
-      }
-    }
-    else if CHECK_STEP((2U))
-    {
-      /* socket is connected */
-      (void) atcm_socket_set_connected(&TYPE1SC_ctxt, TYPE1SC_ctxt.socket_ctxt.socket_info->socket_handle);
-      atcm_program_NO_MORE_CMD(p_atp_ctxt);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SEND_DATA)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* Check data size to send */
-      if (TYPE1SC_ctxt.SID_ctxt.socketSendData_struct.buffer_size > MODEM_MAX_SOCKET_TX_DATA_SIZE)
-      {
-        PRINT_ERR("Data size to send %ld exceed maximum size %ld",
-                  TYPE1SC_ctxt.SID_ctxt.socketSendData_struct.buffer_size,
-                  MODEM_MAX_SOCKET_TX_DATA_SIZE)
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-        retval = ATSTATUS_ERROR;
-      }
-      else
-      {
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETDATA_SEND, FINAL_CMD);
-      }
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if ((curSID == (at_msg_t) SID_CS_RECEIVE_DATA) ||
-           (curSID == (at_msg_t) SID_CS_RECEIVE_DATA_FROM))
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETDATA_RECEIVE, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SOCKET_CLOSE)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_DEACTIVATE,
-                          INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_DELETE, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SOCKET_CNX_STATUS)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_INFO, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_DATA_SUSPEND)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* wait for 1 second */
-      atcm_program_TEMPO(p_atp_ctxt, 1000U, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* send escape sequence +++ (RAW command type)
-        */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_RAW_CMD, (CMD_ID_t) CMD_AT_ESC_CMD, INTERMEDIATE_CMD);
-      reinitSyntaxAutomaton_TYPE1SC();
-
-    }
-    else if CHECK_STEP((2U))
-    {
-      /* waiting for CONNECT */
-      atcm_program_TEMPO(p_atp_ctxt, 2000U, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_DATA_RESUME)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_ATO, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_INIT_POWER_CONFIG)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* Init parameters are available in to SID_ctxt.init_power_config
-        * SID_ctxt.init_power_config  is used to build AT+CPSMS and AT+CEDRX commands
-        * Built it from SID_ctxt.init_power_config  and modem specificities
-        */
-      if (init_type1sc_low_power(&TYPE1SC_ctxt) == AT_FALSE)
-      {
-        /* Low Power not enabled, stop here the SID */
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-      else
-      {
-        /* Low Power enabled : update CEREG to request PSM parameters then send commands */
-        TYPE1SC_ctxt.CMD_ctxt.cxreg_write_cmd_param = CXREG_ENABLE_PSM_NETWK_REG_LOC_URC;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CEREG, INTERMEDIATE_CMD);
-      }
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* read EDRX params */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEDRXS, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((2U))
-    {
-      /* read PSM params */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((3U))
-    {
-      /* set EDRX params (default) */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CEDRXS, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((4U))
-    {
-      /* set PSM params (default) */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((5U))
-    {
-      /* note: keep this as final command (previous command may be skipped if no valid PSM parameters) */
-      atcm_program_NO_MORE_CMD(p_atp_ctxt);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SET_POWER_CONFIG)
-  {
-    if CHECK_STEP((0U))
-    {
-      if (set_type1sc_low_power(&TYPE1SC_ctxt) == AT_FALSE)
-      {
-        atcm_program_SKIP_CMD(p_atp_ctxt);
-      }
-      else
-      {
-        /* Low Power enabled : update CEREG to request PSM parameters then send commands */
-        TYPE1SC_ctxt.CMD_ctxt.cxreg_write_cmd_param = CXREG_ENABLE_PSM_NETWK_REG_LOC_URC;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CEREG, INTERMEDIATE_CMD);
-      }
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* set EDRX params (if available) */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CEDRXS, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((2U))
-    {
-      /* set PSM params (if available) */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((3U))
-    {
-      /* eDRX Read Dynamix Parameters */
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt,
-                          ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CEDRXRDP, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((4U))
-    {
-      /* note: keep this as final command (previous command may be skipped if no valid PSM parameters) */
-      atcm_program_NO_MORE_CMD(p_atp_ctxt);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SLEEP_REQUEST)
-  {
-    if CHECK_STEP((0U))
-    {
-      /* update LP automaton state */
-      low_power_event(EVENT_LP_HOST_SLEEP_REQ, false);
-
-      (void) SysCtrl_TYPE1SC_request_suspend_channel(p_at_ctxt->ipc_handle, DEVTYPE_MODEM_CELLULAR);
-      atcm_program_SKIP_CMD(p_atp_ctxt);
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* end of SID */
-      atcm_program_NO_MORE_CMD(p_atp_ctxt);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SLEEP_COMPLETE)
-  {
-    if CHECK_STEP((0U))
-    {
-      low_power_event(EVENT_LP_HOST_SLEEP_COMPLETE, false);
-      (void) SysCtrl_TYPE1SC_complete_suspend_channel(p_at_ctxt->ipc_handle, DEVTYPE_MODEM_CELLULAR);
-      atcm_program_NO_MORE_CMD(p_atp_ctxt);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SLEEP_CANCEL)
-  {
-    if CHECK_STEP((0U))
-    {
-      low_power_event(EVENT_LP_HOST_SLEEP_CANCEL, false);
-
-      /* wake up modem (in case modem already enters in Low Power or we missed the URC from modem) */
-      uint8_t modem_originated = 0U;
-      (void) SysCtrl_TYPE1SC_resume_channel(p_at_ctxt->ipc_handle,
-                                            DEVTYPE_MODEM_CELLULAR,
-                                            modem_originated);
-      atcm_program_NO_MORE_CMD(p_atp_ctxt);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_WAKEUP)
-  {
-    if CHECK_STEP((0U))
-    {
-      low_power_event(EVENT_LP_HOST_WAKEUP_REQ, false);
-
-      uint8_t modem_originated = (TYPE1SC_ctxt.SID_ctxt.wakeup_origin == MODEM_WAKEUP) ? 1U : 0U;
-      (void) SysCtrl_TYPE1SC_resume_channel(p_at_ctxt->ipc_handle,
-                                            DEVTYPE_MODEM_CELLULAR,
-                                            modem_originated);
-      atcm_program_NO_MORE_CMD(p_atp_ctxt);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_DNS_REQ)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_DNSRSLV, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SUSBCRIBE_MODEM_EVENT)
-  {
-    /* nothing to do here
-      * Indeed, default modem events subscribed havebeen saved automatically during analysis of SID command
-      * cf function: atcm_retrieve_SID_parameters()
-      */
-    atcm_program_NO_MORE_CMD(p_atp_ctxt);
-  }
-  else if (curSID == (at_msg_t) SID_CS_PING_IP_ADDRESS)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_PINGCMD, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_DIRECT_CMD)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_RAW_CMD, (CMD_ID_t) CMD_AT_DIRECT_CMD, FINAL_CMD);
-      atcm_program_CMD_TIMEOUT(&TYPE1SC_ctxt, p_atp_ctxt, TYPE1SC_ctxt.SID_ctxt.direct_cmd_tx->cmd_timeout);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SIM_SELECT)
-  {
-    if CHECK_STEP((0U))
-    {
-      type1sc_shared.syscfg_function = SETGETSYSCFG_SIM_POLICY;
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_GETSYSCFG, INTERMEDIATE_CMD);
-    }
-    else if CHECK_STEP((1U))
-    {
-      /* if current sim in modem is different than the requested SIM,
-        * send cmd to configure the modem (a modem reboot is needed) */
-      if (type1sc_shared.modem_sim_same_as_selected == false)
-      {
-        type1sc_shared.syscfg_function = SETGETSYSCFG_SIM_POLICY;
-        atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SETSYSCFG, INTERMEDIATE_CMD);
-      }
-      else
-      {
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-    }
-    else
-    {
-      if (type1sc_shared.modem_sim_same_as_selected == false)
-      {
-        atcm_set_error_report(CSERR_UNKNOWN, &TYPE1SC_ctxt);
-        /* atcm_set_error_report(CSERR_MODEM_REBOOT_NEEDED, &TYPE1SC_ctxt); */
-        retval = ATSTATUS_ERROR;
-      }
-      else
-      {
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
-      }
-    }
-  }
-  else if (curSID == (at_msg_t) SID_CS_SIM_GENERIC_ACCESS)
-  {
-    if CHECK_STEP((0U))
-    {
-      atcm_program_AT_CMD(&TYPE1SC_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CSIM, FINAL_CMD);
-    }
-    else
-    {
-      /* error, invalid step */
-      retval = ATSTATUS_ERROR;
-    }
-  }
-
-  /* ###########################  END CUSTOMIZATION PART  ########################### */
-  else
-  {
-    PRINT_ERR("Error, invalid command ID %d", curSID)
-    retval = ATSTATUS_ERROR;
-  }
-
-  /* if no error, build the command to send */
   if (retval == ATSTATUS_OK)
   {
-    retval = atcm_modem_build_cmd(&TYPE1SC_ctxt, p_atp_ctxt, p_ATcmdTimeout);
+    /* new command: reset command context */
+    atcm_reset_CMD_context(&TYPE1SC_ctxt.CMD_ctxt);
+
+    /* For each SID, the sequence of AT commands to send id defined (it can be dynamic)
+    * Determine and prepare the next command to send for this SID
+    */
+    retval = at_custom_SID_T1SC(&TYPE1SC_ctxt, p_at_ctxt,  p_ATcmdTimeout);
+
+    /* if no error, build the command to send */
+    if (retval == ATSTATUS_OK)
+    {
+      retval = atcm_modem_build_cmd(&TYPE1SC_ctxt, p_atp_ctxt, p_ATcmdTimeout);
+    }
   }
 
-exit_ATCustom_TYPE1SC_getCmd:
   return (retval);
 }
 
+/**
+  * @brief  Extract next element of AT command actually analyzed.
+  * @param  p_at_ctxt Pointer to the structure of AT context.
+  * @param  p_msg_in Pointer to buffer containing the received AT command.
+  * @param  element_infos Pointer to structure used to parse AT command buffer.
+  * @retval at_endmsg_t Returns ATENDMSG_YES if end of AT command detected, ATENDMSG_NO else.
+  */
 at_endmsg_t ATCustom_TYPE1SC_extractElement(atparser_context_t *p_atp_ctxt,
                                             const IPC_RxMessage_t *p_msg_in,
                                             at_element_info_t *element_infos)
@@ -1636,65 +454,72 @@ at_endmsg_t ATCustom_TYPE1SC_extractElement(atparser_context_t *p_atp_ctxt,
   if (*p_parseIndex >= p_msg_in->size)
   {
     retval_msg_end_detected = ATENDMSG_YES;
-    goto exit_ATCustom_TYPE1SC_extractElement;
   }
-
-  /* extract parameter from message */
-  exit_loop = false;
-  do
+  else
   {
-    switch (p_msg_in->buffer[*p_parseIndex])
+    /* extract parameter from message */
+    exit_loop = false;
+    do
     {
-      /* ###########################  START CUSTOMIZATION PART  ########################### */
-      /* ----- test separators ----- */
-      case ':':
-      case ',':
-        exit_loop = true;
-        break;
+      switch (p_msg_in->buffer[*p_parseIndex])
+      {
+        /* ###########################  START CUSTOMIZATION PART  ########################### */
+        /* ----- test separators ----- */
+        case ':':
+        case ',':
+          exit_loop = true;
+          break;
 
-      case '=':
-        /* special separator case for AT+ICF?
+        case '=':
+          /* special separator case for AT+ICF?
           *  The read form of AT+IFC returns AT+IFC=x,x instead of AT+IFC:x,x
           *  Consider "=" as a separator only when this command is currently ongoing.
           */
-        if (p_atp_ctxt->current_atcmd.id == (CMD_ID_t)CMD_AT_IFC)
-        {
-          exit_loop = true;
-        }
-        break;
+          if (p_atp_ctxt->current_atcmd.id == (CMD_ID_t)CMD_AT_IFC)
+          {
+            exit_loop = true;
+          }
+          break;
 
-      /* ----- test end of message ----- */
-      case '\r':
+        /* ----- test end of message ----- */
+        case '\r':
+          exit_loop = true;
+          retval_msg_end_detected = ATENDMSG_YES;
+          break;
+
+        default:
+          /* increment end position */
+          element_infos->str_end_idx = *p_parseIndex;
+          element_infos->str_size++;
+          break;
+          /* ###########################  END CUSTOMIZATION PART  ########################### */
+      }
+
+      /* increment index */
+      (*p_parseIndex)++;
+
+      /* reach limit of input buffer ? */
+      if (*p_parseIndex >= p_msg_in->size)
+      {
         exit_loop = true;
         retval_msg_end_detected = ATENDMSG_YES;
-        break;
+      }
+    } while (exit_loop == false);
 
-      default:
-        /* increment end position */
-        element_infos->str_end_idx = *p_parseIndex;
-        element_infos->str_size++;
-        break;
-        /* ###########################  END CUSTOMIZATION PART  ########################### */
-    }
+    /* increase parameter rank */
+    element_infos->param_rank = (element_infos->param_rank + 1U);
+  }
 
-    /* increment index */
-    (*p_parseIndex)++;
-
-    /* reach limit of input buffer ? */
-    if (*p_parseIndex >= p_msg_in->size)
-    {
-      exit_loop = true;
-      retval_msg_end_detected = ATENDMSG_YES;
-    }
-  } while (exit_loop == false);
-
-  /* increase parameter rank */
-  element_infos->param_rank = (element_infos->param_rank + 1U);
-
-exit_ATCustom_TYPE1SC_extractElement:
   return (retval_msg_end_detected);
 }
 
+/**
+  * @brief  Determine which AT command has been received and take actions if no further analyze needed.
+  * @param  p_at_ctxt Pointer to the structure of AT context.
+  * @param  p_msg_in Pointer to buffer containing the received AT command.
+  * @param  element_infos Pointer to structure used to parse AT command buffer.
+  * @retval at_action_rsp_t Returns action to apply for this command.
+  */
 at_action_rsp_t ATCustom_TYPE1SC_analyzeCmd(at_context_t *p_at_ctxt,
                                             const IPC_RxMessage_t *p_msg_in,
                                             at_element_info_t *element_infos)
@@ -1777,6 +602,16 @@ at_action_rsp_t ATCustom_TYPE1SC_analyzeCmd(at_context_t *p_at_ctxt,
             PRINT_DBG("Echo successfully disabled")
           }
         }
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+        if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
+        {
+          if (p_atp_ctxt->current_atcmd.id == (CMD_ID_t) CMD_AT_SOCKETCMD_ACTIVATE)
+          {
+            /* socket is activated */
+            type1sc_shared.SocketCmd_Activated = AT_TRUE;
+          }
+        }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
         retval = ATACTION_RSP_FRC_END;
         break;
 
@@ -1829,6 +664,7 @@ at_action_rsp_t ATCustom_TYPE1SC_analyzeCmd(at_context_t *p_at_ctxt,
         retval = ATACTION_RSP_URC_FORWARDED;
         break;
 
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
       case CMD_AT_SOCKETEV:
         retval = ATACTION_RSP_URC_IGNORED;
         break;
@@ -1845,6 +681,7 @@ at_action_rsp_t ATCustom_TYPE1SC_analyzeCmd(at_context_t *p_at_ctxt,
       case CMD_AT_PINGCMD:
         retval = ATACTION_RSP_INTERMEDIATE;
         break;
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
 
       case CMD_AT_NOTIFYEV:
         /* parsing of message will be done later */
@@ -1940,6 +777,13 @@ at_action_rsp_t ATCustom_TYPE1SC_analyzeCmd(at_context_t *p_at_ctxt,
   return (retval);
 }
 
+/**
+  * @brief  In case the AT command received contains parameters, analyze these parameters one by one.
+  * @param  p_at_ctxt Pointer to the structure of AT context.
+  * @param  p_msg_in Pointer to buffer containing the received AT command.
+  * @param  element_infos Pointer to structure used to parse AT command buffer.
+  * @retval at_action_rsp_t Returns action to apply for this command.
+  */
 at_action_rsp_t ATCustom_TYPE1SC_analyzeParam(at_context_t *p_at_ctxt,
                                               const IPC_RxMessage_t *p_msg_in,
                                               at_element_info_t *element_infos)
@@ -1958,7 +802,13 @@ at_action_rsp_t ATCustom_TYPE1SC_analyzeParam(at_context_t *p_at_ctxt,
   return (retval);
 }
 
-/* function called to finalize an AT command */
+/**
+  * @brief  Take specific actions after having finished the analyze of the received AT command.
+  *         Indicates if other AT command has to be sent after this one.
+  * @param  p_at_ctxt Pointer to the structure of AT context.
+  * @param  element_infos Pointer to structure used to parse AT command buffer.
+  * @retval at_action_rsp_t Returns action to apply for this command.
+  */
 at_action_rsp_t ATCustom_TYPE1SC_terminateCmd(atparser_context_t *p_atp_ctxt, at_element_info_t *element_infos)
 {
   at_action_rsp_t retval = ATACTION_RSP_IGNORED;
@@ -2001,7 +851,12 @@ at_action_rsp_t ATCustom_TYPE1SC_terminateCmd(atparser_context_t *p_atp_ctxt, at
   return (retval);
 }
 
-/* function called to finalize a SID */
+/**
+  * @brief  Returns a buffer containing the response to send to upper layer depending of current context.
+  * @param  p_at_ctxt Pointer to the structure of AT context.
+  * @param  p_rsp_buf Pointer to buffer with the response to send.
+  * @retval at_status_t.
+  */
 at_status_t ATCustom_TYPE1SC_get_rsp(atparser_context_t *p_atp_ctxt, at_buf_t *p_rsp_buf)
 {
   at_status_t retval;
@@ -2029,9 +884,10 @@ at_status_t ATCustom_TYPE1SC_get_rsp(atparser_context_t *p_atp_ctxt, at_buf_t *p
 
     case SID_CS_POWER_OFF:
       /* reinit context for power off case */
-      type1sc_modem_reset(&TYPE1SC_ctxt);
+      ATC_TYPE1SC_modem_reset(&TYPE1SC_ctxt);
       break;
 
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
 #if (TYPE1SC_ACTIVATE_PING_REPORT == 1)
     case SID_CS_PING_IP_ADDRESS:
     {
@@ -2057,6 +913,7 @@ at_status_t ATCustom_TYPE1SC_get_rsp(atparser_context_t *p_atp_ctxt, at_buf_t *p
       break;
     }
 #endif /* (TYPE1SC_ACTIVATE_PING_REPORT == 1) */
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
 
     default:
       break;
@@ -2072,6 +929,12 @@ at_status_t ATCustom_TYPE1SC_get_rsp(atparser_context_t *p_atp_ctxt, at_buf_t *p
   return (retval);
 }
 
+/**
+  * @brief  Returns a buffer containing the URC received.
+  * @param  p_at_ctxt Pointer to the structure of AT context.
+  * @param  p_rsp_buf Pointer to buffer with the response to send.
+  * @retval at_status_t.
+  */
 at_status_t ATCustom_TYPE1SC_get_urc(atparser_context_t *p_atp_ctxt, at_buf_t *p_rsp_buf)
 {
   at_status_t retval;
@@ -2090,6 +953,12 @@ at_status_t ATCustom_TYPE1SC_get_urc(atparser_context_t *p_atp_ctxt, at_buf_t *p
   return (retval);
 }
 
+/**
+  * @brief  Returns a buffer containing an ERROR report message.
+  * @param  p_at_ctxt Pointer to the structure of AT context.
+  * @param  p_rsp_buf Pointer to buffer with the error report message to send.
+  * @retval at_status_t.
+  */
 at_status_t ATCustom_TYPE1SC_get_error(atparser_context_t *p_atp_ctxt, at_buf_t *p_rsp_buf)
 {
   at_status_t retval;
@@ -2108,6 +977,13 @@ at_status_t ATCustom_TYPE1SC_get_error(atparser_context_t *p_atp_ctxt, at_buf_t 
   return (retval);
 }
 
+/**
+  * @brief  Callback function used when a Hardware Event occurs
+  * @param  deviceType Indicates which device type has detected the event.
+  * @param  hwEvent Hardware event received.
+  * @param  gstate GPIO state corresponding to the HW event.
+  * @retval at_status_t.
+  */
 at_status_t ATCustom_TYPE1SC_hw_event(sysctrl_device_type_t deviceType, at_hw_event_t hwEvent, GPIO_PinState gstate)
 {
   UNUSED(gstate);
@@ -2125,7 +1001,7 @@ at_status_t ATCustom_TYPE1SC_hw_event(sysctrl_device_type_t deviceType, at_hw_ev
   */
   if (hwEvent == HWEVT_MODEM_RING)
   {
-    low_power_event(EVENT_LP_MDM_RING, true);
+    ATC_TYPE1SC_low_power_event(EVENT_LP_MDM_RING, true);
     retval = ATSTATUS_OK;
   }
   /* ###########################  END CUSTOMIZATION PART  ########################### */
@@ -2133,13 +1009,34 @@ at_status_t ATCustom_TYPE1SC_hw_event(sysctrl_device_type_t deviceType, at_hw_ev
   return (retval);
 }
 
-/* Private function Definition -----------------------------------------------*/
-static void reinitSyntaxAutomaton_TYPE1SC(void)
+/**
+  * @brief  Global reset of modem parameters.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval none.
+  */
+void ATC_TYPE1SC_modem_reset(atcustom_modem_context_t *p_modem_ctxt)
 {
-  TYPE1SC_ctxt.state_SyntaxAutomaton = WAITING_FOR_INIT_CR;
+  PRINT_API("enter ATC_TYPE1SC_modem_reset")
+
+  /* common reset function (reset all contexts except SID) */
+  atcm_modem_reset(p_modem_ctxt);
+
+  /* modem specific actions if any */
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  for (uint8_t i = 0U; i < CELLULAR_MAX_SOCKETS; i++)
+  {
+    atcustom_persistent_SOCKET_context_t *p_tmp;
+    p_tmp = &p_modem_ctxt->persist.socket[i];
+    p_tmp->socket_connId_value = ((uint8_t)UNDEFINED_MODEM_SOCKET_ID);
+  }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 }
 
-static void reset_variables_TYPE1SC(void)
+/**
+  * @brief  Reset modem shared parameters.
+  * @retval none.
+  */
+void ATC_TYPE1SC_reset_variables(void)
 {
   /* Set default values of TYPE1SC specific variables after SWITCH ON or RESET */
   type1sc_shared.modem_waiting_for_bootev = false;
@@ -2149,46 +1046,44 @@ static void reset_variables_TYPE1SC(void)
   type1sc_shared.host_lp_state = HOST_LP_STATE_IDLE;
 }
 
-/* Type1SC modem init function
-*  call common init function and then do actions specific to this modem
-*/
-static void type1sc_modem_init(atcustom_modem_context_t *p_modem_ctxt)
+/**
+  * @brief  Reinitialize state of Syntax Automaton used to manage characters received from modem.
+  * @retval none.
+  */
+void ATC_TYPE1SC_reinitSyntaxAutomaton(void)
 {
-  PRINT_API("enter type1sc_modem_init")
+  TYPE1SC_ctxt.state_SyntaxAutomaton = WAITING_FOR_INIT_CR;
+}
+
+/**
+  * @brief  Initialization of modem parameters.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval none.
+  */
+void ATC_TYPE1SC_modem_init(atcustom_modem_context_t *p_modem_ctxt)
+{
+  PRINT_API("enter ATC_TYPE1SC_modem_init")
 
   /* common init function (reset all contexts) */
   atcm_modem_init(p_modem_ctxt);
 
   /* modem specific actions if any */
-  for (uint8_t i = 0U; i < CELLULAR_MAX_SOCKETS; i++)
-  {
-    atcustom_persistent_SOCKET_context_t *p_tmp;
-    p_tmp = &p_modem_ctxt->persist.socket[i];
-    p_tmp->socket_connId_value = ((uint8_t)UNDEFINED_MODEM_SOCKET_ID);
-
-  }
-}
-
-/* Type1SC modem reset function
-*  call common reset function and then do actions specific to this modem
-*/
-static void type1sc_modem_reset(atcustom_modem_context_t *p_modem_ctxt)
-{
-  PRINT_API("enter type1sc_modem_reset")
-
-  /* common reset function (reset all contexts except SID) */
-  atcm_modem_reset(p_modem_ctxt);
-
-  /* modem specific actions if any */
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
   for (uint8_t i = 0U; i < CELLULAR_MAX_SOCKETS; i++)
   {
     atcustom_persistent_SOCKET_context_t *p_tmp;
     p_tmp = &p_modem_ctxt->persist.socket[i];
     p_tmp->socket_connId_value = ((uint8_t)UNDEFINED_MODEM_SOCKET_ID);
   }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 }
 
-static at_bool_t init_type1sc_low_power(atcustom_modem_context_t *p_modem_ctxt)
+/**
+  * @brief  Initialization of modem low power parameters.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_bool_t Returns true if Low Power is enabled.
+  */
+at_bool_t ATC_TYPE1SC_init_low_power(atcustom_modem_context_t *p_modem_ctxt)
 {
   at_bool_t lp_enabled;
 
@@ -2231,7 +1126,12 @@ static at_bool_t init_type1sc_low_power(atcustom_modem_context_t *p_modem_ctxt)
   return (lp_enabled);
 }
 
-static at_bool_t set_type1sc_low_power(atcustom_modem_context_t *p_modem_ctxt)
+/**
+  * @brief  Configure modem low power parameters.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_bool_t Returns true if Low Power is enabled and configured.
+  */
+at_bool_t ATC_TYPE1SC_set_low_power(atcustom_modem_context_t *p_modem_ctxt)
 {
   at_bool_t lp_set_and_enabled;
 
@@ -2269,7 +1169,13 @@ static at_bool_t set_type1sc_low_power(atcustom_modem_context_t *p_modem_ctxt)
   return (lp_set_and_enabled);
 }
 
-static void low_power_event(ATCustom_T1SC_LP_event_t event, bool called_under_it)
+/**
+  * @brief  Manage reception of a Low Power event and take actions.
+  * @param  event Descrpition of received Low Power event.
+  * @param  called_under_it If true, be careful with code called (no traces, ...)
+  * @retval none.
+  */
+void ATC_TYPE1SC_low_power_event(ATCustom_T1SC_LP_event_t event, bool called_under_it)
 {
   uint8_t host_state_error = 1U;
 
@@ -2388,7 +1294,7 @@ static void low_power_event(ATCustom_T1SC_LP_event_t event, bool called_under_it
     host_state_error = 2U;
   }
 
-  /* --- report automaton status : only if nat called during an interrupt !!! --- */
+  /* --- report automaton status : only if not called during an interrupt !!! --- */
   if (called_under_it == false)
   {
     if (host_state_error == 0U)
@@ -2405,5 +1311,20 @@ static void low_power_event(ATCustom_T1SC_LP_event_t event, bool called_under_it
     }
   }
 }
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 

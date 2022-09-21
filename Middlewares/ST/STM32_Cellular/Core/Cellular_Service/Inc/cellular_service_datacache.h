@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -25,8 +24,7 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "dc_common.h"
-#include "com_sockets.h"
-#include "cellular_service_int.h"
+#include "com_sockets_addr_compat.h"
 #include "cellular_control_api.h"
 
 /**
@@ -402,8 +400,9 @@ typedef struct
   */
 typedef struct
 {
-  ca_eidrx_act_type_t act_type;
-  uint8_t             req_value;
+  ca_eidrx_act_type_t act_type;                           /*!< Access technology on which activate eiDRX          */
+  uint8_t             req_value;                          /*!< eiDRX value : Cycle length and Paging Time Window
+                                                              length cf 3GPP TS 24.008, subclause 10.5.5.32       */
 } dc_cellular_power_edrx_config_t;
 
 /**
@@ -574,5 +573,3 @@ void cellular_service_datacache_init(void);
 #endif
 
 #endif /* CELLULAR_SERVICE_DATACACHE_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

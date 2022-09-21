@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -24,38 +23,41 @@
 #include "plf_config.h"
 #if (IPC_USE_UART == 1U)
 #include "ipc_uart.h"
-#endif /* (IPC_USE_UART == 1U) */
+#endif /* IPC_USE_UART == 1U */
 
 /* Private typedef -----------------------------------------------------------*/
-typedef char IPC_TYPE_CHAR_t;
-
 /* Private defines -----------------------------------------------------------*/
-
 /* Private macros ------------------------------------------------------------*/
 #if (USE_TRACE_IPC == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
-#define PRINT_INFO(format, args...) TRACE_PRINT(DBG_CHAN_IPC, DBL_LVL_P0, "IPC:" format "\n\r", ## args)
-#define PRINT_DBG(format, args...)  TRACE_PRINT(DBG_CHAN_IPC, DBL_LVL_P1, "IPC:" format "\n\r", ## args)
-#define PRINT_ERR(format, args...)  TRACE_PRINT(DBG_CHAN_IPC, DBL_LVL_ERR, "IPC ERROR:" format "\n\r", ## args)
-#define PRINT_BUF(pbuf, size)       \
-  TRACE_PRINT_BUF_CHAR(DBG_CHAN_ATCMD, DBL_LVL_P0, (const IPC_TYPE_CHAR_t *)pbuf, size);
-#define PRINT_BUF_HEXA(pbuf, size)  \
-  TRACE_PRINT_BUF_HEX(DBG_CHAN_ATCMD, DBL_LVL_P0, (const IPC_TYPE_CHAR_t *)pbuf, size);
+#define PRINT_INFO(format, args...)   TRACE_PRINT(DBG_CHAN_IPC, DBL_LVL_P0, "IPC:" format "\n\r", ## args)
+#define PRINT_DBG(format, args...)    TRACE_PRINT(DBG_CHAN_IPC, DBL_LVL_P1, "IPC:" format "\n\r", ## args)
+#define PRINT_ERR(format, args...)    TRACE_PRINT(DBG_CHAN_IPC, DBL_LVL_ERR, "IPC ERROR:" format "\n\r", ## args)
+#if (DBG_IPC_RX_FIFO == 1U)
+#define PRINT_BUF(pbuf, size)         \
+  TRACE_PRINT_BUF_CHAR(DBG_CHAN_ATCMD, DBL_LVL_P0, (const CRC_CHAR_t *)(pbuf), (size));
+#define PRINT_BUF_HEXA(pbuf, size)    \
+  TRACE_PRINT_BUF_HEX(DBG_CHAN_ATCMD, DBL_LVL_P0,  (const CRC_CHAR_t *)(pbuf), (size));
+#endif /* DBG_IPC_RX_FIFO == 1U */
 #else
 #include <stdio.h>
-#define PRINT_INFO(format, args...)  (void) printf("IPC:" format "\n\r", ## args);
-#define PRINT_DBG(...)   __NOP(); /* Nothing to do */
-#define PRINT_ERR(format, args...)   (void) printf("IPC ERROR:" format "\n\r", ## args);
-#define PRINT_BUF(...)   __NOP(); /* Nothing to do */
-#define PRINT_BUF_HEXA(...)   __NOP(); /* Nothing to do */
+#define PRINT_INFO(format, args...)   (void) printf("IPC:" format "\n\r", ## args);
+#define PRINT_DBG(...)                __NOP(); /* Nothing to do */
+#define PRINT_ERR(format, args...)    (void) printf("IPC ERROR:" format "\n\r", ## args);
+#if (DBG_IPC_RX_FIFO == 1U)
+#define PRINT_BUF(...)                __NOP(); /* Nothing to do */
+#define PRINT_BUF_HEXA(...)           __NOP(); /* Nothing to do */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 #endif /* USE_PRINTF */
 #else
-#define PRINT_INFO(...)  __NOP(); /* Nothing to do */
-#define PRINT_DBG(...)   __NOP(); /* Nothing to do */
-#define PRINT_ERR(...)   __NOP(); /* Nothing to do */
-#define PRINT_BUF(...)   __NOP(); /* Nothing to do */
-#define PRINT_BUF_HEXA(...)   __NOP(); /* Nothing to do */
+#define PRINT_INFO(...)               __NOP(); /* Nothing to do */
+#define PRINT_DBG(...)                __NOP(); /* Nothing to do */
+#define PRINT_ERR(...)                __NOP(); /* Nothing to do */
+#if (DBG_IPC_RX_FIFO == 1U)
+#define PRINT_BUF(...)                __NOP(); /* Nothing to do */
+#define PRINT_BUF_HEXA(...)           __NOP(); /* Nothing to do */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 #endif /* USE_TRACE_IPC */
 
 /* Private variables ---------------------------------------------------------*/
@@ -77,7 +79,7 @@ static void RXFIFO_rearm_RX_IT(IPC_Handle_t *const hipc);
   */
 void IPC_RXFIFO_init(IPC_Handle_t *const hipc)
 {
-  (void) memset(hipc->RxQueue.data, 0, sizeof(uint8_t) * IPC_RXBUF_MAXSIZE);
+  (void) memset((void *)hipc->RxQueue.data, 0, sizeof(uint8_t) * IPC_RXBUF_MAXSIZE);
   hipc->RxQueue.index_read = 0U;
   hipc->RxQueue.index_write = IPC_RXMSG_HEADER_SIZE;
   hipc->RxQueue.current_msg_index = 0U;
@@ -93,11 +95,13 @@ void IPC_RXFIFO_init(IPC_Handle_t *const hipc)
   hipc->dbgRxQueue.msg_info_queue[0].start_pos = hipc->RxQueue.index_read;
   hipc->dbgRxQueue.msg_info_queue[0].size = 0U;
   hipc->dbgRxQueue.msg_info_queue[0].complete = 0U;
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 }
 
 /**
   * @brief  Write a char in the IPC RX FIFO.
+  * @note   This function is called by UART callback when a character is received on UART.
+  * @note   It is used in IPC normal mode (signalling/socket).
   * @param  hipc IPC handle.
   * @param  rxChar character to write.
   * @retval none.
@@ -112,7 +116,7 @@ void IPC_RXFIFO_writeCharacter(IPC_Handle_t *const hipc, uint8_t rxChar)
 
 #if (DBG_IPC_RX_FIFO == 1U)
     hipc->dbgRxQueue.msg_info_queue[hipc->dbgRxQueue.queue_pos].size = hipc->RxQueue.current_msg_size;
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
     RXFIFO_incrementHead(hipc);
 
@@ -161,7 +165,7 @@ int16_t IPC_RXFIFO_read(IPC_Handle_t *const hipc, IPC_RxMessage_t *pMsg)
   {
 #if (DBG_IPC_RX_FIFO == 1U)
     PRINT_DBG(" *** start pos=%d ", hipc->RxQueue.index_read)
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
     /* read message header */
     IPC_RXFIFO_readMsgHeader_at_pos(hipc, &header, hipc->RxQueue.index_read);
@@ -180,7 +184,7 @@ int16_t IPC_RXFIFO_read(IPC_Handle_t *const hipc, IPC_RxMessage_t *pMsg)
       PRINT_DBG(" *** data pos=%d ", hipc->RxQueue.index_read)
       PRINT_DBG(" *** size=%d ", header.size)
       PRINT_DBG(" *** free bytes before read=%d ", hipc->dbgRxQueue.free_bytes)
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
       /* update size in output structure */
       pMsg->size = header.size;
@@ -200,7 +204,7 @@ int16_t IPC_RXFIFO_read(IPC_Handle_t *const hipc, IPC_RxMessage_t *pMsg)
 
 #if (DBG_IPC_RX_FIFO == 1U)
         PRINT_DBG("override end of buffer")
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
       }
       else
       {
@@ -217,7 +221,7 @@ int16_t IPC_RXFIFO_read(IPC_Handle_t *const hipc, IPC_RxMessage_t *pMsg)
       /* update free_bytes infos */
       hipc->dbgRxQueue.free_bytes = IPC_RXFIFO_getFreeBytes(hipc);
       PRINT_DBG(" *** free after read bytes=%d ", hipc->dbgRxQueue.free_bytes)
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
       /* msg has been read */
       hipc->RxQueue.nb_unread_msg--;
@@ -245,7 +249,7 @@ void IPC_RXFIFO_stream_init(IPC_Handle_t *const hipc)
 {
   if (hipc != NULL)
   {
-    (void) memset(hipc->RxBuffer.data, 0,  sizeof(uint8_t) * IPC_RXBUF_STREAM_MAXSIZE);
+    (void) memset((void *)hipc->RxBuffer.data, 0,  sizeof(uint8_t) * IPC_RXBUF_STREAM_MAXSIZE);
     hipc->RxBuffer.index_read = 0U;
     hipc->RxBuffer.index_write = 0U;
     hipc->RxBuffer.available_char = 0U;
@@ -255,6 +259,8 @@ void IPC_RXFIFO_stream_init(IPC_Handle_t *const hipc)
 
 /**
   * @brief  Write a char in the IPC RX FIFO in stream mode.
+  * @note   This function is called by UART callback when a character is received on UART.
+  * @note   It is used in IPC stream IPC mode (LwIP).
   * @param  hipc IPC handle.
   * @param  rxChar character to write.
   * @retval none.
@@ -280,7 +286,7 @@ void IPC_RXFIFO_writeStream(IPC_Handle_t *const hipc, uint8_t rxChar)
     (* hipc->RxClientCallback)((void *)hipc);
   }
 }
-#endif /* IPC_USE_STREAM_MODE */
+#endif /* IPC_USE_STREAM_MODE == 1U */
 
 /**
   * @brief  Get number of free bytes in the IPC RX FIFO.
@@ -367,21 +373,21 @@ void IPC_RXFIFO_print_data(const IPC_Handle_t *const hipc, uint16_t index, uint1
     {
       /* in case buffer loops back to index 0 */
       /* print first buffer part (until end of queue) */
-      PRINT_BUF((const uint8_t *)&hipc->RxQueue.data[index], (IPC_RXBUF_MAXSIZE - index))
+      PRINT_BUF(&hipc->RxQueue.data[index], (IPC_RXBUF_MAXSIZE - index))
       /* print second buffer part */
-      PRINT_BUF((const uint8_t *)&hipc->RxQueue.data[0], (size - (IPC_RXBUF_MAXSIZE - index)))
+      PRINT_BUF(&hipc->RxQueue.data[0], (size - (IPC_RXBUF_MAXSIZE - index)))
 
       PRINT_INFO("dump same in hexa:")
       /* print first buffer part (until end of queue) */
-      PRINT_BUF_HEXA((const uint8_t *)&hipc->RxQueue.data[index], (IPC_RXBUF_MAXSIZE - index))
+      PRINT_BUF_HEXA(&hipc->RxQueue.data[index], (IPC_RXBUF_MAXSIZE - index))
       /* print second buffer part */
-      PRINT_BUF_HEXA((const uint8_t *)&hipc->RxQueue.data[0], (size - (IPC_RXBUF_MAXSIZE - index)))
+      PRINT_BUF_HEXA(&hipc->RxQueue.data[0], (size - (IPC_RXBUF_MAXSIZE - index)))
     }
     else
     {
-      PRINT_BUF((const uint8_t *)&hipc->RxQueue.data[index], size)
+      PRINT_BUF(&hipc->RxQueue.data[index], size)
       PRINT_INFO("dump same in hexa:")
-      PRINT_BUF_HEXA((const uint8_t *)&hipc->RxQueue.data[index], size)
+      PRINT_BUF_HEXA(&hipc->RxQueue.data[index], size)
     }
     PRINT_INFO("\r\n")
   }
@@ -405,15 +411,15 @@ void dump_RX_dbg_infos(IPC_Handle_t *const hipc, uint8_t databuf, uint8_t queue)
 
   if (hipc != NULL)
   {
-    if (databuf == 1)
+    if (databuf == 1U)
     {
-      PRINT_BUF((const IPC_TYPE_CHAR_t *)&hipc->RxQueue.data[0], IPC_RXBUF_MAXSIZE)
-      /* PRINT_BUF_HEXA((const IPC_TYPE_CHAR_t *)&hipc->RxQueue.data[0], IPC_RXBUF_MAXSIZE) */
+      PRINT_BUF(&hipc->RxQueue.data[0], IPC_RXBUF_MAXSIZE)
+      /* PRINT_BUF_HEXA(&hipc->RxQueue.data[0], IPC_RXBUF_MAXSIZE) */
     }
 
     PRINT_INFO("\r\n")
 
-    if (queue == 1)
+    if (queue == 1U)
     {
       for (idx = 0; idx <= hipc->dbgRxQueue.queue_pos; idx++)
       {
@@ -426,7 +432,7 @@ void dump_RX_dbg_infos(IPC_Handle_t *const hipc, uint8_t databuf, uint8_t queue)
     }
   }
 }
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
 /* Private function Definition -----------------------------------------------*/
 /**
@@ -454,7 +460,7 @@ static void RXFIFO_incrementHead(IPC_Handle_t *const hipc)
 
 #if (DBG_IPC_RX_FIFO == 1U)
   hipc->dbgRxQueue.free_bytes = free_bytes;
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 
   if (free_bytes <= IPC_RXBUF_THRESHOLD)
   {
@@ -462,7 +468,7 @@ static void RXFIFO_incrementHead(IPC_Handle_t *const hipc)
 
 #if (DBG_IPC_RX_FIFO == 1U)
     hipc->dbgRxQueue.cpt_RXPause++;
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
   }
 }
 
@@ -491,10 +497,10 @@ static void RXFIFO_updateMsgHeader(IPC_Handle_t *const hipc)
 
 #if (DBG_IPC_RX_FIFO == 1U)
   hipc->dbgRxQueue.msg_info_queue[hipc->dbgRxQueue.queue_pos].complete = 1;
-  hipc->dbgRxQueue.queue_pos = (hipc->dbgRxQueue.queue_pos + 1) % DBG_QUEUE_SIZE;
+  hipc->dbgRxQueue.queue_pos = (hipc->dbgRxQueue.queue_pos + 1U) % DBG_QUEUE_SIZE;
   hipc->dbgRxQueue.msg_info_queue[hipc->dbgRxQueue.queue_pos].start_pos = hipc->RxQueue.current_msg_index;
   hipc->dbgRxQueue.msg_info_queue[hipc->dbgRxQueue.queue_pos].complete = 0;
-#endif /* DBG_IPC_RX_FIFO */
+#endif /* DBG_IPC_RX_FIFO == 1U */
 }
 
 /**
@@ -521,5 +527,4 @@ static void RXFIFO_rearm_RX_IT(IPC_Handle_t *const hipc)
   __NOP();
 #endif /* IPC_USE_UART == 1U */
 }
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

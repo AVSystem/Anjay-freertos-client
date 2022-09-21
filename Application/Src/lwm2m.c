@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,13 @@
 #include "device_object.h"
 #include "joystick_object.h"
 #include "sensor_objects.h"
+
+#ifdef USE_AIBP
+#include "ai_bridge.h"
+#include "anomaly_detector_object.h"
+#include "ml_model_object.h"
+#include "pattern_detector_object.h"
+#endif
 
 #include "lwip/sockets.h"
 
@@ -88,7 +95,20 @@ static void lwm2m_notify_job(avs_sched_t *sched, const void *anjay_ptr) {
     device_object_update(anjay);
     joystick_object_update(anjay);
 
+#ifdef USE_AIBP
+    ml_model_object_update(anjay);
+
+    if (ai_bridge_type == AI_BRIDGE_ANOMALY_TYPE) {
+        anomaly_detector_object_update(anjay);
+    }
+
+    if (ai_bridge_type == AI_BRIDGE_CLASSIFIER_TYPE) {
+        pattern_detector_object_update(anjay);
+    }
+#endif
+
     three_axis_sensor_objects_update(anjay);
+
     if (cycle % 5 == 0) {
         basic_sensor_objects_update(anjay);
     }
@@ -213,7 +233,6 @@ void lwm2m_init(void) {
     }
 
     if (setup_security_object() || setup_server_object()
-            || anjay_attr_storage_install(g_anjay)
             || device_object_install(g_anjay)) {
         LOG(ERROR, "failed to setup required objects");
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
@@ -222,6 +241,18 @@ void lwm2m_init(void) {
     basic_sensor_objects_install(g_anjay);
     three_axis_sensor_objects_install(g_anjay);
     joystick_object_install(g_anjay);
+
+#ifdef USE_AIBP
+    ml_model_object_install(g_anjay);
+
+    if (ai_bridge_type == AI_BRIDGE_ANOMALY_TYPE) {
+        anomaly_detector_object_install(g_anjay);
+    }
+
+    if (ai_bridge_type == AI_BRIDGE_CLASSIFIER_TYPE) {
+        pattern_detector_object_install(g_anjay);
+    }
+#endif
 }
 
 static uint32_t lwm2m_thread_stack_buffer[LWM2M_THREAD_STACK_SIZE];

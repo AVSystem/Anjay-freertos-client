@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2021 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@
 #define MBEDTLS_CONFIG_H
 
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_DEPRECATE)
-#    define _CRT_SECURE_NO_DEPRECATE 1
+#define _CRT_SECURE_NO_DEPRECATE 1
 #endif
 
 /**
@@ -3231,7 +3231,7 @@
 //#define YOTTA_CFG_MBEDTLS_TARGET_CONFIG_FILE "mbedtls/target_config.h"
 
 #if defined(TARGET_LIKE_MBED) && defined(YOTTA_CFG_MBEDTLS_TARGET_CONFIG_FILE)
-#    include YOTTA_CFG_MBEDTLS_TARGET_CONFIG_FILE
+#include YOTTA_CFG_MBEDTLS_TARGET_CONFIG_FILE
 #endif
 
 /*
@@ -3242,9 +3242,9 @@
  * - without yotta is looks weird to have a YOTTA prefix.
  */
 #if defined(YOTTA_CFG_MBEDTLS_USER_CONFIG_FILE)
-#    include YOTTA_CFG_MBEDTLS_USER_CONFIG_FILE
+#include YOTTA_CFG_MBEDTLS_USER_CONFIG_FILE
 #elif defined(MBEDTLS_USER_CONFIG_FILE)
-#    include MBEDTLS_USER_CONFIG_FILE
+#include MBEDTLS_USER_CONFIG_FILE
 #endif
 
 #include "mbedtls/check_config.h"

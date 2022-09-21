@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2018 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -27,12 +26,21 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdbool.h>
-#include "sysctrl.h"
+#include "at_sysctrl.h"
 #include "plf_config.h"
 #include "rtosal.h"
 
-/* Exported constants --------------------------------------------------------*/
+/** @addtogroup AT_CORE AT_CORE
+  * @{
+  */
 
+/** @addtogroup AT_CORE_CORE AT_CORE CORE
+  * @{
+  */
+
+/** @defgroup AT_CORE_CORE_Exported_Defines AT_CORE CORE Exported Defines
+  * @{
+  */
 /* Define buffers max sizes */
 #define ATCMD_MAX_NAME_SIZE  ((uint16_t) 32U)
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
@@ -59,13 +67,18 @@ extern "C" {
                                                */
 
 #define ATCMD_MAX_DELAY      ((uint32_t) 0xFFFFFFFFU) /* No timeout in this case */
-
 #define SID_INVALID               (0U)
 #define CELLULAR_SERVICE_START_ID (100U)
 #define WIFI_SERVICE_START_ID     (300U)
 #define AT_HANDLE_INVALID         (-1)  /* AT handle is not allocated */
 #define AT_HANDLE_MODEM           (1)   /* AT handle is allocated to the modem */
+/**
+  * @}
+  */
 
+/** @defgroup AT_CORE_CORE_Exported_Types AT_CORE CORE Exported Types
+  * @{
+  */
 /* at_action_send_t
  * code returned when preparing a command to send
  */
@@ -92,10 +105,8 @@ typedef uint16_t at_action_rsp_t;
 #define ATACTION_RSP_URC_FORWARDED      ((at_action_rsp_t) 0x0040) /* URC received, to forward to client */
 #define ATACTION_RSP_FLAG_DATA_MODE     ((at_action_rsp_t) 0x8000) /* when this flag is set, DATA mode is activated */
 
-/* Exported types ------------------------------------------------------------*/
 typedef uint8_t AT_CHAR_t;
 typedef uint32_t CMD_ID_t;
-
 typedef bool at_bool_t;
 #define AT_FALSE  ((at_bool_t)false)
 #define AT_TRUE   ((at_bool_t)true)
@@ -142,12 +153,13 @@ typedef void (* urc_callback_t)(at_buf_t *p_rsp_buf);
 typedef uint16_t at_hw_event_t;
 #define HWEVT_UNKNOWN            ((at_hw_event_t) 0U)  /* unknown HW event */
 #define HWEVT_MODEM_RING         ((at_hw_event_t) 1U)  /* modem HW event = RING gpio transition detected */
+/**
+  * @}
+  */
 
-/* External variables --------------------------------------------------------*/
-
-/* Exported macros -----------------------------------------------------------*/
-
-/* Exported functions ------------------------------------------------------- */
+/** @defgroup AT_CORE_CORE_Exported_Functions AT_CORE CORE Exported Functions
+  * @{
+  */
 at_status_t  AT_init(void);
 at_handle_t  AT_open(sysctrl_info_t *p_device_infos, urc_callback_t urc_callback);
 at_status_t  AT_reset_context(at_handle_t athandle);
@@ -157,11 +169,21 @@ at_status_t  AT_close_channel(at_handle_t athandle);
 void         AT_internalEvent(sysctrl_device_type_t deviceType);
 at_status_t  atcore_task_start(osPriority taskPrio, uint16_t stackSize);
 
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_CORE_H_ */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
 

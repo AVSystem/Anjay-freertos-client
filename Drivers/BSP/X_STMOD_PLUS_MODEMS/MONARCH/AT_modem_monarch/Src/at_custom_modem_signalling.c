@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -33,9 +32,22 @@
 #include "plf_modem_config.h"
 #include "error_handler.h"
 
-/* Private typedef -----------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
 
-/* Private macros ------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM_SEQUANS_MONARCH AT_CUSTOM SEQUANS_MONARCH
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_SEQUANS_MONARCH_SIGNALLING AT_CUSTOM SEQUANS_MONARCH SIGNALLING
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_SEQUANS_MONARCH_SIGNALLING_Private_Macros AT_CUSTOM SEQUANS_MONARCH SIGNALLING Private Macros
+  * @{
+  */
+
 #if (USE_TRACE_ATCUSTOM_SPECIFIC == 1U)
 #if (USE_PRINTF == 0U)
 #include "trace_interface.h"
@@ -74,17 +86,24 @@
   if (retval == ATACTION_RSP_ERROR) {exitcode = 1U;}\
   } while (exitcode == 0U);
 
-/* Private defines -----------------------------------------------------------*/
+/**
+  * @}
+  */
 
-/* Global variables ----------------------------------------------------------*/
 
-/* Private variables ---------------------------------------------------------*/
-
-/* Private function prototypes -----------------------------------------------*/
-
-/* Functions Definition ------------------------------------------------------*/
+/** @defgroup AT_CUSTOM_SEQUANS_MONARCH_SIGNALLING_Exported_Functions
+  *    AT_CUSTOM SEQUANS_MONARCH SIGNALLING Exported Functions
+  * @{
+  */
 
 /* Build command functions ------------------------------------------------------- */
+
+/**
+  * @brief  Build specific modem command : ATD.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_ATD_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -103,6 +122,12 @@ at_status_t fCmdBuild_ATD_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNCTM.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNCTM_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -129,6 +154,12 @@ at_status_t fCmdBuild_SQNCTM_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mo
 
 }
 
+/**
+  * @brief  Build specific modem command : AUTOATT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_AUTOATT_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   UNUSED(p_modem_ctxt);
@@ -155,6 +186,12 @@ at_status_t fCmdBuild_AUTOATT_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_m
 
 }
 
+/**
+  * @brief  Build specific modem command : AUTOATT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_CGDCONT_REPROGRAM_MONARCH(atparser_context_t *p_atp_ctxt,
                                                 atcustom_modem_context_t *p_modem_ctxt)
 {
@@ -175,6 +212,12 @@ at_status_t fCmdBuild_CGDCONT_REPROGRAM_MONARCH(atparser_context_t *p_atp_ctxt,
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SQNDNSLKUP.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SQNDNSLKUP_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -188,13 +231,27 @@ at_status_t fCmdBuild_SQNDNSLKUP_MONARCH(atparser_context_t *p_atp_ctxt, atcusto
       *
       * Write command will return in ERROR if data APN is not yet activated (see AT+CGDCONT).
       */
-    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\"",
-                   p_modem_ctxt->SID_ctxt.dns_request_infos->dns_req.host_name);
+    if (p_modem_ctxt->SID_ctxt.p_dns_request_infos != NULL)
+    {
+      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\"",
+                     p_modem_ctxt->SID_ctxt.p_dns_request_infos->dns_req.host_name);
+    }
+    else
+    {
+      PRINT_ERR("No dns request infos context")
+      retval = ATSTATUS_ERROR;
+    }
   }
 
   return (retval);
 }
 
+/**
+  * @brief  Build specific modem command : SMST.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_status_t fCmdBuild_SMST_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
 {
   at_status_t retval = ATSTATUS_OK;
@@ -232,6 +289,13 @@ at_status_t fCmdBuild_SMST_MONARCH(atparser_context_t *p_atp_ctxt, atcustom_mode
 }
 
 /* Analyze command functions ------------------------------------------------------- */
+
+/**
+  * @brief  Analyze specific modem response : ERROR.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_Error_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -239,18 +303,22 @@ at_action_rsp_t fRspAnalyze_Error_MONARCH(at_context_t *p_at_ctxt, atcustom_mode
   at_action_rsp_t retval;
   PRINT_API("enter fRspAnalyze_Error_MONARCH()")
 
-  switch (p_atp_ctxt->current_SID)
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
   {
-    case SID_CS_DIAL_COMMAND:
-      /* in case of error during socket connection,
-        * release the modem CID for this socket_handle
-        */
-      (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.socket_info->socket_handle);
-      break;
-
-    default:
-      break;
+    /* in case of error during socket connection,
+      * release the modem CID for this socket_handle
+      */
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
+    {
+      (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
+    }
+    else
+    {
+      PRINT_ERR("No socket info context to release cid")
+    }
   }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
   /* analyze Error for Sequans modems */
   switch (p_atp_ctxt->current_atcmd.id)
@@ -269,12 +337,20 @@ at_action_rsp_t fRspAnalyze_Error_MONARCH(at_context_t *p_at_ctxt, atcustom_mode
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SQNCCID.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SQNCCID_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                             const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
   UNUSED(p_at_ctxt);
   at_action_rsp_t retval = ATACTION_RSP_INTERMEDIATE; /* received a valid intermediate answer */
   PRINT_API("enter fRspAnalyze_SQNCCID_MONARCH()")
+
+  uint8_t cleanStrArray[MAX_SIZE_ICCID];
 
   /* analyze parameters for +QCCID */
   START_PARAM_LOOP()
@@ -283,9 +359,24 @@ at_action_rsp_t fRspAnalyze_SQNCCID_MONARCH(at_context_t *p_at_ctxt, atcustom_mo
     PRINT_DBG("ICCID:")
     PRINT_BUF((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size)
 
-    (void) memcpy((void *) & (p_modem_ctxt->SID_ctxt.device_info->u.iccid),
-                  (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
-                  (size_t) element_infos->str_size);
+    if (p_modem_ctxt->SID_ctxt.p_device_info != NULL)
+    {
+      /* extract ICCID (keep only what is inside quotes) */
+      (void) memset((void *)cleanStrArray, 0, MAX_SIZE_ICCID);
+      uint16_t cleanStrSize = ATutil_extract_str_from_quotes(
+                                (const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
+                                element_infos->str_size,
+                                cleanStrArray,
+                                MAX_SIZE_ICCID);
+
+      if (cleanStrSize <= MAX_SIZE_ICCID)
+      {
+        /* recopy cleaned ICCID string to data structure */
+        (void) memcpy((void *) & (p_modem_ctxt->SID_ctxt.p_device_info->u.iccid),
+                      (const void *)cleanStrArray,
+                      (size_t) MAX_SIZE_ICCID);
+      }
+    }
   }
   else
   {
@@ -297,6 +388,12 @@ at_action_rsp_t fRspAnalyze_SQNCCID_MONARCH(at_context_t *p_at_ctxt, atcustom_mo
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SQNDNSLKUP.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SQNDNSLKUP_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                                const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -328,6 +425,12 @@ at_action_rsp_t fRspAnalyze_SQNDNSLKUP_MONARCH(at_context_t *p_at_ctxt, atcustom
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : SMST.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_SMST_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                          const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -386,6 +489,12 @@ at_action_rsp_t fRspAnalyze_SMST_MONARCH(at_context_t *p_at_ctxt, atcustom_modem
   return (retval);
 }
 
+/**
+  * @brief  Analyze specific modem response : CESQ.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
 at_action_rsp_t fRspAnalyze_CESQ_MONARCH(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                          const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
@@ -460,7 +569,19 @@ at_action_rsp_t fRspAnalyze_CESQ_MONARCH(at_context_t *p_at_ctxt, atcustom_modem
   return (retval);
 }
 
-/* Private function Definition -----------------------------------------------*/
+/**
+  * @}
+  */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 

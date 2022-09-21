@@ -7,13 +7,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -35,16 +34,57 @@ extern "C" {
 #include "cellular_service_int.h"
 #include "ipc_common.h"
 
-/* Exported constants --------------------------------------------------------*/
-/* device specific parameters */
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC AT_CUSTOM ALTAIR_T1SC
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC AT_CUSTOM ALTAIR_T1SC SPECIFIC
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Exported_Defines AT_CUSTOM ALTAIR_T1SC SPECIFIC Exported Defines
+  * @{
+  */
 #define MODEM_MAX_SOCKET_TX_DATA_SIZE   CONFIG_MODEM_MAX_SOCKET_TX_DATA_SIZE
 #define MODEM_MAX_SOCKET_RX_DATA_SIZE   CONFIG_MODEM_MAX_SOCKET_RX_DATA_SIZE
 #define TYPE1SC_PING_LENGTH             ((uint16_t)56U)
 #define TYPE1SC_ACTIVATE_PING_REPORT    (1)
 
+/* commands timetout values */
+#define TYPE1SC_DEFAULT_TIMEOUT       ((uint32_t)15000)
+#define TYPE1SC_CSQ_TIMEOUT           ((uint32_t)25000)
+#define TYPE1SC_ESCAPE_TIMEOUT        ((uint32_t)3000)   /* max time allowed to receive a response to an Escape cmd */
+#define TYPE1SC_COPS_TIMEOUT          ((uint32_t)180000) /* 180 sec */
+#define TYPE1SC_CGATT_TIMEOUT         ((uint32_t)140000) /* 140 sec */
+#define TYPE1SC_CGACT_TIMEOUT         ((uint32_t)150000) /* 150 sec */
+#define TYPE1SC_ATH_TIMEOUT           ((uint32_t)90000)  /* 90 sec */
+#define TYPE1SC_AT_TIMEOUT            ((uint32_t)1000)   /* timeout for AT */
+#define TYPE1SC_SOCKET_PROMPT_TIMEOUT ((uint32_t)10000)
+#define TYPE1SC_ATK_TIMEOUT           ((uint32_t)3000)   /* initially set to 1 sec but seems not enough sometimes... */
+#define TYPE1SC_CPSMS_TIMEOUT         ((uint32_t)60000)
+#define TYPE1SC_CEDRX_TIMEOUT         ((uint32_t)60000)
+#define TYPE1SC_BOOTEV_TIMEOUT        ((uint32_t)5000) /* maxiboot time allowed to wait %BOOTEV*/
+#define TYPE1SC_SIMREADY_TIMEOUT      ((uint32_t)3000U)
 
-/* Exported types ------------------------------------------------------------*/
-typedef enum
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+#define TYPE1SC_PING_TIMEOUT          ((uint32_t)15000)  /* 15 sec */
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
+
+#define TYPE1SC_MODEM_SYNCHRO_AT_MAX_RETRIES ((uint8_t)30U)
+#define TYPE1SC_MAX_SIM_STATUS_RETRIES  ((uint8_t)20U) /* maximum number of retries to wait SIM ready */
+
+/**
+  * @}
+  */
+
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Exported_Types AT_CUSTOM ALTAIR_T1SC SPECIFIC Exported Types
+  * @{
+  */
+enum
 {
   /* modem specific commands */
   CMD_AT_PDNSET = (CMD_AT_LAST_GENERIC + 1U), /* set run-time PDN parameters for data PDNs */
@@ -56,8 +96,13 @@ typedef enum
   CMD_AT_SETACFG,                             /* set Modem Advanced configuration parameters */
   CMD_AT_GETACFG,                             /* get Modem Advanced configuration parameters */
   CMD_AT_SETBDELAY,                           /* set modem boot delay */
-  CMD_AT_DNSRSLV,                             /* resolve a specific domain name */
-  CMD_AT_PINGCMD,                             /* execute PING services */
+  CMD_AT_BOOTEV,                              /* notify about modem boot or reset events */
+  CMD_AT_PDNRDP,                              /* get info for active PDN */
+  CMD_AT_SETSYSCFG,                           /* set Modem system configuration parameters */
+  CMD_AT_GETSYSCFG,                           /* get Modem system configuration parameters */
+  CMD_AT_NOTIFYEV,                            /* notify host about important events */
+
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
   CMD_AT_PDNACT,                              /* activate or deactivate a specific PDN */
   CMD_AT_SOCKETCMD_ALLOCATE,                  /* allocate socket session */
   CMD_AT_SOCKETCMD_ACTIVATE,                  /* activate the predefined socket ID */
@@ -72,13 +117,11 @@ typedef enum
   CMD_AT_SOCKETDATA_SEND,                     /* send DATA */
   CMD_AT_SOCKETDATA_RECEIVE,                  /* received DATA */
   CMD_AT_SOCKETEV,                            /* notify about socket events */
-  CMD_AT_BOOTEV,                              /* notify about modem boot or reset events */
-  CMD_AT_PDNRDP,                              /* get info for active PDN */
-  CMD_AT_SETSYSCFG,                           /* set Modem system configuration parameters */
-  CMD_AT_GETSYSCFG,                           /* get Modem system configuration parameters */
-  CMD_AT_NOTIFYEV,                            /* notify host about important events */
+  CMD_AT_DNSRSLV,                             /* resolve a specific domain name */
+  CMD_AT_PINGCMD,                             /* execute PING services */
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
 
-} ATCustom_TYPE1SC_cmdlist_t;
+};
 
 typedef enum
 {
@@ -130,6 +173,7 @@ typedef struct
   uint16_t                      sim_status_retries;
   ATCustom_TYPE1SC_dns_t        DNSRSLV_dns_info;      /* memorize infos received for DNS in %DNSRSLV */
   at_bool_t                     SocketCmd_Allocated_SocketID;
+  at_bool_t                     SocketCmd_Activated;
   ATCustom_TYPE1SC_SETGETCFG_t  getcfg_function;
   ATCustom_TYPE1SC_SETGETCFG_t  setcfg_function;
   ATCustom_T1SC_SETGETSYSCFG_t  syscfg_function;      /* used for GETSYSCG and SETSYSCFG */
@@ -142,12 +186,22 @@ typedef struct
 
 } type1sc_shared_variables_t;
 
-/* External variables --------------------------------------------------------*/
+/**
+  * @}
+  */
+
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Exported_Variables AT_CUSTOM ALTAIR_T1SC SPECIFIC Exported Variables
+  * @{
+  */
 extern type1sc_shared_variables_t type1sc_shared;
+/**
+  * @}
+  */
 
-/* Exported macros -----------------------------------------------------------*/
-
-/* Exported functions ------------------------------------------------------- */
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SPECIFIC_Exported_Functions AT_CUSTOM ALTAIR_T1SC SPECIFIC Exported Functions
+  * @{
+  */
+/* generic functions exported */
 void        ATCustom_TYPE1SC_init(atparser_context_t *p_atp_ctxt);
 uint8_t     ATCustom_TYPE1SC_checkEndOfMsgCallback(uint8_t rxChar);
 at_status_t ATCustom_TYPE1SC_getCmd(at_context_t *p_at_ctxt, uint32_t *p_ATcmdTimeout);
@@ -161,16 +215,38 @@ at_action_rsp_t ATCustom_TYPE1SC_analyzeParam(at_context_t *p_at_ctxt,
                                               const IPC_RxMessage_t *p_msg_in,
                                               at_element_info_t *element_infos);
 at_action_rsp_t ATCustom_TYPE1SC_terminateCmd(atparser_context_t *p_atp_ctxt, at_element_info_t *element_infos);
-
 at_status_t ATCustom_TYPE1SC_get_rsp(atparser_context_t *p_atp_ctxt, at_buf_t *p_rsp_buf);
 at_status_t ATCustom_TYPE1SC_get_urc(atparser_context_t *p_atp_ctxt, at_buf_t *p_rsp_buf);
 at_status_t ATCustom_TYPE1SC_get_error(atparser_context_t *p_atp_ctxt, at_buf_t *p_rsp_buf);
 at_status_t ATCustom_TYPE1SC_hw_event(sysctrl_device_type_t deviceType, at_hw_event_t hwEvent, GPIO_PinState gstate);
+
+/* functions exported for internal purpose */
+void ATC_TYPE1SC_modem_reset(atcustom_modem_context_t *p_modem_ctxt);
+void ATC_TYPE1SC_reset_variables(void);
+void ATC_TYPE1SC_reinitSyntaxAutomaton(void);
+void ATC_TYPE1SC_modem_init(atcustom_modem_context_t *p_modem_ctxt);
+at_bool_t ATC_TYPE1SC_init_low_power(atcustom_modem_context_t *p_modem_ctxt);
+at_bool_t ATC_TYPE1SC_set_low_power(atcustom_modem_context_t *p_modem_ctxt);
+void ATC_TYPE1SC_low_power_event(ATCustom_T1SC_LP_event_t event, bool called_under_it);
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* AT_CUSTOM_MODEM_TYPE1SC_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

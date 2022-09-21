@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2020 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2020-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -25,9 +24,22 @@
 extern "C" {
 #endif
 
-/* Includes ------------------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM AT_CUSTOM
+  * @{
+  */
 
-/* Exported constants --------------------------------------------------------*/
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC AT_CUSTOM ALTAIR_T1SC
+  * @{
+  */
+
+/** @addtogroup AT_CUSTOM_ALTAIR_T1SC_CONFIG AT_CUSTOM ALTAIR_T1SC CONFIG
+  * @{
+  */
+
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_CONFIG_Exported_Defines AT_CUSTOM ALTAIR_T1SC CONFIG Exported Defines
+  * @{
+  */
+
 #if defined(HWREF_MURATA_TYPE1SC_EVK)
 /* already explicitly defined:
  * using HWREF_MURATA_TYPE1SC_EVK directly on STMOD+ connector
@@ -42,7 +54,6 @@ extern "C" {
 #define CONFIG_MODEM_UART_BAUDRATE (115200U)
 #define CONFIG_MODEM_USE_STMOD_CONNECTOR
 
-/* to update when modem socket mode will be implemented */
 #define UDP_SERVICE_SUPPORTED                (1U)
 #define CONFIG_MODEM_UDP_SERVICE_CONNECT_IP  ((uint8_t *)"0.0.0.0")
 #define CONFIG_MODEM_MAX_SOCKET_TX_DATA_SIZE ((uint32_t)710U) /* sendto managed, remote IP/port should be send
@@ -71,10 +82,24 @@ extern "C" {
  */
 #define TYPE1SC_FASTEST_POWER_ON (0U)
 
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /*_PLF_MODEM_CONFIG_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

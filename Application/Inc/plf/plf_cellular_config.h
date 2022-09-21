@@ -91,6 +91,8 @@ extern "C" {
 
 #define PLF_CELLULAR_LP_INACTIVITY_TIMEOUT        (1000U)      /*!< Low power mode entry timeout in ms */
 
+#define PLF_CELLULAR_DNS_SERVER_IP_ADDR ((uint8_t*)"8.8.8.8")
+
 /* Exported types ------------------------------------------------------------*/
 /* External variables --------------------------------------------------------*/
 /* Exported macros -----------------------------------------------------------*/

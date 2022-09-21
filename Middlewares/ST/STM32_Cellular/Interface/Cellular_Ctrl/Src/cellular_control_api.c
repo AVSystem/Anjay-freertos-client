@@ -6,13 +6,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; Copyright (c) 2021 STMicroelectronics.
-  * All rights reserved.</center></h2>
+  * Copyright (c) 2018-2021 STMicroelectronics.
+  * All rights reserved.
   *
-  * This software component is licensed by ST under Ultimate Liberty license
-  * SLA0044, the "License"; You may not use this file except in compliance with
-  * the License. You may obtain a copy of the License at:
-  *                             www.st.com/SLA0044
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -21,9 +20,9 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "plf_config.h"
 #include "cellular_control_api.h"
-#include "cellular_runtime_standard.h"
+#include "cellular_runtime_custom.h"   /* for CRC_CHAR_t definition   */
+#include "cellular_runtime_standard.h" /* for crs_strlen() definition */
 
 #include "ipc_uart.h"
 #include "com_core.h"
@@ -107,6 +106,7 @@ static void cellular_api_fill_string(const uint8_t *p_in_str, uint8_t max_len, u
 static void cellular_api_general_data_cache_callback(dc_com_event_id_t datacache_event_id, const void *p_private_data);
 
 /* Global variables ----------------------------------------------------------*/
+
 /* Private function Definition -----------------------------------------------*/
 /**
   * @brief         Copy string to a len + string structure.
@@ -307,6 +307,21 @@ void cellular_init(void)
 }
 
 /**
+  * @brief  Deinitialize cellular software from memory.
+  * @param  -
+  * @retval cellular_result_t         The code indicating if the operation is successful otherwise an error code
+  *                                   indicating the cause of the error.\n
+  *         CELLULAR_SUCCESS if OK.\n
+  *         CELLULAR_ERR_NOTIMPLEMENTED if not yet implemented.
+  */
+cellular_result_t cellular_deinit(void)
+{
+  /* Nothing to do */
+  __NOP();
+  return CELLULAR_ERR_NOTIMPLEMENTED;
+}
+
+/**
   * @brief  Start cellular software with boot modem
   *         (and network registration if PLF_CELLULAR_TARGET_STATE = 2U see plf_cellular_config.h).
   * @param  -
@@ -326,10 +341,6 @@ void cellular_start(void)
 
   /* Data Cache start */
   dc_com_start(&dc_com_db);
-
-#if (USE_LOW_POWER == 1)
-  CSP_Start();
-#endif  /* (USE_LOW_POWER == 1) */
 
   /* Communication interface start */
   (void)com_start();
@@ -956,7 +967,7 @@ void cellular_get_signal_info(cellular_signal_info_t *const p_signal_info)
 }
 
 /**
-  * @brief         Get SIM information.
+  * @brief         Get information on SIM in use.
   * @param[in,out] p_sim_info - The sim info structure to contain the response.
   * @retval -
   */
@@ -965,7 +976,6 @@ void cellular_get_sim_info(cellular_sim_info_t *const p_sim_info)
   dc_sim_info_t             datacache_sim_info;            /* Cellular sim infos                                      */
   dc_cellular_params_t      datacache_cellular_param;      /* Cellular parameters used to configure the modem.        */
   dc_cellular_info_t        datacache_cellular_info;
-  uint8_t                   idx;                           /* Loop index                                              */
 
   if (p_sim_info != NULL)
   {
@@ -975,7 +985,7 @@ void cellular_get_sim_info(cellular_sim_info_t *const p_sim_info)
     (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&datacache_sim_info, sizeof(dc_sim_info_t));
 
     /* Fill response structure */
-    /* ICCID of SIM card */
+    /* ICCID of SIM card used */
     cellular_api_fill_string(datacache_cellular_info.iccid, CA_ICCID_SIZE_MAX, &p_sim_info->iccid.len,
                              p_sim_info->iccid.value);
 
@@ -988,34 +998,97 @@ void cellular_get_sim_info(cellular_sim_info_t *const p_sim_info)
     /* Number of sim slots */
     p_sim_info->sim_slot_nb = datacache_cellular_param.sim_slot_nb;
 
-    /* Parse all sim slots to get info */
-    for (idx = 0; idx < datacache_cellular_param.sim_slot_nb; idx++)
-    {
-      /* Sim slot type */
-      p_sim_info->sim_slot_type[idx] = datacache_cellular_param.sim_slot[idx].sim_slot_type;
+    /* Sim slot type */
+    p_sim_info->sim_slot_type = datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].sim_slot_type;
 
-      /* Sim status */
-      p_sim_info->sim_status[idx] = datacache_sim_info.sim_status[idx];
+    /* Sim status */
+    p_sim_info->sim_status = datacache_sim_info.sim_status[datacache_sim_info.index_slot];
 
-      /* Apn_send_to_modem */
-      p_sim_info->pdn[idx].apn_send_to_modem = datacache_cellular_param.sim_slot[idx].apnSendToModem;
+    /* Apn_send_to_modem */
+    p_sim_info->pdn.apn_send_to_modem = datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].apnSendToModem;
 
-      /* Cid */
-      p_sim_info->pdn[idx].cid = datacache_cellular_param.sim_slot[idx].cid;
+    /* Cid */
+    p_sim_info->pdn.cid = datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].cid;
 
-      /* APN */
-      cellular_api_fill_string(datacache_cellular_param.sim_slot[idx].apn, CA_APN_SIZE_MAX,
-                               &p_sim_info->pdn[idx].apn.len, p_sim_info->pdn[idx].apn.value);
+    /* APN */
+    cellular_api_fill_string(datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].apn, CA_APN_SIZE_MAX,
+                             &p_sim_info->pdn.apn.len, p_sim_info->pdn.apn.value);
 
-      /* Username for APN */
-      cellular_api_fill_string(datacache_cellular_param.sim_slot[idx].username, CA_USERNAME_SIZE_MAX,
-                               &p_sim_info->pdn[idx].username.len, p_sim_info->pdn[idx].username.value);
+    /* Username for APN */
+    cellular_api_fill_string(datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].username,
+                             CA_USERNAME_SIZE_MAX, &p_sim_info->pdn.username.len, p_sim_info->pdn.username.value);
 
-      /* Password for APN */
-      cellular_api_fill_string(datacache_cellular_param.sim_slot[idx].password, CA_PASSWORD_SIZE_MAX,
-                               &p_sim_info->pdn[idx].password.len, p_sim_info->pdn[idx].password.value);
-    } /* For loop */
+    /* Password for APN */
+    cellular_api_fill_string(datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].password,
+                             CA_PASSWORD_SIZE_MAX, &p_sim_info->pdn.password.len, p_sim_info->pdn.password.value);
   }
+}
+
+/**
+  * @brief         Get information on a particular SIM.
+  * @param[in]     sim_index        - The index of the sim.
+  * @param[in,out] p_sim_info_index - The sim info index structure to contain the response.
+  * @retval        cellular_result_t        The code indicating if the operation is successful otherwise an error code
+  *                                         indicating the cause of the error.\n
+  *                CELLULAR_SUCCESS         if sim information is available and is present in p_sim_info.\n
+  *                CELLULAR_ERR_BADARGUMENT if sim_index is out of range,
+  *                                         p_sim_info_index contains no valid information.
+  */
+cellular_result_t cellular_get_sim_info_from_index(uint8_t sim_index, cellular_sim_info_index_t *const p_sim_info_index)
+{
+  dc_sim_info_t             datacache_sim_info;            /* Cellular sim infos                                      */
+  dc_cellular_params_t      datacache_cellular_param;      /* Cellular parameters used to configure the modem.        */
+  dc_cellular_info_t        datacache_cellular_info;
+  cellular_result_t         ret;                           /* return value of the function                            */
+
+  /* variable init */
+  ret = CELLULAR_SUCCESS;
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&datacache_cellular_param, sizeof(dc_cellular_params_t));
+
+  if ((p_sim_info_index != NULL) && ((sim_index) < datacache_cellular_param.sim_slot_nb))
+  {
+    /* Get needed data from Data Cache */
+    (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&datacache_cellular_info, sizeof(dc_cellular_info_t));
+    (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&datacache_sim_info, sizeof(dc_sim_info_t));
+
+    /* Fill response structure */
+    /* Number of sim slots */
+    p_sim_info_index->sim_slot_nb = datacache_cellular_param.sim_slot_nb;
+
+    /* Sim slot type */
+    p_sim_info_index->sim_slot_type = datacache_cellular_param.sim_slot[sim_index].sim_slot_type;
+
+    /* Sim status */
+    p_sim_info_index->sim_status = datacache_sim_info.sim_status[sim_index];
+
+    /* Apn_send_to_modem */
+    p_sim_info_index->pdn.apn_send_to_modem =
+      datacache_cellular_param.sim_slot[sim_index].apnSendToModem;
+
+    /* Cid */
+    p_sim_info_index->pdn.cid = datacache_cellular_param.sim_slot[sim_index].cid;
+
+    /* APN */
+    cellular_api_fill_string(datacache_cellular_param.sim_slot[sim_index].apn, CA_APN_SIZE_MAX,
+                             &p_sim_info_index->pdn.apn.len, p_sim_info_index->pdn.apn.value);
+
+    /* Username for APN */
+    cellular_api_fill_string(datacache_cellular_param.sim_slot[sim_index].username,
+                             CA_USERNAME_SIZE_MAX, &p_sim_info_index->pdn.username.len,
+                             p_sim_info_index->pdn.username.value);
+
+    /* Password for APN */
+    cellular_api_fill_string(datacache_cellular_param.sim_slot[sim_index].password,
+                             CA_PASSWORD_SIZE_MAX, &p_sim_info_index->pdn.password.len,
+                             p_sim_info_index->pdn.password.value);
+  }
+  else
+  {
+    ret = CELLULAR_ERR_BADARGUMENT;
+  }
+
+  /* return from the function */
+  return ret;
 }
 
 /**
@@ -1447,7 +1520,9 @@ cellular_result_t cellular_signal_info_cb_deregistration(cellular_signal_info_cb
 }
 
 /**
-  * @brief     Register a callback that will be called when SIM information is updated.
+  * @brief     Register a callback that will be called when SIM information is updated. Only First sim information
+  *            is given to the first call of the callback. to have information on the other sim slots, it is needed
+  *            to call .....
   * @param[in] cellular_sim_info_cb    - The callback to register.
   * @param[in] p_callback_ctx          - The context to be passed when cellular_sim_info_cb callback is called.
   * @retval    cellular_result_t         The code indicating if the operation is successful otherwise an error code
@@ -1800,5 +1875,3 @@ cellular_result_t cellular_power_info_cb_deregistration(cellular_power_info_cb_t
 }
 
 #endif /* USE_LOW_POWER == 1 */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
