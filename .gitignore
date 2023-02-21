@@ -2,8 +2,14 @@
 **/Debug/*
 **/Release/*
 *.launch
+*.bin
+*.sfb
 .vscode/
 Projects/*/.cproject
 Projects/*/.mxproject
 Projects/*/.project
+Projects/**/output.txt
+Projects/**/STM32CubeIDE/crypto.txt
+Projects/**/STM32CubeIDE/postbuild.sh
 __pycache__/
+/.metadata/

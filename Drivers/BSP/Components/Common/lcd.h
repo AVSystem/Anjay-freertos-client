@@ -78,6 +78,27 @@ typedef struct
 
 typedef struct
 {
+  void     (*Init)(void);
+  uint16_t (*ReadID)(void);
+  void     (*DisplayOn)(void);
+  void     (*DisplayOff)(void);
+  void     (*SetCursor)(uint16_t, uint16_t);
+  void     (*WritePixel)(uint16_t, uint16_t, uint16_t);
+  uint16_t (*ReadPixel)(uint16_t, uint16_t);
+
+   /* Optimized operation */
+  void     (*SetDisplayWindow)(uint16_t, uint16_t, uint16_t, uint16_t);
+  void     (*DrawHLine)(uint16_t, uint16_t, uint16_t, uint16_t);
+  void     (*DrawVLine)(uint16_t, uint16_t, uint16_t, uint16_t);
+
+  uint16_t (*GetLcdPixelWidth)(void);
+  uint16_t (*GetLcdPixelHeight)(void);
+  void     (*DrawBitmap)(uint16_t, uint16_t, uint8_t*);
+  void     (*DrawRGBImage)(uint16_t, uint16_t, uint16_t, uint16_t, uint8_t*);
+}LCD_DrvTypeDef;
+
+typedef struct
+{
   /* Control functions */
   int32_t (*Init)(void *, uint32_t, uint32_t);
   int32_t (*DeInit)(void *);

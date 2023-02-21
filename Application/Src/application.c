@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <stdlib.h>
 
 #include "FreeRTOS.h"
 #include "cmsis_os.h"
@@ -83,17 +84,18 @@ log_handler(avs_log_level_t level, const char *module, const char *message) {
 }
 
 void application_init() {
+    menu_init();
 
     avs_log_set_handler(log_handler);
     /* RandomNumberGenerator );*/
     srand(osKernelSysTick());
 
 #ifdef USE_AIBP
-    console_write("### Detect AI BRIDGE type. ###\r\n");
+    console_printf("### Detect AI BRIDGE type. ###\r\n");
     if (ai_bridge_get_type() == AI_BRIDGE_CLASSIFIER_TYPE) {
         ai_bridge_get_classes();
     }
-    console_write("### End of detection. ###\r\n");
+    console_printf("### End of detection. ###\r\n");
 #endif
 
     cellular_init();

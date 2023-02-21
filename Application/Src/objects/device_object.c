@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <avsystem/commons/avs_log.h>
 #include <avsystem/commons/avs_memory.h>
 
+#include "default_config.h"
 #include "main.h"
 
 #include "utils.h"
@@ -169,7 +170,7 @@ static int resource_read(anjay_t *anjay,
 
     case RID_FIRMWARE_VERSION:
         assert(riid == ANJAY_ID_INVALID);
-        return anjay_ret_string(ctx, "22.09");
+        return anjay_ret_string(ctx, FIRMWARE_VERSION);
 
     case RID_ERROR_CODE:
         assert(riid == 0);
@@ -215,9 +216,8 @@ static int list_resource_instances(anjay_t *anjay,
                                    anjay_rid_t rid,
                                    anjay_dm_list_ctx_t *ctx) {
     (void) anjay;
+    (void) obj_ptr;
 
-    device_object_t *obj = get_obj(obj_ptr);
-    assert(obj);
     assert(iid == 0);
 
     switch (rid) {

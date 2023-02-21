@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@
 
 // LwM2M client threads created with static allocation
 #ifdef USE_AIBP
-#define LWM2M_THREAD_STACK_SIZE (13288U)
+#define LWM2M_THREAD_STACK_SIZE (5224U)
 #else
-#define LWM2M_THREAD_STACK_SIZE (12288U)
+#define LWM2M_THREAD_STACK_SIZE (5096U)
 #endif
 #define LWM2M_THREAD_PRIO osPriorityNormal
 

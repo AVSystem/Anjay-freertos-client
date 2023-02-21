@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,17 @@
 
 #include "FreeRTOS.h"
 
-#include "lwip/sys.h"
+#if defined(STM32L496xx) || defined(STM32L462xx)
+#include "stm32l4xx_hal.h"
+#endif // defined(STM32L496xx) || defined(STM32L462xx)
+
+#if defined(STM32U585xx)
+#include "stm32u5xx_hal.h"
+#endif // defined(STM32U585xx)
 
 avs_time_monotonic_t avs_time_monotonic_now(void) {
     static uint64_t prev_ms = 0;
-    uint64_t ms = sys_now();
+    uint64_t ms = HAL_GetTick();
     if (ms < prev_ms) {
         ms += portMAX_DELAY + 1;
         prev_ms = ms;

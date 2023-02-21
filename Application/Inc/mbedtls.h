@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -661,8 +661,8 @@
  */
 //#define MBEDTLS_ECP_DP_SECP192R1_ENABLED
 //#define MBEDTLS_ECP_DP_SECP224R1_ENABLED
-//#define MBEDTLS_ECP_DP_SECP256R1_ENABLED
-//#define MBEDTLS_ECP_DP_SECP384R1_ENABLED
+#define MBEDTLS_ECP_DP_SECP256R1_ENABLED
+#define MBEDTLS_ECP_DP_SECP384R1_ENABLED
 //#define MBEDTLS_ECP_DP_SECP521R1_ENABLED
 //#define MBEDTLS_ECP_DP_SECP192K1_ENABLED
 //#define MBEDTLS_ECP_DP_SECP224K1_ENABLED
@@ -928,7 +928,7 @@
  *      MBEDTLS_TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA
  *      MBEDTLS_TLS_ECDHE_ECDSA_WITH_RC4_128_SHA
  */
-//#define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
+#define MBEDTLS_KEY_EXCHANGE_ECDHE_ECDSA_ENABLED
 
 /**
  * \def MBEDTLS_KEY_EXCHANGE_ECDH_ECDSA_ENABLED
@@ -2169,7 +2169,7 @@
  *
  * Requires: MBEDTLS_ECP_C
  */
-//#define MBEDTLS_ECDH_C
+#define MBEDTLS_ECDH_C
 
 /**
  * \def MBEDTLS_ECDSA_C
@@ -2184,7 +2184,7 @@
  *
  * Requires: MBEDTLS_ECP_C, MBEDTLS_ASN1_WRITE_C, MBEDTLS_ASN1_PARSE_C
  */
-//#define MBEDTLS_ECDSA_C
+#define MBEDTLS_ECDSA_C
 
 /**
  * \def MBEDTLS_ECJPAKE_C
@@ -2217,7 +2217,7 @@
  *
  * Requires: MBEDTLS_BIGNUM_C and at least one MBEDTLS_ECP_DP_XXX_ENABLED
  */
-//#define MBEDTLS_ECP_C
+#define MBEDTLS_ECP_C
 
 /**
  * \def MBEDTLS_ENTROPY_C
@@ -2448,7 +2448,7 @@
  *
  * This modules translates between OIDs and internal values.
  */
-//#define MBEDTLS_OID_C
+#define MBEDTLS_OID_C
 
 /**
  * \def MBEDTLS_PADLOCK_C
@@ -2480,7 +2480,7 @@
  *
  * This modules adds support for decoding / parsing PEM files.
  */
-//#define MBEDTLS_PEM_PARSE_C
+#define MBEDTLS_PEM_PARSE_C
 
 /**
  * \def MBEDTLS_PEM_WRITE_C
@@ -2512,7 +2512,7 @@
  *
  * Uncomment to enable generic public key wrappers.
  */
-//#define MBEDTLS_PK_C
+#define MBEDTLS_PK_C
 
 /**
  * \def MBEDTLS_PK_PARSE_C
@@ -2527,7 +2527,7 @@
  *
  * Uncomment to enable generic public key parse functions.
  */
-//#define MBEDTLS_PK_PARSE_C
+#define MBEDTLS_PK_PARSE_C
 
 /**
  * \def MBEDTLS_PK_WRITE_C
@@ -2850,7 +2850,7 @@
  *
  * This module is required for the X.509 parsing modules.
  */
-//#define MBEDTLS_X509_USE_C
+#define MBEDTLS_X509_USE_C
 
 /**
  * \def MBEDTLS_X509_CRT_PARSE_C
@@ -2866,7 +2866,7 @@
  *
  * This module is required for X.509 certificate parsing.
  */
-//#define MBEDTLS_X509_CRT_PARSE_C
+#define MBEDTLS_X509_CRT_PARSE_C
 
 /**
  * \def MBEDTLS_X509_CRL_PARSE_C
@@ -3076,7 +3076,7 @@
  * fragment length, respectively.
  */
 #define MBEDTLS_SSL_MAX_CONTENT_LEN                                           \
-    1024 /**< Maxium fragment length in bytes, determines the size of each of \
+    2048 /**< Maxium fragment length in bytes, determines the size of each of \
             the two internal I/O buffers */
 
 /** \def MBEDTLS_SSL_IN_CONTENT_LEN

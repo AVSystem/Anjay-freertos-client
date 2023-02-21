@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 #include "cellular_service_datacache.h"
 
-#define MAGIC "cfgstart"
+#define MAGIC "cfgstart3"
 #define MAGIC_SIZE sizeof(MAGIC)
 #define MAGIC_BASE_ADDR 0
 #define CONFIG_BASE_ADDR (MAGIC_BASE_ADDR + MAGIC_SIZE)
@@ -32,13 +32,18 @@
 typedef struct {
     char server_uri[128];
     char endpoint_name[64];
-    char psk[32];
+    char public_cert_or_psk_identity[2048];
+    char private_cert_or_psk_key[1024];
     char apn[APN_SIZE];
     char apn_username[APN_USERNAME_SIZE];
     char apn_password[APN_PASSWORD_SIZE];
+    char firmware_version[32];
+    char bootstrap[2];
+    char security[5];
 } config_t;
 
 int config_save(const config_t *in_config);
 int config_load(config_t *out_config);
 
+extern config_t g_config;
 #endif // CONFIG_PERSISTENCE_H

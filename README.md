@@ -7,10 +7,10 @@ This repository contains LwM2M Client application based on open-source [Anjay](h
 
 | Project Path | Board | Modem |
 |--------------|-------|-------|
-| Projects/STM32L496G-DISCO/BG96 | [P-L496G-CELL02 Discovery kit](https://www.st.com/en/evaluation-tools/p-l496g-cell02.html) | [Quectel BG96](https://www.quectel.com/product/lpwa-bg96-cat-m1-nb1-egprs) default modem provided with kit |
-| Projects/STM32L496G-DISCO/MONARCH | [P-L496G-CELL02 Discovery kit](https://www.st.com/en/evaluation-tools/p-l496g-cell02.html) | [Monarch GM01Q-STMOD](https://www.st.com/en/partner-products-and-services/monarch-gm01q-stmod.html) expansion board |
-| Projects/B-L462E-CELL1/TYPE1SC | [B-L462E-CELL1 Discovery kit](https://www.st.com/en/evaluation-tools/b-l462e-cell1.html) | [Murata TYPE 1SE](https://www.murata.com/en-eu/products/connectivitymodule/lpwa/overview/lineup/type-1se) module with built-in eSIM (ST4SIM-200M)|
-| Projects/B-L462E-CELL1/TYPE1SC-AIBP | [B-L462E-CELL1 Discovery kit](https://www.st.com/en/evaluation-tools/b-l462e-cell1.html) | [Murata TYPE 1SE](https://www.murata.com/en-eu/products/connectivitymodule/lpwa/overview/lineup/type-1se) module with built-in eSIM (ST4SIM-200M) <br /> Supports AI Bridging Protocol.|
+| Projects/STM32L496G-DISCO/UserApp/BG96 | [P-L496G-CELL02 Discovery kit](https://www.st.com/en/evaluation-tools/p-l496g-cell02.html) | [Quectel BG96](https://www.quectel.com/product/lpwa-bg96-cat-m1-nb1-egprs) default modem provided with kit |
+| Projects/STM32L496G-DISCO/UserApp/MONARCH | [P-L496G-CELL02 Discovery kit](https://www.st.com/en/evaluation-tools/p-l496g-cell02.html) | [Monarch GM01Q-STMOD](https://www.st.com/en/partner-products-and-services/monarch-gm01q-stmod.html) expansion board |
+| Projects/B-L462E-CELL1/UserApp/TYPE1SC | [B-L462E-CELL1 Discovery kit](https://www.st.com/en/evaluation-tools/b-l462e-cell1.html) | [Murata TYPE 1SE](https://www.murata.com/en-eu/products/connectivitymodule/lpwa/overview/lineup/type-1se) module with built-in eSIM (ST4SIM-200M)|
+| Projects/B-L462E-CELL1/UserApp/TYPE1SC-AIBP | [B-L462E-CELL1 Discovery kit](https://www.st.com/en/evaluation-tools/b-l462e-cell1.html) | [Murata TYPE 1SE](https://www.murata.com/en-eu/products/connectivitymodule/lpwa/overview/lineup/type-1se) module with built-in eSIM (ST4SIM-200M) <br /> Supports AI Bridging Protocol.|
 | Projects/B-U585I-IOT02A/BG96<br> | [B-U585I-IOT02A Discovery kit](https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html) | [Quectel BG96](https://www.quectel.com/product/lpwa-bg96-cat-m1-nb1-egprs) (provided with P-L496G-CELL02 devkit)
 
 The project was developed using [STM32Cube tools](https://www.st.com/en/ecosystems/stm32cube.html) ([STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) in particular).
@@ -20,6 +20,7 @@ The following LwM2M Objects are supported:
 - Security (/0),
 - Server (/1),
 - Device (/3),
+- Firmware Update (/5) (`STM32L496G-DISCO` and `B-L462E-CELL1` projects),
 - Temperature (/3303),
 - Humidity (/3304),
 - Accelerometer (/3313),
@@ -40,7 +41,9 @@ git clone --recursive https://github.com/AVSystem/Anjay-freertos-client
  - Download [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html)
  - Import the cloned project to your workspace
  - In the Project Explorer navigate to one of the [Project Path] taken from the table above, depending on the hardware you use.
- - Build and run `Anjay-freertos-client-[BOARD]-[MODEM]` configuration given for the selected project.
+ - To build and run the project:
+   - For `B-U585I-IOT02A` board: simply build and run `Anjay-freertos-client-B-U585I-IOT02A-BG96` configuration.
+   - For `STM32L496G-DISCO` and `B-L462E-CELL1` boards: please follow the instructions in `Projects/STM32L496G-DISCO/README.md` and `Projects/B-L462E-CELL1/README.md` respectively.
 
 ## Connecting to the LwM2M Server
 
@@ -48,7 +51,7 @@ To connect to [Coiote IoT Device Management](https://www.avsystem.com/products/c
 
 If you use BG96-based configuration, you must upgrade the firmware of the modem to at least `BG96MAR02A08M1G` revision. Older versions may cause an unexpected loss of connection.
 
-[Guide showing basic usage of Coiote DM](https://iotdevzone.avsystem.com/docs/Coiote_DM_Device_Onboarding/Quick_start/) is available on IoT Developer Zone.
+[Guide showing basic usage of Coiote DM](https://iotdevzone.avsystem.com/docs/Coiote_IoT_DM/Quick_Start/Connect_device_quickstart/) is available on IoT Developer Zone.
 
 
 ## Configuration menu

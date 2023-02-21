@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -153,12 +153,28 @@
  * <c>anjay_get_num_incoming_retransmissions()</c> and
  * <c>anjay_get_num_outgoing_retransmissions()</c> APIs.
  */
-#define ANJAY_WITH_NET_STATS
+/* #undef ANJAY_WITH_NET_STATS */
+
+/**
+ * Enable support for communication timestamp
+ * (<c>anjay_get_server_last_registration_time()</c>
+ * <c>anjay_get_server_next_update_time()</c> and
+ * <c>anjay_get_server_last_communication_time()</c>) APIs.
+ */
+/* #undef ANJAY_WITH_COMMUNICATION_TIMESTAMP_API */
 
 /**
  * Enable support for the <c>anjay_resource_observation_status()</c> API.
  */
 #define ANJAY_WITH_OBSERVATION_STATUS
+
+/**
+ * Maximum number of servers observing a given Resource listed by
+ * <c>anjay_resource_observation_status()</c> function.
+ *
+ * Only meaningful if <c>ANJAY_WITH_OBSERVATION_STATUS</c> is enabled.
+ */
+#define ANJAY_MAX_OBSERVATION_SERVERS_REPORTED_NUMBER 0
 
 /**
  * Enable guarding of all accesses to <c>anjay_t</c> with a mutex.
@@ -252,7 +268,7 @@
 /* #undef ANJAY_WITH_CORE_PERSISTENCE */
 
 /**
- * Enable support for CoAP Content-Format numerical values 1541-1543 that have
+ * Enable support for CoAP Content-Format numerical values 1541-1544 that have
  * been used before final LwM2M TS 1.0.
  */
 /* #undef ANJAY_WITH_LEGACY_CONTENT_FORMAT_SUPPORT */
@@ -263,7 +279,7 @@
  * NOTE: Anjay is only capable of generating this format, there is no parsing
  * support regardless of the state of this option.
  */
-#define ANJAY_WITH_LWM2M_JSON
+/* #undef ANJAY_WITH_LWM2M_JSON */
 
 /**
  * Disable support for TLV format as specified in LwM2M TS 1.0.
@@ -290,7 +306,7 @@
  * Disable support for "IP stickiness", i.e. preference of the same IP address
  * when reconnecting to a server using a domain name.
  */
-/* #undef ANJAY_WITHOUT_IP_STICKINESS */
+#define ANJAY_WITHOUT_IP_STICKINESS
 
 /**
  * Enable support for SenML JSON format, as specified in LwM2M TS 1.1.
@@ -433,6 +449,26 @@
 #define ANJAY_DTLS_SESSION_BUFFER_SIZE 1024
 
 /**
+ * Value of Content-Format used in Send messages. Only a few specific values are
+ * supported:
+ *
+ * - @c AVS_COAP_FORMAT_NONE means no default value is used and Anjay will
+ *   decide the format based on the what is available.
+ * - @c AVS_COAP_FORMAT_OMA_LWM2M_CBOR Anjay will generate a Send message in
+ *   LwM2M CBOR format.
+ * - @c AVS_COAP_FORMAT_SENML_CBOR Anjay will generate a Send message in SenML
+ *   CBOR format.
+ * - @c AVS_COAP_FORMAT_SENML_JSON Anjay will generate a Send message in SenML
+ *   JSON format.
+ *
+ * Note that to use a specific format it must be available during compilation.
+ *
+ * The default value defined in CMake build scripts is
+ * <c>AVS_COAP_FORMAT_NONE</c>.
+ */
+#define ANJAY_DEFAULT_SEND_FORMAT AVS_COAP_FORMAT_NONE
+
+/**
  * Optional Anjay modules.
  */
 /**@{*/
@@ -441,7 +477,7 @@
  *
  * Requires <c>ANJAY_WITH_ACCESS_CONTROL</c> to be enabled.
  */
-#define ANJAY_WITH_MODULE_ACCESS_CONTROL
+/* #undef ANJAY_WITH_MODULE_ACCESS_CONTROL */
 
 /**
  * Enable security module (implementation of the LwM2M Security object).
@@ -474,6 +510,14 @@
  * Enable fw_update module (implementation of the Firmware Update object).
  */
 #define ANJAY_WITH_MODULE_FW_UPDATE
+
+/**
+ * Disable support for PUSH mode Firmware Update.
+ *
+ * Only meaningful if <c>ANJAY_WITH_MODULE_FW_UPDATE</c> is enabled. Requires
+ * <c>ANJAY_WITH_DOWNLOADER</c> to be enabled.
+ */
+/* #undef ANJAY_WITHOUT_MODULE_FW_UPDATE_PUSH_MODE */
 
 /**
  * Enables ipso_objects module (generic implementation of the following kinds of

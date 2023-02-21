@@ -53,6 +53,7 @@ void BusFault_Handler(void);
 void UsageFault_Handler(void);
 void DebugMon_Handler(void);
 void EXTI6_IRQHandler(void);
+void GPDMA1_Channel4_IRQHandler(void);
 void TIM3_IRQHandler(void);
 void USART1_IRQHandler(void);
 void USART3_IRQHandler(void);

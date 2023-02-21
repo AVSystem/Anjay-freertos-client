@@ -44,7 +44,7 @@ extern "C" {
 /** @defgroup STM32L462E_CELL1_BUS_Exported_Constants STM32L462E_CELL1 BUS Exported Constants
   * @{
   */
-#define USE_I2C1_SEMAPHORE (1)
+#define USE_I2C1_SEMAPHORE (0)
 
 #ifndef BUS_I2C1_POLL_TIMEOUT
 #define BUS_I2C1_POLL_TIMEOUT                ((uint32_t)0x1000U)

@@ -56,12 +56,8 @@ extern "C" {
 
 #define UDP_SERVICE_SUPPORTED                (1U)
 #define CONFIG_MODEM_UDP_SERVICE_CONNECT_IP  ((uint8_t *)"0.0.0.0")
-#define CONFIG_MODEM_MAX_SOCKET_TX_DATA_SIZE ((uint32_t)710U) /* sendto managed, remote IP/port should be send
-                                                                 IPv6/IPv4: protocol around 80/50 bytes
-                                                                 data send in ASCII format:(1500-80)/2 = 710 */
-#define CONFIG_MODEM_MAX_SOCKET_RX_DATA_SIZE ((uint32_t)750U) /* receivefrom managed, remote IP/port should be received
-                                                                 IPv6/IPv4: protocol around 80/50 bytes
-                                                                 data received in ASCII format:(1600-80)/2 = 760 */
+#define CONFIG_MODEM_MAX_SOCKET_TX_DATA_SIZE ((uint32_t)1500U)
+#define CONFIG_MODEM_MAX_SOCKET_RX_DATA_SIZE ((uint32_t)1500U)
 #define CONFIG_MODEM_MAX_SIM_GENERIC_ACCESS_CMD_SIZE ((uint32_t)1460U)
 #define CONFIG_MODEM_MIN_SIM_GENERIC_ACCESS_RSP_SIZE ((uint32_t)4U)
 

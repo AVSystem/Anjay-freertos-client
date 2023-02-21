@@ -1,0 +1,25 @@
+# Following patch was applied to X-Cube-Cellular 7.0.0 to make
+# offloaded sockets work properly when Reduced C (--specs=nano.specs)
+# Runtime library is selected.
+#
+# Otherwise, the resulting string is "hu.hu.hu.hu".
+#
+# The source of problem is that nano.specs newlib does not have
+# support for C99 format specifiers (including hhd/hhu).
+diff --git a/Middlewares/ST/STM32_Cellular/Interface/Com/Src/com_sockets_ip_modem.c b/Middlewares/ST/STM32_Cellular/Interface/Com/Src/com_sockets_ip_modem.c
+index a05b628..3fd5397 100644
+--- a/Middlewares/ST/STM32_Cellular/Interface/Com/Src/com_sockets_ip_modem.c
++++ b/Middlewares/ST/STM32_Cellular/Interface/Com/Src/com_sockets_ip_modem.c
+@@ -578,9 +578,9 @@ static bool com_translate_ip_address(const com_sockaddr_t *p_addr, int32_t addrl
+         {
+           com_ip_addr_t com_ip_addr;
+           com_ip_addr.addr = ((const com_sockaddr_in_t *)p_addr)->sin_addr.s_addr;
+-          (void)sprintf((CSIP_CHAR_t *)p_socket_addr->ip_value, "%hhu.%hhu.%hhu.%hhu",
+-                        COM_IP4_ADDR1(&com_ip_addr), COM_IP4_ADDR2(&com_ip_addr),
+-                        COM_IP4_ADDR3(&com_ip_addr), COM_IP4_ADDR4(&com_ip_addr));
++          (void)sprintf((CSIP_CHAR_t *)p_socket_addr->ip_value, "%u.%u.%u.%u",
++                        (unsigned int)COM_IP4_ADDR1(&com_ip_addr), (unsigned int)COM_IP4_ADDR2(&com_ip_addr),
++                        (unsigned int)COM_IP4_ADDR3(&com_ip_addr), (unsigned int)COM_IP4_ADDR4(&com_ip_addr));
+         }
+         p_socket_addr->port = COM_NTOHS(((const com_sockaddr_in_t *)p_addr)->sin_port);
+         result = true;

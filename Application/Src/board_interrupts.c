@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@
 #include "ipc_uart.h"
 
 #include "at_modem_api.h"
+#include "console.h"
 
 /* NOTE : this code is designed for FreeRTOS */
 
@@ -92,6 +93,9 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == MODEM_UART_INSTANCE) {
         IPC_UART_ErrorCallback(huart);
+    } else if (huart->Instance == g_console_huart->Instance) {
+        console_write(CONSOLE_OVERRUN_ERR, sizeof(CONSOLE_OVERRUN_ERR));
+        HAL_NVIC_SystemReset();
     }
 }
 

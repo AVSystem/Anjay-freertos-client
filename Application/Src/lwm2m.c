@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@
 #include "dc_common.h"
 #include "error_handler.h"
 
+#include "config_persistence.h"
 #include "lwm2m.h"
 #include "menu.h"
 
@@ -37,14 +38,16 @@
 #include "joystick_object.h"
 #include "sensor_objects.h"
 
+#ifdef USE_FW_UPDATE
+#include "firmware_update.h"
+#endif /* USE_FW_UPDATE */
+
 #ifdef USE_AIBP
 #include "ai_bridge.h"
 #include "anomaly_detector_object.h"
 #include "ml_model_object.h"
 #include "pattern_detector_object.h"
 #endif
-
-#include "lwip/sockets.h"
 
 #define LOG(level, ...) avs_log(app, level, __VA_ARGS__)
 
@@ -157,18 +160,38 @@ static int setup_security_object() {
         return -1;
     }
 
-    const char *endpoint_name = config_get_endpoint_name();
-    const char *psk = config_get_psk();
-
-    const anjay_security_instance_t security_instance = {
+    anjay_security_instance_t security_instance = {
         .ssid = 1,
         .server_uri = config_get_server_uri(),
-        .security_mode = ANJAY_SECURITY_PSK,
-        .public_cert_or_psk_identity = (uint8_t *) endpoint_name,
-        .public_cert_or_psk_identity_size = strlen(endpoint_name),
-        .private_cert_or_psk_key = (uint8_t *) psk,
-        .private_cert_or_psk_key_size = strlen(psk)
     };
+    if (strcmp(g_config.security, "psk") == 0) {
+        security_instance.security_mode = ANJAY_SECURITY_PSK;
+    } else if (strcmp(g_config.security, "cert") == 0) {
+        security_instance.security_mode = ANJAY_SECURITY_CERTIFICATE;
+    } else {
+        security_instance.security_mode = ANJAY_SECURITY_NOSEC;
+    }
+
+    if (security_instance.security_mode != ANJAY_SECURITY_NOSEC) {
+        security_instance.public_cert_or_psk_identity =
+                (uint8_t *) g_config.public_cert_or_psk_identity;
+        security_instance.public_cert_or_psk_identity_size =
+                strlen(g_config.public_cert_or_psk_identity);
+        security_instance.private_cert_or_psk_key =
+                (uint8_t *) g_config.private_cert_or_psk_key;
+        security_instance.private_cert_or_psk_key_size =
+                strlen(g_config.private_cert_or_psk_key);
+        if (strcmp(g_config.security, "cert") == 0) {
+            security_instance.public_cert_or_psk_identity_size += 1;
+            security_instance.private_cert_or_psk_key_size += 1;
+        }
+    }
+
+    if (g_config.bootstrap[0] == 'y') {
+        security_instance.bootstrap_server = true;
+    } else {
+        security_instance.bootstrap_server = false;
+    }
 
     anjay_iid_t security_instance_id = ANJAY_ID_INVALID;
     return anjay_security_object_add_instance(g_anjay, &security_instance,
@@ -179,7 +202,9 @@ static int setup_server_object() {
     if (anjay_server_object_install(g_anjay)) {
         return -1;
     }
-
+    if (g_config.bootstrap[0] == 'y') {
+        return 0;
+    }
     const anjay_server_instance_t server_instance = {
         .ssid = 1,
         .lifetime = 60,
@@ -195,7 +220,6 @@ static int setup_server_object() {
 }
 
 void lwm2m_init(void) {
-    menu_init();
 
     osMessageQDef(status_msg_queue, 1, uint32_t);
     status_msg_queue = osMessageCreate(osMessageQ(status_msg_queue), NULL);
@@ -241,6 +265,9 @@ void lwm2m_init(void) {
     basic_sensor_objects_install(g_anjay);
     three_axis_sensor_objects_install(g_anjay);
     joystick_object_install(g_anjay);
+#ifdef USE_FW_UPDATE
+    fw_update_install(g_anjay);
+#endif /* USE_FW_UPDATE */
 
 #ifdef USE_AIBP
     ml_model_object_install(g_anjay);

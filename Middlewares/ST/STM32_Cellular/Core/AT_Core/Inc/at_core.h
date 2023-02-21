@@ -44,7 +44,11 @@ extern "C" {
 /* Define buffers max sizes */
 #define ATCMD_MAX_NAME_SIZE  ((uint16_t) 32U)
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+#ifdef USE_TYPE1SC_MODEM
+#define ATCMD_MAX_CMD_SIZE   ((uint16_t) 3080U)
+#else
 #define ATCMD_MAX_CMD_SIZE   ((uint16_t) 1600U)
+#endif /* USE_TYPE1SC_MODEM */
 #else
 #define ATCMD_MAX_CMD_SIZE   ((uint16_t) 128U)
 #endif /* USE_SOCKETS_TYPE */

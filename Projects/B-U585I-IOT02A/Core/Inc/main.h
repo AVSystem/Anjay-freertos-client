@@ -104,6 +104,7 @@ void Error_Handler(void);
 #define MODEM_UART_CTS_GPIO_Port GPIOD
 #define MODEM_RST_Pin GPIO_PIN_13
 #define MODEM_RST_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

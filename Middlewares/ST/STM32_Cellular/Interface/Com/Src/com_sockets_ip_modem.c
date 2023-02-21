@@ -578,9 +578,9 @@ static bool com_translate_ip_address(const com_sockaddr_t *p_addr, int32_t addrl
         {
           com_ip_addr_t com_ip_addr;
           com_ip_addr.addr = ((const com_sockaddr_in_t *)p_addr)->sin_addr.s_addr;
-          (void)sprintf((CSIP_CHAR_t *)p_socket_addr->ip_value, "%hhu.%hhu.%hhu.%hhu",
-                        COM_IP4_ADDR1(&com_ip_addr), COM_IP4_ADDR2(&com_ip_addr),
-                        COM_IP4_ADDR3(&com_ip_addr), COM_IP4_ADDR4(&com_ip_addr));
+          (void)sprintf((CSIP_CHAR_t *)p_socket_addr->ip_value, "%u.%u.%u.%u",
+                        (unsigned int)COM_IP4_ADDR1(&com_ip_addr), (unsigned int)COM_IP4_ADDR2(&com_ip_addr),
+                        (unsigned int)COM_IP4_ADDR3(&com_ip_addr), (unsigned int)COM_IP4_ADDR4(&com_ip_addr));
         }
         p_socket_addr->port = COM_NTOHS(((const com_sockaddr_in_t *)p_addr)->sin_port);
         result = true;

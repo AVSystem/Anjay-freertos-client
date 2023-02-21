@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,12 @@
 
 #define DEFAULT_SERVER_URI "coaps://eu.iot.avsystem.cloud:5684"
 #define DEFAULT_PSK "psk"
+#define DEFAULT_BOOTSTRAP "n"
+#define DEFAULT_SECURITY "psk"
 #define DEFAULT_APN "internet"
 #define DEFAULT_APN_USERNAME "internet"
 #define DEFAULT_APN_PASSWORD "internet"
+#define FIRMWARE_VERSION "23.02"
 
 void generate_default_endpoint_name(char *endpoint_name, size_t len);
 

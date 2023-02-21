@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -155,7 +155,7 @@
  *
  * Only meaningful if <c>WITH_AVS_COAP_LOGS</c> is enabled.
  */
-#define WITH_AVS_COAP_TRACE_LOGS
+/* #undef WITH_AVS_COAP_TRACE_LOGS */
 
 /**
  * Enable poisoning of unwanted symbols when compiling avs_coap.

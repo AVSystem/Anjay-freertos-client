@@ -18,6 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "gpdma.h"
+#include "icache.h"
 #include "rng.h"
 #include "rtc.h"
 #include "usart.h"
@@ -50,6 +52,7 @@ UART_HandleTypeDef *const g_console_huart = &huart1;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+static void SystemPower_Config(void);
 /* USER CODE BEGIN PFP */
 void MX_FREERTOS_Init(void);
 /* USER CODE END PFP */
@@ -74,10 +77,6 @@ int main(void)
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /** Disable the internal Pull-Up in Dead Battery pins of UCPD peripheral
-  */
-  HAL_PWREx_DisableUCPDDeadBattery();
-
   /* USER CODE BEGIN Init */
 
   /* USER CODE END Init */
@@ -85,15 +84,20 @@ int main(void)
   /* Configure the system clock */
   SystemClock_Config();
 
+  /* Configure the System Power */
+  SystemPower_Config();
+
   /* USER CODE BEGIN SysInit */
 
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_GPDMA1_Init();
   MX_USART1_UART_Init();
-  MX_RNG_Init();
   MX_RTC_Init();
+  MX_RNG_Init();
+  MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
   MX_FREERTOS_Init();
   osKernelStart();
@@ -125,7 +129,8 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB busses clocks
+
+  /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_LSI
                               |RCC_OSCILLATORTYPE_MSI;
@@ -149,7 +154,8 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB busses clocks
+
+  /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
@@ -164,7 +170,19 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  __HAL_RCC_PWR_CLK_DISABLE();
+}
+
+/**
+  * @brief Power Configuration
+  * @retval None
+  */
+static void SystemPower_Config(void)
+{
+
+  /*
+   * Disable the internal Pull-Up in Dead Battery pins of UCPD peripheral
+   */
+  HAL_PWREx_DisableUCPDDeadBattery();
 }
 
 /* USER CODE BEGIN 4 */
@@ -223,4 +241,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-

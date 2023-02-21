@@ -31,9 +31,15 @@ extern "C" {
 #define IPC_BUFFER_EXT    ((uint16_t) 400U) /* size added to RX buffer because of RX queue implementation (using
                                             * headers for messages)
                                             */
+#ifdef USE_TYPE1SC_MODEM
+#define IPC_RXBUF_MAXSIZE ((uint16_t) 3080U + IPC_BUFFER_EXT) /* maximum size of character queue
+                                                              * size has to match ATCMD_MAX_CMD_SIZE
+                                                              */
+#else
 #define IPC_RXBUF_MAXSIZE ((uint16_t) 1600U + IPC_BUFFER_EXT) /* maximum size of character queue
                                                               * size has to match ATCMD_MAX_CMD_SIZE
                                                               */
+#endif /* USE_TYPE1SC_MODEM */
 
 /* IPC tuning parameters */
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)

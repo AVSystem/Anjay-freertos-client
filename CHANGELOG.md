@@ -1,5 +1,16 @@
 # Changelog
 
+## 23.02 (Feb 21st, 2023)
+
+### Features
+- Reworked socket implementation to use X-Cube-Cellular offloaded sockets
+  (Com sockets) instead of LwIP (NOTE: currently supporting only UDP)
+- Added Firmware Update Object (/5) to STM32L496G-DISCOVERY and B-L462E-CELL1 projects
+
+### Improvements
+- Revamped configuration of Anjay and its dependencies
+- Updated Anjay to version 3.3.0
+
 ## 22.09 (Sep 21st, 2022)
 
 ### Features

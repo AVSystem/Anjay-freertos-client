@@ -1,0 +1,3 @@
+show SE_APP_GetActiveFwInfo
+show SE_APP_ValidateFw
+show SE_APP_GetActiveFwState

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,11 +88,11 @@ uint8_t ai_bridge_get_type() {
 
         switch (buffer[0]) {
         case AI_BRIDGE_ANOMALY_HEADER:
-            console_write("AI ANOMALY DETECTION\r\n");
+            console_printf("AI ANOMALY DETECTION\r\n");
             ai_bridge_type = AI_BRIDGE_ANOMALY_TYPE;
             return AI_BRIDGE_ANOMALY_TYPE;
         case AI_BRIDGE_CLASSIFIER_HEADER:
-            console_write("AI CLASSIFIER\r\n");
+            console_printf("AI CLASSIFIER\r\n");
             ai_bridge_type = AI_BRIDGE_CLASSIFIER_TYPE;
             return AI_BRIDGE_CLASSIFIER_TYPE;
         default:
@@ -101,7 +101,7 @@ uint8_t ai_bridge_get_type() {
         }
     }
 
-    console_write("AI BRIDGE UNKNOWN TYPE\r\n");
+    console_printf("AI BRIDGE UNKNOWN TYPE\r\n");
     return AI_BRIDGE_UNKNOWN_TYPE;
 }
 
@@ -144,7 +144,7 @@ uint8_t ai_bridge_get_classes() {
             console_write("Number of classes:%d\r\n", ai_bridge_num_of_classes);
 
             for (int k = 0; k < ai_bridge_num_of_classes; k++) {
-                console_write("[%d] = %s\r\n", k, ai_bridge_classes[k]);
+                console_printf("[%d] = %s\r\n", k, ai_bridge_classes[k]);
             }
 
             return AI_BRIDGE_CLASSIFIER_TYPE;

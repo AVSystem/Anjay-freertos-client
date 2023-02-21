@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2022 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2023 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,14 @@
 
 #include <stddef.h>
 
-void console_read_line(char *buffer, size_t size);
-void console_write(const char *format, ...);
+void console_read_line(char *buffer, size_t size, char end_char);
+void console_printf(const char *format, ...);
+void console_write(const char *buf, size_t len);
 bool console_wait_for_key_press(uint32_t timeout_ms);
+void console_init();
 
+extern UART_HandleTypeDef *const g_console_huart;
+
+#define CONSOLE_OVERRUN_ERR \
+    "\r\nUART buffer overrun. Paste data in smaller chunks. Resetting...\r\n"
 #endif // CONSOLE_H
