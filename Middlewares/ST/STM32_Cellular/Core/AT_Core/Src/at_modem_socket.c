@@ -72,7 +72,8 @@
 
 /**
   * @brief  This function reserve a modem connection Id (ID shared between at-custom and the modem)
-  *         to a socket handle (ID shared between upper layers and at-custom)
+  *         to a socket handle (ID shared between upper layers and at-custom).
+  * @note   This function is used for modems using CID chosen by Host.
   * @param  p_modem_ctxt Pointer to modem context.
   * @param  sockHandle Socket handle.
   * @retval at_status_t
@@ -81,6 +82,8 @@ at_status_t atcm_socket_reserve_modem_cid(atcustom_modem_context_t *p_modem_ctxt
 {
   at_status_t retval;
 
+  PRINT_DBG("atcm_socket_reserve_modem_cid for socket handle %ld", sockHandle)
+
   if (sockHandle == CS_INVALID_SOCKET_HANDLE)
   {
     PRINT_INFO("socket handle %ld not valid", sockHandle)
@@ -88,6 +91,7 @@ at_status_t atcm_socket_reserve_modem_cid(atcustom_modem_context_t *p_modem_ctxt
   }
   else
   {
+    /* reset socket parameters */
     p_modem_ctxt->persist.socket[sockHandle].socket_connected = AT_FALSE;
     p_modem_ctxt->persist.socket[sockHandle].socket_data_pending_urc = AT_FALSE;
     p_modem_ctxt->persist.socket[sockHandle].socket_data_available = AT_FALSE;
@@ -100,7 +104,8 @@ at_status_t atcm_socket_reserve_modem_cid(atcustom_modem_context_t *p_modem_ctxt
 
 /**
   * @brief  This function release a modem connection Id (ID shared between at-custom and the modem)
-  *         to a socket handle (ID shared between upper layers and at-custom)
+  *         to a socket handle (ID shared between upper layers and at-custom).
+  * @note   This function is used for modems using CID chosen by Host.
   * @param  p_modem_ctxt Pointer to modem context.
   * @param  sockHandle Socket handle.
   * @retval at_status_t
@@ -108,6 +113,8 @@ at_status_t atcm_socket_reserve_modem_cid(atcustom_modem_context_t *p_modem_ctxt
 at_status_t atcm_socket_release_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle)
 {
   at_status_t retval;
+
+  PRINT_DBG("atcm_socket_release_modem_cid for socket handle %ld", sockHandle)
 
   if (sockHandle == CS_INVALID_SOCKET_HANDLE)
   {
@@ -126,6 +133,87 @@ at_status_t atcm_socket_release_modem_cid(atcustom_modem_context_t *p_modem_ctxt
                  p_modem_ctxt->persist.socket[sockHandle].socket_closed_pending_urc)
     }
 
+    /* reset socket parameters */
+    p_modem_ctxt->persist.socket[sockHandle].socket_connected = AT_FALSE;
+    p_modem_ctxt->persist.socket[sockHandle].socket_data_pending_urc = AT_FALSE;
+    p_modem_ctxt->persist.socket[sockHandle].socket_data_available = AT_FALSE;
+    p_modem_ctxt->persist.socket[sockHandle].socket_closed_pending_urc = AT_FALSE;
+    retval = ATSTATUS_OK;
+  }
+
+  return (retval);
+}
+
+/**
+  * @brief  This function assign a modem connection Id (ID shared between at-custom and the modem)
+  *         to a socket handle (ID shared between upper layers and at-custom)
+  * @note   This function is used for modems using CID chosen by themselves.
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  sockHandle Socket handle.
+  * @param  modemcid Modem CID value.
+  * @retval at_status_t
+  */
+at_status_t atcm_socket_assign_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle,
+                                         uint32_t modemcid)
+{
+  at_status_t retval;
+
+  PRINT_DBG("atcm_socket_assign_modem_cid for socket handle %ld", sockHandle)
+
+  if (sockHandle == CS_INVALID_SOCKET_HANDLE)
+  {
+    PRINT_INFO("socket handle %ld not valid", sockHandle)
+    retval = ATSTATUS_ERROR;
+  }
+  else
+  {
+    p_modem_ctxt->persist.socket[sockHandle].socket_connId_value = (uint8_t) modemcid;
+
+    /* reset socket parameters */
+    p_modem_ctxt->persist.socket[sockHandle].socket_connected = AT_FALSE;
+    p_modem_ctxt->persist.socket[sockHandle].socket_data_pending_urc = AT_FALSE;
+    p_modem_ctxt->persist.socket[sockHandle].socket_data_available = AT_FALSE;
+    p_modem_ctxt->persist.socket[sockHandle].socket_closed_pending_urc = AT_FALSE;
+    retval = ATSTATUS_OK;
+  }
+
+  return (retval);
+}
+
+/**
+  * @brief  This function unassign a modem connection Id (ID shared between at-custom and the modem)
+  *         to a socket handle (ID shared between upper layers and at-custom)
+  * @note   This function is used for modems using CID chosen by themselves.
+  * @param  p_modem_ctxt Pointer to modem context.
+  * @param  sockHandle Socket handle.
+  * @retval at_status_t
+  */
+at_status_t atcm_socket_unassign_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle)
+{
+  at_status_t retval;
+
+  PRINT_DBG("atcm_socket_unassign_modem_cid for socket handle %ld", sockHandle)
+
+  if (sockHandle == CS_INVALID_SOCKET_HANDLE)
+  {
+    PRINT_INFO("socket handle %ld not valid", sockHandle)
+    retval = ATSTATUS_ERROR;
+  }
+  else
+  {
+    if ((p_modem_ctxt->persist.socket[sockHandle].socket_data_pending_urc == AT_TRUE) ||
+        (p_modem_ctxt->persist.socket[sockHandle].socket_closed_pending_urc == AT_TRUE))
+    {
+      /* Trace only */
+      PRINT_INFO("Warning, there was pending URC for socket handle %ld: (%d)data pending urc,(%d) closed by remote urc",
+                 sockHandle,
+                 p_modem_ctxt->persist.socket[sockHandle].socket_data_pending_urc,
+                 p_modem_ctxt->persist.socket[sockHandle].socket_closed_pending_urc)
+    }
+
+    p_modem_ctxt->persist.socket[sockHandle].socket_connId_value = UNDEFINED_MODEM_SOCKET_ID;
+
+    /* reset socket parameters */
     p_modem_ctxt->persist.socket[sockHandle].socket_connected = AT_FALSE;
     p_modem_ctxt->persist.socket[sockHandle].socket_data_pending_urc = AT_FALSE;
     p_modem_ctxt->persist.socket[sockHandle].socket_data_available = AT_FALSE;
@@ -159,34 +247,6 @@ uint32_t atcm_socket_get_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socke
   }
 
   return (cid);
-}
-
-/**
-  * @brief  This function affect a modem connection Id (ID shared between at-custom and the modem)
-  *         to a socket handle (ID shared between upper layers and at-custom)
-  *         It is used when the modem cid is affected by the modem.
-  * @param  p_modem_ctxt Pointer to modem context.
-  * @param  sockHandle Socket handle.
-  * @param  modemcid Modem CID value.
-  * @retval at_status_t
-  */
-at_status_t atcm_socket_set_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle,
-                                      uint32_t modemcid)
-{
-  at_status_t retval;
-
-  if (sockHandle == CS_INVALID_SOCKET_HANDLE)
-  {
-    PRINT_INFO("socket handle %ld not valid", sockHandle)
-    retval = ATSTATUS_ERROR;
-  }
-  else
-  {
-    p_modem_ctxt->persist.socket[sockHandle].socket_connId_value = (uint8_t) modemcid;
-    retval = ATSTATUS_OK;
-  }
-
-  return (retval);
 }
 
 /**

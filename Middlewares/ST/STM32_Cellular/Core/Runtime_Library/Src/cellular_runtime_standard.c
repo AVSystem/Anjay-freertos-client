@@ -79,7 +79,7 @@ uint8_t *crs_itoa(int32_t num, uint8_t *str, uint32_t base)
       rem = num_tmp % (int32_t)base;
       if ((rem > 9))
       {
-        /* hexdecimal digit */
+        /* hexadecimal digit */
         char32 = ((rem - 10) + (int32_t)'a');
         str[i] = (uint8_t)char32;
       }

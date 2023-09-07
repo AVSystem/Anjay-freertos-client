@@ -251,7 +251,7 @@ at_status_t fCmdBuild_CFUN(atparser_context_t *p_atp_ctxt, atcustom_modem_contex
         fun = 0U; /* default value, if CS_CMI_MINI */
       }
 
-      (modemInit_struct->reset == CELLULAR_TRUE) ? (rst = 1U) : (rst = 0U);
+      (modemInit_struct->reset == CS_TRUE) ? (rst = 1U) : (rst = 0U);
       (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,%d", fun, rst);
     }
     else /* user settings */
@@ -281,7 +281,7 @@ at_status_t fCmdBuild_COPS(atparser_context_t *p_atp_ctxt, atcustom_modem_contex
 
     if (operatorSelect->mode == CS_NRM_AUTO)
     {
-      if (operatorSelect->AcT_present == CELLULAR_FALSE)
+      if (operatorSelect->AcT_present == CS_FALSE)
       {
         /* no specific Access Technology is requested */
         (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "0");
@@ -313,7 +313,7 @@ at_status_t fCmdBuild_COPS(atparser_context_t *p_atp_ctxt, atcustom_modem_contex
       * in manual modes. */
       if (operatorSelect->format != CS_ONF_NOT_PRESENT)
       {
-        if (operatorSelect->AcT_present == CELLULAR_FALSE)
+        if (operatorSelect->AcT_present == CS_FALSE)
         {
           /* no specific Access Technology is requested */
           (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d,%d,\"%s\"",
@@ -578,7 +578,7 @@ at_status_t fCmdBuild_CGDCONT(atparser_context_t *p_atp_ctxt, atcustom_modem_con
     PRINT_INFO("user cid = %d, modem cid = %d", (uint8_t)current_conf_id, modem_cid)
 
     /* build command */
-    if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CELLULAR_TRUE)
+    if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CS_TRUE)
     {
       /* use the APN explicitly providedby user */
       p_apn = (CS_CHAR_t *) &p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn;
@@ -719,22 +719,34 @@ at_status_t fCmdBuild_CGDATA(atparser_context_t *p_atp_ctxt, atcustom_modem_cont
   /* only for write command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
   {
-    CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
-    uint8_t modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
-
-    /* check if this PDP context has been defined */
-    if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].conf_id == CS_PDN_NOT_DEFINED)
+    if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DATA_RESUME)
     {
-      /* Trace only */
-      PRINT_INFO("PDP context not explicitly defined for conf_id %d (using modem params)", current_conf_id)
+      /* Enter data state after a suspend request (PPP mode only).
+       * In this case, resume all session, do not specify <cid> parameter.
+       * Note: only for modem using CGDATA command to resume data mode (instead of ATO).
+       */
+      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"PPP\"");
     }
+    else
+    {
+      /* default case */
+      CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
+      uint8_t modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
 
-    /* Enter data state
-      *  3GPP TS 27.007
-      *  AT+CGDATA[=<L2P>[,<cid>[,<cid>[,...]]]]
-      */
-    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"PPP\",%d",
-                   modem_cid);
+      /* check if this PDP context has been defined */
+      if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].conf_id == CS_PDN_NOT_DEFINED)
+      {
+        /* Trace only */
+        PRINT_INFO("PDP context not explicitly defined for conf_id %d (using modem params)", current_conf_id)
+      }
+
+      /* Enter data state
+        *  3GPP TS 27.007
+        *  AT+CGDATA[=<L2P>[,<cid>[,<cid>[,...]]]]
+        */
+      (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"PPP\",%d",
+                     modem_cid);
+    }
   }
 
   return (retval);
@@ -793,10 +805,11 @@ at_status_t fCmdBuild_ATD(atparser_context_t *p_atp_ctxt, atcustom_modem_context
   /* only for execution command, set parameters */
   if (p_atp_ctxt->current_atcmd.type == ATTYPE_EXECUTION_CMD)
   {
-    /* actually implemented specifically for each modem
-      *  following example is not guaranteed ! (cid is not specified here)
-      */
-    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "*99#");
+    CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
+    uint8_t modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
+    PRINT_INFO("Activate PDN (user cid = %d, modem cid = %d)", (uint8_t)current_conf_id, modem_cid)
+
+    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "*99***%d#", modem_cid);
   }
   return (retval);
 }
@@ -1058,7 +1071,7 @@ at_status_t fCmdBuild_CPSMS(atparser_context_t *p_atp_ctxt, atcustom_modem_conte
      *   001: value is incremented in multiples of 1 minute
      *   010: value is incremented in multiples of 10 hours
      *   111: value indicates that the timer is deactivated
-     *   other values shall be interpreted as mutliples of 1 minute
+     *   other values shall be interpreted as multiples of 1 minute
      *
      * exple:
      * AT+CPSMS=1,,,"00000100","00001111"
@@ -1094,7 +1107,7 @@ at_status_t fCmdBuild_CPSMS(atparser_context_t *p_atp_ctxt, atcustom_modem_conte
                                                  (uint8_t)sizeof(req_active_time),
                                                  &req_active_time[0]);
 
-    if (p_modem_ctxt->SID_ctxt.set_power_config.psm_present == CELLULAR_TRUE)
+    if (p_modem_ctxt->SID_ctxt.set_power_config.psm_present == CS_TRUE)
     {
       if (p_modem_ctxt->SID_ctxt.set_power_config.psm_mode == PSM_MODE_DISABLE)
       {
@@ -1125,7 +1138,7 @@ at_status_t fCmdBuild_CPSMS(atparser_context_t *p_atp_ctxt, atcustom_modem_conte
        *                req_periodic_rau,
        *                req_gprs_ready_time,
        *                req_periodic_tau,
-       *                req_active_time );
+       *                req_active_time )
        */
 
     }
@@ -1178,7 +1191,7 @@ at_status_t fCmdBuild_CEDRXS(atparser_context_t *p_atp_ctxt, atcustom_modem_cont
      * Set the requested e-I-DRX value to 5.12 second
     */
 
-    if (p_modem_ctxt->SID_ctxt.set_power_config.edrx_present == CELLULAR_TRUE)
+    if (p_modem_ctxt->SID_ctxt.set_power_config.edrx_present == CS_TRUE)
     {
       uint8_t edrx_req_value[5] = {0};
       (void) ATutil_convert_uint8_to_binary_string((uint32_t) p_modem_ctxt->SID_ctxt.set_power_config.edrx.req_value,
@@ -1277,14 +1290,14 @@ at_status_t fCmdBuild_DIRECT_CMD(atparser_context_t *p_atp_ctxt, atcustom_modem_
       if (p_modem_ctxt->SID_ctxt.p_direct_cmd_tx->cmd_size != 0U)
       {
         uint32_t str_size = p_modem_ctxt->SID_ctxt.p_direct_cmd_tx->cmd_size;
-        (void) memcpy((void *)p_atp_ctxt->current_atcmd.params,
+        (void) memcpy((CS_CHAR_t *)p_atp_ctxt->current_atcmd.params,
                       (const CS_CHAR_t *)p_modem_ctxt->SID_ctxt.p_direct_cmd_tx->cmd_str,
                       str_size);
 
         /* add termination characters */
         uint32_t endstr_size = strlen((CRC_CHAR_t *)&p_atp_ctxt->endstr);
         (void) memcpy((void *)&p_atp_ctxt->current_atcmd.params[str_size],
-                      p_atp_ctxt->endstr,
+                      (void *)p_atp_ctxt->endstr,
                       endstr_size);
 
         /* set raw command size */

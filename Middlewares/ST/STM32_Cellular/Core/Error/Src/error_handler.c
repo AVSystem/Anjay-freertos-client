@@ -106,8 +106,7 @@ void ERROR_Handler(dbg_channels_t chan, int32_t errorId, error_gravity_t gravity
   if (gravity == ERROR_FATAL)
   {
     HAL_Delay(1000U);
-    NVIC_SystemReset();
-    /* Infinite loop is done in NVIC_SystemReset(); */
+    NVIC_SystemReset(); /* Infinite loop done in NVIC_SystemReset() */
   }
 
   /* increment error index */

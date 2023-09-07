@@ -70,6 +70,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
     }
 }
 
+void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin) {
+    HAL_GPIO_EXTI_Callback(GPIO_Pin);
+}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == MODEM_UART_INSTANCE) {
         IPC_UART_RxCpltCallback(huart);

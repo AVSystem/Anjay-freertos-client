@@ -201,7 +201,7 @@
 /**
  * Enable support for features new to LwM2M protocol version 1.1.
  */
-/* #undef ANJAY_WITH_LWM2M11 */
+#define ANJAY_WITH_LWM2M11
 
 /**
  * Enable support for OSCORE-based security for LwM2M connections.
@@ -258,14 +258,21 @@
  * (<c>anjay_new_from_core_persistence()</c> and
  * <c>anjay_delete_with_core_persistence()</c> APIs).
  *
- * Requires <c>ANJAY_WITH_OBSERVE</c> to be enabled, and
- * <c>AVS_COMMONS_WITH_AVS_PERSISTENCE</c> to be enabled in avs_commons
+ * Requires <c>ANJAY_WITH_OBSERVE</c> to be enabled,
+ * <c>AVS_COMMONS_WITH_AVS_PERSISTENCE</c> to be enabled in avs_commons, and
+ * <c>WITH_AVS_COAP_OBSERVE_PERSISTENCE</c> to be enabled in avs_coap
  * configuration.
  *
  * IMPORTANT: Only available as a commercial feature. Ignored in the open
  * source version.
  */
 /* #undef ANJAY_WITH_CORE_PERSISTENCE */
+
+/**
+ * Disable automatic closing of server connection sockets after
+ * MAX_TRANSMIT_WAIT of inactivity.
+ */
+/* #undef ANJAY_WITHOUT_QUEUE_MODE_AUTOCLOSE */
 
 /**
  * Enable support for CoAP Content-Format numerical values 1541-1544 that have
@@ -512,6 +519,12 @@
 #define ANJAY_WITH_MODULE_FW_UPDATE
 
 /**
+ * Enable advanced_fw_update module (implementation of the 33629 custom
+ * Advanced Firmware Update object).
+ */
+/* #undef ANJAY_WITH_MODULE_ADVANCED_FW_UPDATE */
+
+/**
  * Disable support for PUSH mode Firmware Update.
  *
  * Only meaningful if <c>ANJAY_WITH_MODULE_FW_UPDATE</c> is enabled. Requires
@@ -556,10 +569,68 @@
  * <c>AVS_COMMONS_WITH_AVS_PERSISTENCE</c> to be enabled in avs_commons
  * configuration.
  *
- * IMPORTANT: Only available with the boostrapper feature. Ignored in the open
+ * IMPORTANT: Only available with the bootstrapper feature. Ignored in the open
  * source version.
  */
 /* #undef ANJAY_WITH_MODULE_BOOTSTRAPPER */
+
+/**
+ * Enable the SIM bootstrap module, which enables reading the SIM bootstrap
+ * information from a smartcard, which can then be passed through to the
+ * bootstrapper module.
+ *
+ * Requires <c>ANJAY_WITH_MODULE_BOOTSTRAPPER</c> to be enabled.
+ *
+ * IMPORTANT: Only available with the bootstrapper feature. Ignored in the open
+ * source version.
+ */
+/* #undef ANJAY_WITH_MODULE_SIM_BOOTSTRAP */
+
+/**
+ * Forced ID of the file to read the SIM bootstrap information from.
+ *
+ * If not defined (default), the bootstrap information file will be discovered
+ * through the ODF file, as mandated by the specification.
+ *
+ * Requires <c>ANJAY_WITH_MODULE_BOOTSTRAPPER</c> to be enabled. At most one of
+ * <c>ANJAY_MODULE_SIM_BOOTSTRAP_HARDCODED_FILE_ID</c> and
+ * <c>ANJAY_MODULE_SIM_BOOTSTRAP_DATA_OID_OVERRIDE_HEX</c> may be defined at the
+ * same time.
+ *
+ * IMPORTANT: Only available with the bootstrapper feature. Ignored in the open
+ * source version.
+ */
+/* #undef ANJAY_MODULE_SIM_BOOTSTRAP_HARDCODED_FILE_ID */
+
+/**
+ * Overridden OID of the SIM bootstrap information to look for in the DODF file,
+ * expressed as a hexlified DER representation (without the header).
+ *
+ * This is the hexlified expected value of the 'id' field within the 'OidDO'
+ * sequence in the DODF file (please refer to the PKCS #15 document for more
+ * information).
+ *
+ * If not defined, the default value of <c>"672b0901"</c>, which corresponds to
+ * OID 2.23.43.9.1 {joint-iso-itu-t(2) international-organizations(23) wap(43)
+ * oma-lwm2m(9) lwm2m-bootstrap(1)}, will be used.
+ *
+ * No other values than the default are valid according to the specification,
+ * but some SIM cards are known to use other non-standard values, e.g.
+ * <c>"0604672b0901"</c> - including a superfluous nested BER-TLV header, as
+ * erroneously illustrated in the EF(DODF-bootstrap) file coding example in
+ * LwM2M TS 1.2 and earlier (fixed in LwM2M TS 1.2.1) - which is interpreted as
+ * OID 0.6.4.103.43.9.1 (note that it is invalid as the 0.6 tree does not exist
+ * in the repository as of writing this note).
+ *
+ * Requires <c>ANJAY_WITH_MODULE_BOOTSTRAPPER</c> to be enabled. At most one of
+ * <c>ANJAY_MODULE_SIM_BOOTSTRAP_HARDCODED_FILE_ID</c> and
+ * <c>ANJAY_MODULE_SIM_BOOTSTRAP_DATA_OID_OVERRIDE_HEX</c> may be defined at the
+ * same time.
+ *
+ * IMPORTANT: Only available with the bootstrapper feature. Ignored in the open
+ * source version.
+ */
+/* #undef ANJAY_MODULE_SIM_BOOTSTRAP_DATA_OID_OVERRIDE_HEX */
 
 /**
  * Enable factory provisioning module. Data provided during provisioning uses

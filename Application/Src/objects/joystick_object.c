@@ -36,7 +36,7 @@
 
 #include "main.h"
 
-#if defined(BSP_JOYSTICK_PRESENT)
+#if defined(BSP_JOYSTICK_PRESENT) && !defined(ANJAY_WITH_CORE_PERSISTENCE)
 
 #define JOYSTICK_OBJ_LOG(...) avs_log(joystick_obj, __VA_ARGS__)
 
@@ -239,7 +239,7 @@ void joystick_object_update(anjay_t *anjay) {
     }
 }
 
-#else // defined(BSP_JOYSTICK_PRESENT)
+#else // defined(BSP_JOYSTICK_PRESENT) && !defined(ANJAY_WITH_CORE_PERSISTENCE)
 
 void joystick_object_increment_counter(void) {}
 void joystick_object_update(anjay_t *anjay) {}
@@ -247,4 +247,4 @@ int joystick_object_install(anjay_t *anjay) {
     return -1;
 }
 
-#endif // defined(BSP_JOYSTICK_PRESENT)
+#endif // defined(BSP_JOYSTICK_PRESENT) && !defined(ANJAY_WITH_CORE_PERSISTENCE)

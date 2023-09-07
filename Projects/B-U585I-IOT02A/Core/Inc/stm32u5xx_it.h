@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2022 STMicroelectronics.
+  * Copyright (c) 2023 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -53,6 +53,7 @@ void BusFault_Handler(void);
 void UsageFault_Handler(void);
 void DebugMon_Handler(void);
 void EXTI6_IRQHandler(void);
+void EXTI13_IRQHandler(void);
 void GPDMA1_Channel4_IRQHandler(void);
 void TIM3_IRQHandler(void);
 void USART1_IRQHandler(void);

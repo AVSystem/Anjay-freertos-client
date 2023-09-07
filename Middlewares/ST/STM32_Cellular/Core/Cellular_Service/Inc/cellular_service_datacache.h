@@ -99,7 +99,6 @@ typedef uint8_t dc_cs_target_state_t;
                                                                        (not implemented)                            */
 #define DC_TARGET_STATE_FULL       ((dc_cs_target_state_t)(2U))   /*!< Full modem features available (data transfer) */
 #define DC_TARGET_STATE_MODEM_ONLY ((dc_cs_target_state_t)(3U))   /*!< Modem only on with no network management      */
-#define DC_TARGET_STATE_UNKNOWN    ((dc_cs_target_state_t)(4U))   /*!<                                               */
 
 /** @brief IP address */
 typedef com_ip_addr_t dc_network_addr_t;

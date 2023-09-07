@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2022 STMicroelectronics.
+  * Copyright (c) 2023 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -79,7 +79,7 @@ void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PtPin */
   GPIO_InitStruct.Pin = USER_Button_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(USER_Button_GPIO_Port, &GPIO_InitStruct);
 
@@ -118,6 +118,9 @@ void MX_GPIO_Init(void)
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI6_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI6_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI13_IRQn, 5, 1);
+  HAL_NVIC_EnableIRQ(EXTI13_IRQn);
 
 }
 

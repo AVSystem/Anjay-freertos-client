@@ -16,14 +16,12 @@
 
 #ifndef MENU_H
 #define MENU_H
+#include <stdbool.h>
 
 void menu_init(void);
-
-const char *config_get_server_uri(void);
-const char *config_get_endpoint_name(void);
-const char *config_get_psk(void);
-const char *config_get_apn(void);
-const char *config_get_apn_username(void);
-const char *config_get_apn_password(void);
+bool menu_is_module_persistence_enabled(void);
+#ifdef USE_SIM_BOOTSTRAP
+bool menu_is_sim_bootstrap_enabled(void);
+#endif // USE_SIM_BOOTSTRAP
 
 #endif // MENU_H

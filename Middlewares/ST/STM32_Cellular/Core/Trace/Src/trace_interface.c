@@ -28,16 +28,20 @@
 #include "cmd.h"
 #endif  /* (USE_CMD_CONSOLE == 1) */
 
-
 /* Private typedef -----------------------------------------------------------*/
 /* Private macros ------------------------------------------------------------*/
+#if (TRACE_IF_TRACES_UART == 1U)
 #define PRINT_FORCE(format, args...)  TRACE_PRINT_FORCE(DBG_CHAN_UTILITIES, DBL_LVL_P0, format, ## args)
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* Private defines -----------------------------------------------------------*/
+#if (TRACE_IF_TRACES_UART == 1U)
 #define MAX_HEX_PRINT_SIZE     210U
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* Private variables ---------------------------------------------------------*/
-static bool traceIF_traceEnable = true; /* Trace enable per default */
+#if (TRACE_IF_TRACES_UART == 1U)
+static bool traceIF_traceEnable = true; /* Trace enable by default */
 static uint32_t traceIF_Level = TRACE_IF_MASK;
 
 /* Mutex to avoid trace mixing between components */
@@ -67,23 +71,29 @@ static uint8_t traceIF_traceComponent[DBG_CHAN_MAX_VALUE] =
 #if (SW_DEBUG_VERSION == 1)
 static uint8_t *trace_cmd_label = (uint8_t *)"trace";
 #endif /* SW_DEBUG_VERSION == 1 */
-#endif  /* (USE_CMD_CONSOLE == 1) */
+#endif /* USE_CMD_CONSOLE == 1 */
+
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* Private function prototypes -----------------------------------------------*/
 
+#if (TRACE_IF_TRACES_UART == 1U)
 #if (USE_CMD_CONSOLE == 1)
 #if (SW_DEBUG_VERSION == 1)
 static void traceIF_cmd(uint8_t *cmd_line_p);
 static void traceIF_cmd_Help(void);
 #endif /* SW_DEBUG_VERSION == 1 */
-#endif  /* (USE_CMD_CONSOLE == 1) */
+#endif /* USE_CMD_CONSOLE == 1 */
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* Global variables ----------------------------------------------------------*/
+#if (TRACE_IF_TRACES_UART == 1U)
 uint8_t dbgIF_buf[DBG_CHAN_MAX_VALUE][DBG_IF_MAX_BUFFER_SIZE];
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* Functions Definition ------------------------------------------------------*/
 /* Private functions ---------------------------------------------------------*/
-
+#if (TRACE_IF_TRACES_UART == 1U)
 #if (USE_CMD_CONSOLE == 1)
 #if (SW_DEBUG_VERSION == 1)
 /**
@@ -267,8 +277,10 @@ static void traceIF_cmd(uint8_t *cmd_line_p)
   }
 }
 #endif /* SW_DEBUG_VERSION == 1 */
-#endif  /* (USE_CMD_CONSOLE == 1) */
+#endif /* USE_CMD_CONSOLE == 1 */
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
+#if (TRACE_IF_TRACES_UART == 1U)
 /**
   * @brief  Print a trace through UART
   * @param  ptr - pointer on the trace string
@@ -285,28 +297,10 @@ static void traceIF_uartTransmit(uint8_t *ptr, uint16_t len)
 
   (void)rtosalMutexRelease(traceIF_uart_mutex);
 }
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* Functions Definition ------------------------------------------------------*/
-/**
-  * @brief  Trace off - Set trace to disable
-  * @param  -
-  * @retval -
-  */
-void traceIF_trace_off(void)
-{
-  traceIF_traceEnable = false;
-}
-
-/**
-  * @brief  Trace on - Set trace to enable
-  * @param  -
-  * @retval -
-  */
-void traceIF_trace_on(void)
-{
-  traceIF_traceEnable = true;
-}
-
+#if (TRACE_IF_TRACES_UART == 1U)
 /**
   * @brief  Print a trace on UART
   * @param  chan - component channel
@@ -365,7 +359,6 @@ void traceIF_uartPrintForce(uint8_t chan, uint8_t *pptr, uint16_t len)
   */
 void traceIF_hexPrint(dbg_channels_t chan, dbg_levels_t level, uint8_t *buff, uint16_t len)
 {
-#if (TRACE_IF_TRACES_UART == 1U)
   static uint8_t car[MAX_HEX_PRINT_SIZE];
 
   uint32_t i;
@@ -407,7 +400,6 @@ void traceIF_hexPrint(dbg_channels_t chan, dbg_levels_t level, uint8_t *buff, ui
 
   /* Trace the converted buffer */
   TRACE_PRINT(chan,  level, "%s ", (CRC_CHAR_t *)car)
-#endif  /* TRACE_IF_TRACES_UART == 1U */
 }
 
 /**
@@ -498,6 +490,29 @@ void traceIF_BufHexPrint(dbg_channels_t chan, dbg_levels_t level, const CRC_CHAR
   /* Force to go to next line to prepare next trace */
   TRACE_PRINT(chan, level, "\n\r")
 }
+#endif /* TRACE_IF_TRACES_UART == 1U */
+
+#if (TRACE_IF_TRACES_UART == 1U)
+/**
+  * @brief  Trace on - Set trace to enable
+  * @param  -
+  * @retval -
+  */
+void traceIF_trace_on(void)
+{
+  traceIF_traceEnable = true;
+}
+
+/**
+  * @brief  Trace off - Set trace to disable
+  * @param  -
+  * @retval -
+  */
+void traceIF_trace_off(void)
+{
+  traceIF_traceEnable = false;
+}
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /*** Component Initialization/Start *******************************************/
 /*** Internal use only - Not an Application Interface *************************/
@@ -511,11 +526,13 @@ void traceIF_BufHexPrint(dbg_channels_t chan, dbg_levels_t level, const CRC_CHAR
   */
 void traceIF_init(void)
 {
+#if (TRACE_IF_TRACES_UART == 1U)
   /* Multi call protection */
   if (traceIF_uart_mutex == NULL)
   {
     traceIF_uart_mutex = rtosalMutexNew((const rtosal_char_t *)"TRC_MUT_UART");
   }
+#endif /* TRACE_IF_TRACES_UART == 1U */
 }
 
 /**
@@ -526,10 +543,12 @@ void traceIF_init(void)
   */
 void traceIF_start(void)
 {
+#if (TRACE_IF_TRACES_UART == 1U)
 #if (USE_CMD_CONSOLE == 1)
 #if (SW_DEBUG_VERSION == 1)
   /* Registration to cmd module to support cmd 'trace' */
   CMD_Declare((uint8_t *)"trace", traceIF_cmd, (uint8_t *)"trace management");
 #endif /* SW_DEBUG_VERSION == 1 */
 #endif /* USE_CMD_CONSOLE == 1 */
+#endif /* TRACE_IF_TRACES_UART == 1U */
 }

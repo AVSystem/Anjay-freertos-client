@@ -40,17 +40,13 @@ extern "C" {
   * @{
   */
 
-#if defined(HWREF_MURATA_TYPE1SC_EVK)
-/* already explicitly defined:
- * using HWREF_MURATA_TYPE1SC_EVK directly on STMOD+ connector
- */
-#else
-/* set default config */
-#define HWREF_MURATA_TYPE1SC_EVK
-#endif  /*  defined(HWREF_MURATA_TYPE1SC_EVK) */
+/* Modem identification flag */
+#define USE_MODEM_TYPE1SC
+
+/* Low Power : enable modem PSM depending of project low power flag */
+#define ENABLE_T1SC_LOW_POWER_MODE  USE_LOW_POWER
 
 /* MODEM parameters */
-#define USE_MODEM_TYPE1SC
 #define CONFIG_MODEM_UART_BAUDRATE (115200U)
 #define CONFIG_MODEM_USE_STMOD_CONNECTOR
 
@@ -60,6 +56,19 @@ extern "C" {
 #define CONFIG_MODEM_MAX_SOCKET_RX_DATA_SIZE ((uint32_t)1500U)
 #define CONFIG_MODEM_MAX_SIM_GENERIC_ACCESS_CMD_SIZE ((uint32_t)1460U)
 #define CONFIG_MODEM_MIN_SIM_GENERIC_ACCESS_RSP_SIZE ((uint32_t)4U)
+
+/* NOTE:
+  * With Modem FW versions RK_02_xxx
+  *   ALTAIR modem always boots with HW flow control deactivated.
+  *   So we reinit UART and force the HwFlowControl to none until we use AT+IPR or AT&K command
+  *   to set the requested value.
+  * In this case, set CONFIG_MODEM_FW_RK_02 to 1.
+  *
+  * With Modem FW versions >= RK_03_xxx (default value)
+  *   The modem boots with HW flow control activated, so reinit UART should not be necessary.
+  *   In this case, set CONFIG_MODEM_FW_RK_02 to 0 (default value).
+  */
+#define CONFIG_MODEM_FW_RK_02 (0U)
 
 /* Ping URC received before or after Reply */
 #define PING_URC_RECEIVED_AFTER_REPLY        (0U)

@@ -421,8 +421,11 @@ static at_status_t at_SID_CS_POWER_ON(atcustom_modem_context_t *p_mdm_ctxt, at_c
         ATC_BG96_modem_reset(p_mdm_ctxt);
       }
 
-      /* force requested flow control */
-      atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_IFC, INTERMEDIATE_CMD);
+      /* force requested flow control
+        * use optional as we are not sure to receive a response from the modem if modem Flow Control is not aligned.
+        */
+      atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt,
+                                          ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_IFC, INTERMEDIATE_CMD);
     }
     else if (CHECK_STEP_BETWEEN((1U), (BG96_MODEM_SYNCHRO_AT_MAX_RETRIES - 1U)))
     {
@@ -506,7 +509,7 @@ static at_status_t at_SID_CS_POWER_ON(atcustom_modem_context_t *p_mdm_ctxt, at_c
     else if CHECK_STEP((common_start_sequence_step + 7U))
     {
       /* force to disable PSM in case modem was switched off with PSM enabled */
-      p_mdm_ctxt->SID_ctxt.set_power_config.psm_present = CELLULAR_TRUE;
+      p_mdm_ctxt->SID_ctxt.set_power_config.psm_present = CS_TRUE;
       p_mdm_ctxt->SID_ctxt.set_power_config.psm_mode = PSM_MODE_DISABLE;
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
     }
@@ -837,7 +840,8 @@ static at_status_t at_SID_CS_GET_SIGNAL_QUALITY(atcustom_modem_context_t *p_mdm_
   else if CHECK_STEP((1U))
   {
     /* get signal strength */
-    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_QCSQ, INTERMEDIATE_CMD);
+    atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD,
+                                        (CMD_ID_t) CMD_AT_QCSQ, INTERMEDIATE_CMD);
   }
   else if CHECK_STEP((2U))
   {
@@ -845,8 +849,8 @@ static at_status_t at_SID_CS_GET_SIGNAL_QUALITY(atcustom_modem_context_t *p_mdm_
     /* NB: cmd answer is optional ie no error will be raised if no answer received from modem
       *  indeed, if requested here, it's just a bonus and should not generate an error
       */
-    atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_QNWINFO,
-                                        INTERMEDIATE_CMD);
+    atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD,
+                                        (CMD_ID_t) CMD_AT_QNWINFO, INTERMEDIATE_CMD);
 #else
     atcm_program_SKIP_CMD(p_atp_ctxt);
 #endif /* BG96_OPTION_NETWORK_INFO */
@@ -923,7 +927,9 @@ static at_status_t at_SID_CS_REGISTER_NET(atcustom_modem_context_t *p_mdm_ctxt, 
 #if 0 /* check actual registration status */
     /* check if actual registration status is the expected one */
     CS_OperatorSelector_t *operatorSelect = &(p_mdm_ctxt->SID_ctxt.write_operator_infos);
-    if (p_mdm_ctxt->SID_ctxt.read_operator_infos.mode != operatorSelect->mode)
+    if ((p_mdm_ctxt->SID_ctxt.read_operator_infos.mode != operatorSelect->mode) ||
+        (operatorSelect->mode == CS_NRM_MANUAL) ||
+        (operatorSelect->AcT_present == CS_TRUE))
     {
       /* write registration status */
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_COPS, INTERMEDIATE_CMD);
@@ -951,7 +957,16 @@ static at_status_t at_SID_CS_REGISTER_NET(atcustom_modem_context_t *p_mdm_ctxt, 
   else if CHECK_STEP((4U))
   {
     /* read registration status */
-    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CGREG, FINAL_CMD);
+    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CGREG, INTERMEDIATE_CMD);
+  }
+  else if CHECK_STEP((5U))
+  {
+    /* read registration status
+     * This request is used to get updated mode (in case a new mode has been requested in previous steps and
+     * so, report correct value applied to upper layers).
+     *
+     */
+    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_COPS, FINAL_CMD);
   }
   else
   {
@@ -1036,11 +1051,20 @@ static at_status_t at_SID_CS_SUSBCRIBE_NET_EVENT(atcustom_modem_context_t *p_mdm
     }
     else if (urcEvent == CS_URCEVENT_SIGNAL_QUALITY)
     {
+      /* Note: URC to monitor signal quality not implemented despite supported by BG96 */
+      retval = ATSTATUS_ERROR;
+
+#if 0 /* urc_subscript_signalQuality */
+      /* If feature needed, use following code to subscribe to +QIND:"csq",<rssi>,<ber>
+       * Need to update fRspAnalyze_QIND_BG96() to report URC when detected (in current state, +QIND URC
+       * is decoded and info are updated but URC is not reported to upper layer.
+       */
+
       /* if signal quality URC not yet suscbribe */
-      if (p_mdm_ctxt->persist.urc_subscript_signalQuality == CELLULAR_FALSE)
+      if (p_mdm_ctxt->persist.urc_subscript_signalQuality == CS_FALSE)
       {
         /* set event as subscribed */
-        p_mdm_ctxt->persist.urc_subscript_signalQuality = CELLULAR_TRUE;
+        p_mdm_ctxt->persist.urc_subscript_signalQuality = CS_TRUE;
 
         /* request the URC we want */
         bg96_shared.QINDCFG_command_param = QINDCFG_csq;
@@ -1050,6 +1074,7 @@ static at_status_t at_SID_CS_SUSBCRIBE_NET_EVENT(atcustom_modem_context_t *p_mdm
       {
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
+#endif /* urc_subscript_signalQuality */
     }
     else
     {
@@ -1095,11 +1120,20 @@ static at_status_t at_SID_CS_UNSUSBCRIBE_NET_EVENT(atcustom_modem_context_t *p_m
     }
     else if (urcEvent == CS_URCEVENT_SIGNAL_QUALITY)
     {
+      /* Note: URC to monitor signal quality not implemented despite supported by BG96 */
+      retval = ATSTATUS_ERROR;
+
+#if 0 /* urc_subscript_signalQuality */
+      /* If feature needed, use following code to subscribe to +QIND:"csq",<rssi>,<ber>
+       * Need to update fRspAnalyze_QIND_BG96() to report URC when detected (in current state, +QIND URC
+       * is decoded and info are updated but URC is not reported to upper layer.
+       */
+
       /* if signal quality URC suscbribed */
-      if (p_mdm_ctxt->persist.urc_subscript_signalQuality == CELLULAR_TRUE)
+      if (p_mdm_ctxt->persist.urc_subscript_signalQuality == CS_TRUE)
       {
         /* set event as unsuscribed */
-        p_mdm_ctxt->persist.urc_subscript_signalQuality = CELLULAR_FALSE;
+        p_mdm_ctxt->persist.urc_subscript_signalQuality = CS_FALSE;
 
         /* request the URC we don't want */
         bg96_shared.QINDCFG_command_param = QINDCFG_csq;
@@ -1109,6 +1143,7 @@ static at_status_t at_SID_CS_UNSUSBCRIBE_NET_EVENT(atcustom_modem_context_t *p_m
       {
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
+#endif /* urc_subscript_signalQuality */
     }
     else
     {
@@ -1142,10 +1177,10 @@ static at_status_t at_SID_CS_REGISTER_PDN_EVENT(atcustom_modem_context_t *p_mdm_
 
   if CHECK_STEP((0U))
   {
-    if (p_mdm_ctxt->persist.urc_subscript_pdn_event == CELLULAR_FALSE)
+    if (p_mdm_ctxt->persist.urc_subscript_pdn_event == CS_FALSE)
     {
       /* set event as subscribed */
-      p_mdm_ctxt->persist.urc_subscript_pdn_event = CELLULAR_TRUE;
+      p_mdm_ctxt->persist.urc_subscript_pdn_event = CS_TRUE;
 
       /* request PDN events */
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGEREP, FINAL_CMD);
@@ -1182,10 +1217,10 @@ static at_status_t at_SID_CS_DEREGISTER_PDN_EVENT(atcustom_modem_context_t *p_md
 
   if CHECK_STEP((0U))
   {
-    if (p_mdm_ctxt->persist.urc_subscript_pdn_event == CELLULAR_TRUE)
+    if (p_mdm_ctxt->persist.urc_subscript_pdn_event == CS_TRUE)
     {
       /* set event as unsuscribed */
-      p_mdm_ctxt->persist.urc_subscript_pdn_event = CELLULAR_FALSE;
+      p_mdm_ctxt->persist.urc_subscript_pdn_event = CS_FALSE;
 
       /* request PDN events */
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGEREP, FINAL_CMD);
@@ -1300,6 +1335,7 @@ static at_status_t at_SID_CS_ACTIVATE_PDN(atcustom_modem_context_t *p_mdm_ctxt, 
     else
     {
       /* request PDN activation */
+      p_mdm_ctxt->CMD_ctxt.pdn_state = PDN_STATE_ACTIVATE;
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QIACT, INTERMEDIATE_CMD);
     }
   }
@@ -1351,13 +1387,30 @@ static at_status_t at_SID_CS_DEACTIVATE_PDN(atcustom_modem_context_t *p_mdm_ctxt
 {
   UNUSED(p_at_ctxt);
   UNUSED(p_ATcmdTimeout);
-  UNUSED(p_mdm_ctxt);
+
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  at_status_t retval = ATSTATUS_OK;
+
+  /* SOCKET MODE */
+  if CHECK_STEP((0U))
+  {
+    /* PDN deactivation */
+    p_mdm_ctxt->CMD_ctxt.pdn_state = PDN_STATE_DEACTIVATE;
+    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QIDEACT, FINAL_CMD);
+  }
+  else
+  {
+    /* error, invalid step */
+    retval = ATSTATUS_ERROR;
+  }
+#else
   UNUSED(p_atp_ctxt);
+  UNUSED(p_mdm_ctxt);
 
-  at_status_t retval;
-
+  /* DATA MODE */
   /* not implemented yet */
-  retval = ATSTATUS_ERROR;
+  at_status_t retval = ATSTATUS_ERROR;
+#endif /* USE_SOCKETS_TYPE */
 
   return (retval);
 }
@@ -1586,6 +1639,7 @@ static at_status_t at_SID_CS_DIRECT_CMD(atcustom_modem_context_t *p_mdm_ctxt, at
     if (p_mdm_ctxt->SID_ctxt.p_direct_cmd_tx != NULL)
     {
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_RAW_CMD, (CMD_ID_t) CMD_AT_DIRECT_CMD, FINAL_CMD);
+      /* overwrite default timeout by the timeout value given by the upper layer */
       atcm_program_CMD_TIMEOUT(p_mdm_ctxt, p_atp_ctxt, p_mdm_ctxt->SID_ctxt.p_direct_cmd_tx->cmd_timeout);
     }
     else
@@ -1685,16 +1739,31 @@ static at_status_t at_SID_CS_DIAL_COMMAND(atcustom_modem_context_t *p_mdm_ctxt, 
 
   at_status_t retval = ATSTATUS_OK;
 
+  /* Note:
+   * A modem cid is reserved by the HOST with atcm_socket_reserve_modem_cid() before to send AT+QIOPEN.
+   * Socket is connected when 9+QIOPEN URC is received without error.
+   * In case of ERROR or timeout, the modem cid has to be released.
+   * This why
+   *   1- Uses CMD_ANSWER_OPTIONAL to continue STEPS even if a timeout occurs (otherwise, timeout is an abort case in
+   *      AT-Core).
+   *   2- Errors for QIOPEN are managed in fRspAnalyze_Error_BG96() where modem cid is released.
+   */
+
   /* SOCKET CONNECTION FOR COMMAND DATA MODE */
   if (p_mdm_ctxt->socket_ctxt.p_socket_info != NULL)
   {
     if CHECK_STEP((0U))
     {
-      /* reserve a modem CID for this socket_handle */
-      bg96_shared.QIOPEN_current_socket_connected = 0U;
+      bg96_shared.QIOPEN_OK = AT_FALSE; /* memorize if AT+QIOPEN command has received OK */
+      bg96_shared.QIOPEN_URC_OK = AT_FALSE; /* memorize if +QIOPEN URC has been received without error */
+      bg96_shared.QIOPEN_URC_ERROR = AT_FALSE; /* memorize if +QIOPEN URC has been received with an error */
+
+      /* reserve a modem CID for this socket_handle (done by HOST) */
       socket_handle_t sockHandle = p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle;
       (void) atcm_socket_reserve_modem_cid(p_mdm_ctxt, sockHandle);
-      atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QIOPEN, INTERMEDIATE_CMD);
+      /* send command */
+      atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD,
+                                          (CMD_ID_t) CMD_AT_QIOPEN, INTERMEDIATE_CMD);
       PRINT_INFO("For Client Socket Handle=%ld : MODEM CID affected=%d",
                  sockHandle,
                  p_mdm_ctxt->persist.socket[sockHandle].socket_connId_value)
@@ -1702,50 +1771,75 @@ static at_status_t at_SID_CS_DIAL_COMMAND(atcustom_modem_context_t *p_mdm_ctxt, 
     }
     else if CHECK_STEP((1U))
     {
-      if (bg96_shared.QIOPEN_current_socket_connected == 0U)
+      if (!bg96_shared.QIOPEN_OK)
       {
-        /* Waiting for +QIOPEN urc indicating that socket is open */
-        atcm_program_TEMPO(p_atp_ctxt, BG96_QIOPEN_TIMEOUT, INTERMEDIATE_CMD);
+        /* ERROR CASE: QIOPEN error or timeout.
+         * Release the modem CID for this socket_handle.
+         */
+        (void) atcm_socket_release_modem_cid(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
+
+        /* end of SID (error case) */
+        atcm_program_NO_MORE_CMD(p_atp_ctxt);
+        retval = ATSTATUS_ERROR;
       }
-      else
+      else if (!bg96_shared.QIOPEN_URC_OK)
       {
-        /* socket opened */
-        bg96_shared.QIOPEN_waiting = AT_FALSE;
-        /* socket is connected */
+        /* NORMAL CASE
+         * AT+QIOPEN received OK answer.
+         * Still waiting for +QIOPEN urc indicating that socket is open.
+         */
+        atcm_program_TEMPO(p_atp_ctxt, BG96_QIOPEN_TIMEOUT, INTERMEDIATE_CMD);
+        /* go to the nextstep */
+      }
+      else /* bg96_shared.QIOPEN_URC_OK */
+      {
+        /* NORMAL CASE
+         * AT+QIOPEN received OK answer.
+         * +QIOPEN URC already received without error, socket opened (Do not wait for BG96_QIOPEN_TIMEOUT).
+         * Socket is connected.
+         */
         (void) atcm_socket_set_connected(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
+
+        /* end of SID (normal case) */
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
     }
     else  if CHECK_STEP((2U))
     {
-      if (bg96_shared.QIOPEN_current_socket_connected == 0U)
+      /* waiting for +QIOPEN URC Timeout case */
+      if (bg96_shared.QIOPEN_OK && bg96_shared.QIOPEN_URC_OK)
       {
-        /* QIOPEN NOT RECEIVED,
-          *  cf BG96 TCP/IP AT Commands Manual V1.0, paragraph 2.1.4 - 3/
-          *  "if the URC cannot be received within 150 seconds, AT+QICLOSE should be used to close
-          *   the socket".
-          *
-          *  then we will have to return an error to cellular service !!! (see next step)
-          */
-        bg96_shared.QIOPEN_waiting = AT_FALSE;
-        atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_QICLOSE, INTERMEDIATE_CMD);
+        /* +QIOPEN URC received without error, socket opened */
+        /* socket is connected */
+        (void) atcm_socket_set_connected(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
+
+        /* end of SID (normal case) */
+        atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
       else
       {
-        /* socket opened */
-        bg96_shared.QIOPEN_waiting = AT_FALSE;
-        /* socket is connected */
-        (void) atcm_socket_set_connected(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
-        atcm_program_NO_MORE_CMD(p_atp_ctxt);
+        /* +QIOPEN URC NOT RECEIVED
+         *  cf BG96 TCP/IP AT Commands Manual V1.0, paragraph 2.1.4 - 3/
+         *  "if the URC cannot be received within 150 seconds, AT+QICLOSE should be used to close
+         *   the socket".
+         *
+         *  then we will have to return an error to cellular service !!! (see next step)
+         */
+        atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD,
+                                            (CMD_ID_t) CMD_AT_QICLOSE, INTERMEDIATE_CMD);
       }
     }
     else  if CHECK_STEP((3U))
     {
       /* if we fall here, it means we have send CMD_AT_QICLOSE on previous step
-        *  now inform cellular service that opening has failed => return an error
+        *  now inform cellular service that opening has failed => returns an error.
         */
-      /* release the modem CID for this socket_handle */
+      /* release the modem CID for this socket_handle
+       * This is done in all  cases (even CLOSE error or timeout).
+       */
       (void) atcm_socket_release_modem_cid(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
+
+      /* end of SID (error case) */
       atcm_program_NO_MORE_CMD(p_atp_ctxt);
       retval = ATSTATUS_ERROR;
     }
@@ -1932,12 +2026,14 @@ static at_status_t at_SID_CS_SOCKET_CLOSE(atcustom_modem_context_t *p_mdm_ctxt, 
       {
         /* release the modem CID for this socket_handle */
         (void) atcm_socket_release_modem_cid(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
+
+        /* end of SID */
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
     }
     else if CHECK_STEP((1U))
     {
-      /* release the modem CID for this socket_handle */
+      /* if no error or timeout for QICLOSE, we can release the modem CID for this socket_handle */
       (void) atcm_socket_release_modem_cid(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
       atcm_program_NO_MORE_CMD(p_atp_ctxt);
     }
@@ -2261,7 +2357,7 @@ static at_status_t at_SID_CS_SLEEP_REQUEST(atcustom_modem_context_t *p_mdm_ctxt,
 
     /* Simulate modem ack to enter in low power state
       * (UART is not deactivated yet)
-      * check if this event was susbcribed by upper layers
+      * check if this event was subscribed by upper layers
       */
     if (atcm_modem_event_received(p_mdm_ctxt, CS_MDMEVENT_LP_ENTER) == AT_TRUE)
     {

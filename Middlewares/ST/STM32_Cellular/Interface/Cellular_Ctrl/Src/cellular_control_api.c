@@ -128,7 +128,7 @@ static void cellular_api_fill_string(const uint8_t *p_in_str, uint8_t max_len, u
   {
     /* If yes, fill output data */
     *p_out_length = (uint8_t)size;
-    (void)memcpy((void *)p_out_value, p_in_str, size + 1U);
+    (void)memcpy((CRC_CHAR_t *)p_out_value, (const CRC_CHAR_t *)p_in_str, size + 1U);
   }
   else
   {
@@ -265,6 +265,7 @@ static void cellular_api_general_data_cache_callback(dc_com_event_id_t datacache
 
 /**
   * @brief  Initialize cellular software.
+  *         To be called only once. Has to be called before to make a call to cellular_start()
   * @param  -
   * @retval -
   */
@@ -322,8 +323,9 @@ cellular_result_t cellular_deinit(void)
 }
 
 /**
-  * @brief  Start cellular software with boot modem
-  *         (and network registration if PLF_CELLULAR_TARGET_STATE = 2U see plf_cellular_config.h).
+  * @brief  Start cellular software and starts modem with the mode defined by PLF_CELLULAR_TARGET_STATE
+  *         (see plf_cellular_config.h).
+  *         Has to be called only once and always after a call to cellular_init()
   * @param  -
   * @retval -
   */
@@ -358,21 +360,50 @@ void cellular_start(void)
 }
 
 /**
-  * @brief  Start cellular with boot modem (NO network registration).\n
+  * @brief  Starts, switch on the modem, allowing to modify modem parameters.\n
+  *         A cellular_init() must be called prior to call cellular_modem_start()
+  *         May be called between A cellular_init() and cellular_modem_start()
+  *         Example of allowed sequences :
+  *         - cellular_init() => cellular_modem_start() => cellular_start()
+  *         - cellular_init() => cellular_modem_start() => cellular_modem_off() => cellular_start()
+  *         The second example will allow to restart the modem for new modem configuration to be taken in account.
+  *         May also be called after cellular_start(), but in that case, a cellular_stop() has to be called before.
+  *         If called after a cellular_start(), cellular_modem_start() will have no effect if cellular_stop() is not
+  *         called before, and modem state not equal to CA_MODEM_POWER_OFF
   *         Usage: Used to configure modem
   * @param  -
   * @retval -
   */
 void cellular_modem_start(void)
 {
-  /* Cellular service start */
-  (void)CST_cellular_service_start();
-  /* Cellular service modem power on */
-  (void)CST_modem_power_on();
+  dc_cellular_info_t cellular_info;
+
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(dc_cellular_info_t));
+  if (cellular_info.modem_state == CA_MODEM_POWER_OFF)
+  {
+#if (USE_PRINTF == 0U)
+    /* Trace interface start */
+    traceIF_start();
+#endif /* (USE_PRINTF == 0U) */
+
+#if (USE_CMD_CONSOLE == 1)
+    /* CMD start */
+    CMD_start();
+#endif /* (USE_CMD_CONSOLE == 1) */
+
+    /* Data Cache start */
+    dc_com_start(&dc_com_db);
+
+    /* Cellular service start */
+    (void)CST_cellular_service_start();
+
+    /* Cellular service modem power on */
+    (void)CST_modem_power_on();
+  }
 }
 
 /**
-  * @brief  Stop the modem (stop data mode, and detach from the network).
+  * @brief  Stop, switch off the modem (stop data mode, and detach from the network).
   * @param  -
   * @retval cellular_result_t         The code indicating if the operation is successful otherwise an error code
   *                                   indicating the cause of the error.\n
@@ -441,8 +472,8 @@ cellular_result_t cellular_connect(void)
 }
 
 /**
-  * @brief  Modem disconnect, instruct the modem to perform network unregistration.\n
-  *         Modem stays on and sim is still accessible.
+  * @brief  Modem disconnect, instruct the modem to perform network deregistration.\n
+  *         Modem stays on and sim is accessible.
   * @param  -
   * @retval cellular_result_t         The code indicating if the operation is successful otherwise an error code
   *                                   indicating the cause of the error.\n
@@ -637,110 +668,110 @@ cellular_result_t cellular_set_pdn(ca_sim_slot_type_t sim_slot_type, const cellu
   dc_cellular_params_t      datacache_cellular_param;      /* Cellular parameters used to configure the modem.        */
   uint8_t                   idx;                           /* Loop index                                              */
 
-  if (p_cellular_pdn != NULL)
+  ret = CELLULAR_SUCCESS;
+  /* Check entry parameters */
+  if (p_cellular_pdn == NULL)
   {
-    ret = CELLULAR_SUCCESS;
+    ret = CELLULAR_ERR_BADARGUMENT;
+  }
 
-    /* Check entry parameters */
-    if ((p_cellular_pdn->apn_send_to_modem != CA_APN_SEND_TO_MODEM) &&
-        (p_cellular_pdn->apn_send_to_modem != CA_APN_NOT_SEND_TO_MODEM))
+  if (ret == CELLULAR_SUCCESS)
+  {
+    if (
+      ((p_cellular_pdn->apn_send_to_modem != CA_APN_SEND_TO_MODEM) &&
+       (p_cellular_pdn->apn_send_to_modem != CA_APN_NOT_SEND_TO_MODEM))
+      ||
+      (p_cellular_pdn->cid > 9U)
+    )
     {
       ret = CELLULAR_ERR_BADARGUMENT;
-    }
-
-    if (p_cellular_pdn->cid > 9U)
-    {
-      ret = CELLULAR_ERR_BADARGUMENT;
-    }
-
-    /* If no error with entry parameter then continue, else return error */
-    if (ret == CELLULAR_SUCCESS)
-    {
-      /* Get needed data from Data Cache */
-      if (dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&datacache_cellular_param,
-                      sizeof(dc_cellular_params_t)) == DC_COM_OK)
-      {
-        if (datacache_cellular_param.rt_state == DC_SERVICE_ON)
-        {
-
-          idx = 0;
-          /* Search the Sim slot within the preference ordered table */
-          while ((idx < DC_SIM_SLOT_NB) && (datacache_cellular_param.sim_slot[idx].sim_slot_type != sim_slot_type))
-          {
-            idx++;
-          }
-          /* If idx < DC_SIM_SLOT_NB, the requested sim slot type was found, else return error */
-          if (idx < DC_SIM_SLOT_NB)
-          {
-            /* Sim slot to be modify found. Update data cache with new values */
-            /* Apn_send_to_modem */
-            datacache_cellular_param.sim_slot[idx].apnSendToModem = p_cellular_pdn->apn_send_to_modem;
-
-            /* Cid */
-            datacache_cellular_param.sim_slot[idx].cid = p_cellular_pdn->cid;
-
-            /* APN */
-            if (p_cellular_pdn->apn.len != 0U)
-            {
-              (void)memcpy(datacache_cellular_param.sim_slot[idx].apn, p_cellular_pdn->apn.value,
-                           (uint32_t)p_cellular_pdn->apn.len + (uint32_t)1U);
-            }
-            else
-            {
-              datacache_cellular_param.sim_slot[idx].apn[0] = (uint8_t)'\0';
-            }
-
-            /* Username for APN */
-            if (p_cellular_pdn->username.len != 0U)
-            {
-              (void)memcpy(datacache_cellular_param.sim_slot[idx].username, p_cellular_pdn->username.value,
-                           (uint32_t)p_cellular_pdn->username.len + (uint32_t)1U);
-            }
-            else
-            {
-              datacache_cellular_param.sim_slot[idx].username[0] = (uint8_t)'\0';
-            }
-
-            /* Password for APN */
-            if (p_cellular_pdn->username.len != 0U)
-            {
-              (void)memcpy(datacache_cellular_param.sim_slot[idx].password, p_cellular_pdn->password.value,
-                           (uint32_t)p_cellular_pdn->password.len + (uint32_t)1U);
-            }
-            else
-            {
-              datacache_cellular_param.sim_slot[idx].password[0] = (uint8_t)'\0';
-            }
-
-            /* Check if error occurred */
-            /* Write modified data to Data Cache */
-            if (dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&datacache_cellular_param,
-                             sizeof(dc_cellular_params_t)) != DC_COM_OK)
-            {
-              /* If something went wrong, return an error */
-              ret = CELLULAR_ERR_INTERNAL;
-            }
-          }
-          else /* Idx >= DC_SIM_SLOT_NB */
-          {
-            ret = CELLULAR_ERR_BADARGUMENT;
-          }
-        }
-        else /* rt_state != DC_SERVICE_ON */
-        {
-          ret = CELLULAR_ERR_STATE;
-        }
-      }
-      else /* Dc_com_read returned an error */
-      {
-        ret = CELLULAR_ERR_INTERNAL;
-      }
     }
   }
-  else
+
+  /* If no error with entry parameter then continue, else return error */
+  if (ret == CELLULAR_SUCCESS)
   {
-    /* P_cellular_pdn is NULL */
-    ret = CELLULAR_ERR_BADARGUMENT;
+    /* Get needed data from Data Cache */
+    if (dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&datacache_cellular_param,
+                    sizeof(dc_cellular_params_t)) == DC_COM_OK)
+    {
+      if (datacache_cellular_param.rt_state == DC_SERVICE_ON)
+      {
+        idx = 0;
+        /* Search the Sim slot within the preference ordered table */
+        while ((idx < DC_SIM_SLOT_NB) && (datacache_cellular_param.sim_slot[idx].sim_slot_type != sim_slot_type))
+        {
+          idx++;
+        }
+        /* If idx < DC_SIM_SLOT_NB, the requested sim slot type was found, else return error */
+        if (idx < DC_SIM_SLOT_NB)
+        {
+          /* Sim slot to be modify found. Update data cache with new values */
+          /* Apn_send_to_modem */
+          datacache_cellular_param.sim_slot[idx].apnSendToModem = p_cellular_pdn->apn_send_to_modem;
+
+          /* APN_present */
+          datacache_cellular_param.sim_slot[idx].apnPresent = p_cellular_pdn->apn_present;
+
+          /* Cid */
+          datacache_cellular_param.sim_slot[idx].cid = p_cellular_pdn->cid;
+
+          /* APN */
+          if (p_cellular_pdn->apn.len != 0U)
+          {
+            (void)memcpy(datacache_cellular_param.sim_slot[idx].apn, p_cellular_pdn->apn.value,
+                         (uint32_t)p_cellular_pdn->apn.len + (uint32_t)1U);
+          }
+          else
+          {
+            datacache_cellular_param.sim_slot[idx].apn[0] = (uint8_t)'\0';
+          }
+
+          /* Username for APN */
+          if (p_cellular_pdn->username.len != 0U)
+          {
+            (void)memcpy(datacache_cellular_param.sim_slot[idx].username, p_cellular_pdn->username.value,
+                         (uint32_t)p_cellular_pdn->username.len + (uint32_t)1U);
+          }
+          else
+          {
+            datacache_cellular_param.sim_slot[idx].username[0] = (uint8_t)'\0';
+          }
+
+          /* Password for APN */
+          if (p_cellular_pdn->username.len != 0U)
+          {
+            (void)memcpy(datacache_cellular_param.sim_slot[idx].password, p_cellular_pdn->password.value,
+                         (uint32_t)p_cellular_pdn->password.len + (uint32_t)1U);
+          }
+          else
+          {
+            datacache_cellular_param.sim_slot[idx].password[0] = (uint8_t)'\0';
+          }
+
+          /* Check if error occurred */
+          /* Write modified data to Data Cache */
+          if (dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&datacache_cellular_param,
+                           sizeof(dc_cellular_params_t)) != DC_COM_OK)
+          {
+            /* If something went wrong, return an error */
+            ret = CELLULAR_ERR_INTERNAL;
+          }
+        }
+        else /* Idx >= DC_SIM_SLOT_NB */
+        {
+          ret = CELLULAR_ERR_BADARGUMENT;
+        }
+      }
+      else /* rt_state != DC_SERVICE_ON */
+      {
+        ret = CELLULAR_ERR_STATE;
+      }
+    }
+    else /* Dc_com_read returned an error */
+    {
+      ret = CELLULAR_ERR_INTERNAL;
+    }
   }
   return (ret);
 }
@@ -761,6 +792,7 @@ cellular_result_t cellular_set_sim_slot_order(uint8_t sim_slot_nb, const ca_sim_
 {
   cellular_result_t         ret;                           /* Return value of the function                            */
   dc_cellular_params_t      datacache_cellular_param;      /* Cellular parameters used to configure the modem.        */
+  dc_sim_info_t             datacache_sim_info;            /* Cellular parameters used to configure the sims.         */
   uint8_t                   idx;                           /* Loop index                                              */
 
   if (p_sim_slot_type != NULL)
@@ -796,6 +828,18 @@ cellular_result_t cellular_set_sim_slot_order(uint8_t sim_slot_nb, const ca_sim_
             /* Write to data cache return error */
             ret = CELLULAR_ERR_INTERNAL;
           }
+          cst_context.sim_slot_index = 0U;
+          /* Read data from data cache */
+          (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&datacache_sim_info, sizeof(datacache_sim_info));
+          /* store sim slot type in Data Cache */
+          datacache_sim_info.active_slot = datacache_cellular_param.sim_slot[cst_context.sim_slot_index].sim_slot_type;
+          /* store SIM slot index in data cache */
+          datacache_sim_info.index_slot  = cst_context.sim_slot_index;
+          for (idx = 0U; idx < DC_SIM_SLOT_NB; idx++)
+          {
+            datacache_sim_info.sim_status[idx] = CA_SIM_NOT_USED;
+          }
+          (void)dc_com_write(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&datacache_sim_info, sizeof(datacache_sim_info));
         }
         else /* Number of new sim slot exceeds the maximum allowed */
         {
@@ -819,6 +863,43 @@ cellular_result_t cellular_set_sim_slot_order(uint8_t sim_slot_nb, const ca_sim_
   }
 
   return (ret);
+}
+
+/**
+  * @brief         Get Operator parameters to be applied at next modem restart.
+  *
+  * @param[in,out] p_operator_selection - The operator configuration structure to contain the response.
+  * @retval -
+  */
+void cellular_get_operator(cellular_operator_selection_t *const p_operator_selection)
+{
+  dc_cellular_params_t          datacache_cellular_params; /* Cellular parameters used to configure the modem.        */
+
+  if (p_operator_selection != NULL)
+  {
+    /* Get existing data from Data Cache */
+    if (dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&datacache_cellular_params,
+                    sizeof(dc_cellular_params_t)) == DC_COM_OK)
+    {
+      /* Registration mode */
+      p_operator_selection->ntw_registration_mode = datacache_cellular_params.operator_selector.network_reg_mode;
+
+      /* Operator name format */
+      p_operator_selection->operator_name_format = datacache_cellular_params.operator_selector.operator_name_format;
+
+      /* Operator name */
+      cellular_api_fill_string(datacache_cellular_params.operator_selector.operator_name,
+                               CA_OPERATOR_NAME_SIZE_MAX,
+                               &p_operator_selection->operator_name.len,
+                               p_operator_selection->operator_name.value);
+
+      /* access techno present */
+      p_operator_selection->access_techno_present = datacache_cellular_params.operator_selector.access_techno_present;
+
+      /* access techno present */
+      p_operator_selection->access_techno = datacache_cellular_params.operator_selector.access_techno;
+    }
+  }
 }
 
 /**
@@ -1010,6 +1091,9 @@ void cellular_get_sim_info(cellular_sim_info_t *const p_sim_info)
     /* Cid */
     p_sim_info->pdn.cid = datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].cid;
 
+    /* apn_present */
+    p_sim_info->pdn.apn_present = datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].apnPresent;
+
     /* APN */
     cellular_api_fill_string(datacache_cellular_param.sim_slot[datacache_sim_info.index_slot].apn, CA_APN_SIZE_MAX,
                              &p_sim_info->pdn.apn.len, p_sim_info->pdn.apn.value);
@@ -1067,6 +1151,9 @@ cellular_result_t cellular_get_sim_info_from_index(uint8_t sim_index, cellular_s
 
     /* Cid */
     p_sim_info_index->pdn.cid = datacache_cellular_param.sim_slot[sim_index].cid;
+
+    /* apn_present */
+    p_sim_info_index->pdn.apn_present = datacache_cellular_param.sim_slot[sim_index].apnPresent;
 
     /* APN */
     cellular_api_fill_string(datacache_cellular_param.sim_slot[sim_index].apn, CA_APN_SIZE_MAX,
@@ -1213,7 +1300,15 @@ void cellular_get_ip_info(cellular_ip_info_t *const p_ip_info)
     (void)dc_com_read(&dc_com_db, DC_CELLULAR_NIFMAN_INFO, (void *)&datacache_nifman_info, sizeof(dc_nifman_info_t));
 
     /* IP parameters */
-    p_ip_info->ip_addr.addr = datacache_nifman_info.ip_addr.addr;
+    /* Is Data ready or not ? */
+    if (datacache_nifman_info.rt_state == DC_SERVICE_ON)
+    {
+      p_ip_info->ip_addr.addr = datacache_nifman_info.ip_addr.addr;
+    }
+    else
+    {
+      p_ip_info->ip_addr.addr = 0U;
+    }
   }
 }
 

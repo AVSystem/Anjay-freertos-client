@@ -6,7 +6,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2022 STMicroelectronics.
+  * Copyright (c) 2023 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -28,6 +28,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "cmsis_os.h"
+
+#include <b_u585i_iot02a_ospi.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -99,6 +101,14 @@ int main(void)
   MX_RNG_Init();
   MX_ICACHE_Init();
   /* USER CODE BEGIN 2 */
+  BSP_OSPI_NOR_Init_t init_params = {
+      .InterfaceMode = BSP_OSPI_NOR_OPI_MODE,
+      .TransferRate = BSP_OSPI_NOR_STR_TRANSFER
+  };
+  int res = BSP_OSPI_NOR_Init(0, &init_params);
+  (void) res;
+  assert(!res);
+
   MX_FREERTOS_Init();
   osKernelStart();
   /* USER CODE END 2 */

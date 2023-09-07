@@ -40,14 +40,16 @@ extern "C" {
   */
 #define MAX_PINCODE_SIZE               (16U)
 #define MAX_APN_SIZE                   (64U)
-#define MAX_IP_ADDR_SIZE               (64U)
+#define MAX_IP_ADDR_SIZE               (MAX_SIZE_IPADDR)
 
 #define DEFAULT_IP_MAX_PACKET_SIZE     (1500U) /* Hard-Coded but should use real modem limit */
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 #define DEFAULT_TRP_MAX_TIMEOUT        (90U)
 #define DEFAULT_TRP_CONN_SETUP_TIMEOUT (600U)
 #define DEFAULT_TRP_TRANSFER_TIMEOUT   (50U)
 #define DEFAULT_TRP_SUSPEND_TIMEOUT    (1000U)
 #define DEFAULT_TRP_RX_TIMEOUT         (50U)
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
 #define PING_INVALID_INDEX             (0xFFU)
 /**
@@ -108,6 +110,10 @@ enum
   CSMT_INIT_POWER_CONFIG,  /* CS_init_power_config_t */
   CSMT_SET_POWER_CONFIG,   /* CS_set_power_config_t */
   CSMT_WAKEUP_ORIGIN,      /* CS_wakeup_origin_t */
+#if defined(USE_COM_MDM)
+  CSMT_COM_MDM,
+  CSMT_URC_COMMDM_EVENT,
+#endif /* defined(USE_COM_MDM) */
 };
 
 typedef struct
@@ -209,8 +215,6 @@ typedef struct
   /* socket states */
   csint_Socket_State_t state; /* socket state */
 
-  CS_SocketOptionName_t config;
-
   /* parameters set during socket creation */
   CS_IPaddrType_t             addr_type;   /* local IP address */
   CS_TransportProtocol_t      protocol;
@@ -222,6 +226,9 @@ typedef struct
   CS_CHAR_t           ip_addr_value[MAX_IP_ADDR_SIZE]; /* remote IP address */
   uint16_t            remote_port;
 
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
+  CS_SocketOptionName_t config;
+
   /* parameters set during socket configuration */
   uint16_t ip_max_packet_size; /* 0 to 1500 bytes, 0 means default, default = DEFAULT_IP_MAX_PACKET_SIZE */
   uint16_t trp_max_timeout; /* 0 to 65535 seconds, 0 means infinite, default = DEFAULT_TRP_MAX_TIMEOUT */
@@ -231,6 +238,7 @@ typedef struct
   CS_ConnectionMode_t trp_connect_mode;
   uint16_t trp_suspend_timeout; /* 0 to 2000 ms , 0 means infinite, default = DEFAULT_TRP_SUSPEND_TIMEOUT */
   uint16_t trp_rx_timeout; /* 0 to 255 ms, 0 means infinite, default = DEFAULT_TRP_RX_TIMEOUT */
+#endif /*defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
   /* socket infos callbacks */
   cellular_socket_data_ready_callback_t   socket_data_ready_callback;
@@ -363,6 +371,11 @@ enum
   SID_CS_SLEEP_COMPLETE,
   SID_CS_SLEEP_CANCEL,
   SID_CS_WAKEUP
+#if defined(USE_COM_MDM)
+  ,
+  SID_CS_COM_MDM_TRANSACTION,
+#endif /* defined(USE_COM_MDM) */
+
 };
 /**
   * @}
@@ -391,10 +404,12 @@ CS_Status_t csint_socket_create(socket_handle_t sockhandle,
                                 CS_PDN_conf_id_t cid);
 CS_Status_t csint_socket_bind(socket_handle_t sockhandle,
                               uint16_t local_port);
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
                                    CS_SocketOptionLevel_t opt_level,
                                    CS_SocketOptionName_t opt_name,
                                    void *p_opt_val);
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 CS_Status_t csint_socket_configure_remote(socket_handle_t sockhandle,
                                           CS_IPaddrType_t ip_addr_type,
                                           CS_CHAR_t *p_ip_addr_value,
@@ -404,6 +419,26 @@ void set_Adapter_Handle(at_handle_t value);
 at_handle_t get_Adapter_Handle(void);
 at_buf_t *getCmdBufPtr(void);
 at_buf_t *getRspBufPtr(void);
+
+#if defined(USE_COM_MDM)
+typedef enum
+{
+  CS_COMMDM_TRANSACTION, /* uses TxBuffer and RxBuffer */
+  CS_COMMDM_SEND,        /* uses TxBuffer only */
+  CS_COMMDM_RECEIVE,     /* uses RxBuffer only */
+
+} csint_ComMdm_type_t;
+
+typedef struct
+{
+  csint_ComMdm_type_t transaction_type;
+  CS_Tx_Buffer_t      txBuffer;
+  CS_Rx_Buffer_t      rxBuffer;
+  int32_t            errorCode;
+
+} csint_ComMdm_t;
+
+#endif /* defined(USE_COM_MDM) */
 
 /**
   * @}

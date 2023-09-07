@@ -48,7 +48,7 @@
 void atcma_init_at_func_ptrs(atcustom_funcPtrs_t *funcPtrs)
 {
 #if defined(USE_MODEM_BG96)
-  /* initialize the structure of function pointers with TYPE1SC functions.
+  /* initialize the structure of function pointers with BG96 functions.
    * This structure will be used by common code to call specific modem functions.
    */
   funcPtrs->f_init = ATCustom_BG96_init;

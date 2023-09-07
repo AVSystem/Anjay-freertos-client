@@ -325,6 +325,7 @@ typedef uint32_t ATCustom_BG96_QCFGscanseq_t;
 #define  QCFGSCANSEQ_NB1_GSM_M1 ((ATCustom_BG96_QCFGscanseq_t) 0x030102)
 #define  QCFGSCANSEQ_NB1_M1_GSM ((ATCustom_BG96_QCFGscanseq_t) 0x030201)
 
+#if (ENABLE_BG96_LOW_POWER_MODE != 0U)
 typedef enum
 {
   HOST_LP_STATE_IDLE,               /* state 0 */
@@ -341,7 +342,6 @@ typedef enum
   MDM_LP_STATE_ERROR,            /* state 2 */
 } ATCustom_BG96_Modem_LP_state_t;
 
-#if (ENABLE_BG96_LOW_POWER_MODE != 0U)
 typedef enum
 {
   EVENT_LP_HOST_SLEEP_REQ,        /* event 0 */
@@ -388,8 +388,9 @@ typedef struct
   ATCustom_BG96_QCFG_function_t     QCFG_command_param;
   at_bool_t                         QCFG_command_write;
   ATCustom_BG96_QINDCFG_function_t  QINDCFG_command_param;
-  at_bool_t                         QIOPEN_waiting;         /* memorize if waiting for QIOPEN */
-  uint8_t                           QIOPEN_current_socket_connected;
+  at_bool_t                  QIOPEN_OK;              /* memorize if QIOPEN is OK */
+  at_bool_t                  QIOPEN_URC_OK;          /* memorize if QIOPEN URC is OK*/
+  at_bool_t                  QIOPEN_URC_ERROR;       /* memorize if QIOPEN URC has an error */
   at_bool_t                  QICGSP_config_command;  /* memorize if QICSGP write command is a config or a query cmd */
   bg96_qiurc_dnsgip_t        QIURC_dnsgip_param;     /* memorize infos received in the URC +QIURC:"dnsgip" */
   at_bool_t                  QINISTAT_error;         /* memorize AT+QINISTAT has reported an error  */
@@ -397,10 +398,12 @@ typedef struct
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
   at_bool_t                  pdn_already_active; /* check if request PDN to activate is already active (QIACT) */
 #endif /* USE_SOCKETS_TYPE */
+
+#if (ENABLE_BG96_LOW_POWER_MODE != 0U)
   ATCustom_BG96_Host_LP_state_t   host_lp_state;         /* to manage automaton Host Low Power state */
   ATCustom_BG96_Modem_LP_state_t  modem_lp_state;        /* to manage automaton Modem Low Power state */
   at_bool_t                       modem_resume_from_PSM; /* indicates that modem has just leave PSM */
-
+#endif /* ENABLE_BG96_LOW_POWER_MODE != 0U */
 } bg96_shared_variables_t;
 
 /**

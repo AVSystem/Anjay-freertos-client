@@ -8,7 +8,6 @@ This repository contains LwM2M Client application based on open-source [Anjay](h
 | Project Path | Board | Modem |
 |--------------|-------|-------|
 | Projects/STM32L496G-DISCO/UserApp/BG96 | [P-L496G-CELL02 Discovery kit](https://www.st.com/en/evaluation-tools/p-l496g-cell02.html) | [Quectel BG96](https://www.quectel.com/product/lpwa-bg96-cat-m1-nb1-egprs) default modem provided with kit |
-| Projects/STM32L496G-DISCO/UserApp/MONARCH | [P-L496G-CELL02 Discovery kit](https://www.st.com/en/evaluation-tools/p-l496g-cell02.html) | [Monarch GM01Q-STMOD](https://www.st.com/en/partner-products-and-services/monarch-gm01q-stmod.html) expansion board |
 | Projects/B-L462E-CELL1/UserApp/TYPE1SC | [B-L462E-CELL1 Discovery kit](https://www.st.com/en/evaluation-tools/b-l462e-cell1.html) | [Murata TYPE 1SE](https://www.murata.com/en-eu/products/connectivitymodule/lpwa/overview/lineup/type-1se) module with built-in eSIM (ST4SIM-200M)|
 | Projects/B-L462E-CELL1/UserApp/TYPE1SC-AIBP | [B-L462E-CELL1 Discovery kit](https://www.st.com/en/evaluation-tools/b-l462e-cell1.html) | [Murata TYPE 1SE](https://www.murata.com/en-eu/products/connectivitymodule/lpwa/overview/lineup/type-1se) module with built-in eSIM (ST4SIM-200M) <br /> Supports AI Bridging Protocol.|
 | Projects/B-U585I-IOT02A/BG96<br> | [B-U585I-IOT02A Discovery kit](https://www.st.com/en/evaluation-tools/b-u585i-iot02a.html) | [Quectel BG96](https://www.quectel.com/product/lpwa-bg96-cat-m1-nb1-egprs) (provided with P-L496G-CELL02 devkit)
@@ -63,3 +62,27 @@ Press any key in 3 seconds to enter config menu...
 ```
 
 You can then press any key on your keyboard to enter the configuration menu. After that, you'll see a few configuration options that can be altered and persisted within the flash memory for future bootups.
+
+## Module persistence
+
+This application features persistence of Security object, Server object and
+client's Attribute Storage to retain configuration of those modules over power
+cycles, to e.g. keep bootstrapped server configuration.
+
+To enable module persistence, set "Use module persistence" option to `y` in
+shell config menu. Application will attempt to load those modules from
+non-volatile memory. Configuration of those modules from shell will be ignored,
+unless the application fails to restore the state from the memory.
+
+The persisted state of aforementioned modules may be cleared using "Clear module
+persistence" option.
+
+## SIM Bootstrap (commercial feature)
+
+`STM32L496G-DISCO-BG96` project now features the **SIM Bootstrap** that allows
+bootstrapping the device using the SIM Smartcard. **This feature is available
+only with releases of Anjay that include the *bootstrapper* commercial
+feature.** To use the SIM Bootstrap feature, define `USE_SIM_BOOTSTRAP` in the
+`STM32L496G-DISCO-BG96` project settings and make sure that the
+`ANJAY_WITH_MODULE_BOOTSTRAPPER` and `ANJAY_WITH_MODULE_SIM_BOOTSTRAP` options
+are enabled in `Application/Inc/anjay/anjay_config.h`.

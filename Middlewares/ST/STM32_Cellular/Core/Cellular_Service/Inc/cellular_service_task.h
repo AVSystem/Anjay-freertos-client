@@ -75,17 +75,18 @@ typedef enum
 /* Cellular context */
 typedef struct
 {
-  CST_autom_state_t    current_state;                    /* automaton current state                                 */
-  cst_fail_cause_t     fail_cause;                       /* cause of modem connection failure                       */
-  CS_PDN_event_t       pdn_status;                       /* PDN status when modem callback is called                */
-  CS_SignalQuality_t   signal_quality;                   /* current signal quality                                  */
-  CS_NetworkRegState_t current_EPS_NetworkRegState;      /* current EPS network state                               */
-  CS_NetworkRegState_t current_GPRS_NetworkRegState;     /* current GPRS network state                              */
-  CS_NetworkRegState_t current_CS_NetworkRegState;       /* current CS network state                                */
-  uint16_t             activate_pdn_nfmc_tempo_count;    /* current NFMC tempo count (if NFMC enabled)              */
-  uint16_t             register_retry_tempo_count;       /* number of network register retry                        */
-  uint8_t              sim_slot_index;                   /* index of sim slot used                                  */
-  bool                 modem_on;                         /* Current power status of the modem false : off true : on */
+  bool                 start_done;                      /* cellular_service_start done. false : not done, true : done */
+  CST_autom_state_t    current_state;                   /* automaton current state                                    */
+  cst_fail_cause_t     fail_cause;                      /* cause of modem connection failure                          */
+  CS_PDN_event_t       pdn_status;                      /* PDN status when modem callback is called                   */
+  CS_SignalQuality_t   signal_quality;                  /* current signal quality                                     */
+  CS_NetworkRegState_t current_EPS_NetworkRegState;     /* current EPS network state                                  */
+  CS_NetworkRegState_t current_GPRS_NetworkRegState;    /* current GPRS network state                                 */
+  CS_NetworkRegState_t current_CS_NetworkRegState;      /* current CS network state                                   */
+  uint16_t             activate_pdn_nfmc_tempo_count;   /* current NFMC tempo count (if NFMC enabled)                 */
+  uint16_t             register_retry_tempo_count;      /* number of network register retry                           */
+  uint8_t              sim_slot_index;                  /* index of sim slot used                                     */
+  bool                 modem_on;                        /* Current power status of the modem false : off true : on    */
 
   /* failing counters BEGIN */
   uint8_t             power_on_reset_count;
@@ -293,10 +294,16 @@ typedef uint16_t cst_network_status_t;
 #define CST_NET_UNKNOWN        (cst_network_status_t)3U   /* network unknown just ignore*/
 
 /* External variables --------------------------------------------------------*/
+
 extern bool CST_polling_active;            /* modem polling activation flag */
 #if (( USE_TRACE_CELLULAR_SERVICE == 1) || ( USE_CMD_CONSOLE == 1 ))
 extern const uint8_t *CST_StateName[CST_MAX_STATE];
 #endif /* (( USE_TRACE_CELLULAR_SERVICE == 1) || ( USE_CMD_CONSOLE == 1 )) */
+/* Mutex handler */
+extern osMutexId CellularQueueMutexHandle;
+
+extern cst_autom_event_t last_cs_autom_event; /* The last pushed (and still not pulled) event in CST queue */
+extern bool last_cs_autom_event_relevant;     /* last_cs_autom_eventvalue is relevant or not */
 
 /* Global variables ----------------------------------------------------------*/
 

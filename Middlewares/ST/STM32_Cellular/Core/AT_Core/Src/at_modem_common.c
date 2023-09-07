@@ -677,8 +677,8 @@ at_status_t atcm_modem_build_cmd(atcustom_modem_context_t *p_modem_ctxt,
   /* 1- set the commande name (get it from LUT) */
   const AT_CHAR_t *p_cmd_name_string = atcm_get_CmdStr(p_modem_ctxt, p_atp_ctxt->current_atcmd.id);
   uint8_t string_length = (uint8_t) strlen((const CRC_CHAR_t *) p_cmd_name_string);
-  (void) memcpy((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.name,
-                p_cmd_name_string,
+  (void) memcpy((AT_CHAR_t *)p_atp_ctxt->current_atcmd.name,
+                (const AT_CHAR_t *)p_cmd_name_string,
                 string_length);
 
   PRINT_DBG("<modem custom> build the cmd %s (type=%d, length=%d)",
@@ -756,10 +756,15 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
       csint_socket_rxdata_from_t  rxdata_from;
       (void) memset((void *)&rxdata_from, 0, sizeof(csint_socket_rxdata_from_t));
       /* recopy info received */
+      /* buffer size */
       rxdata_from.bytes_received = p_modem_ctxt->socket_ctxt.socketReceivedata.buffer_size;
+      /* remote IP address type */
+      rxdata_from.ip_addr_type = p_modem_ctxt->socket_ctxt.socketReceivedata.ip_addr_type;
+      /* remote IP address value */
       (void) memcpy((void *)&rxdata_from.ip_addr_value,
                     (void *)p_modem_ctxt->socket_ctxt.socketReceivedata.ip_addr_value,
                     strlen((CRC_CHAR_t *)p_modem_ctxt->socket_ctxt.socketReceivedata.ip_addr_value));
+      /* remote port value */
       rxdata_from.remote_port = p_modem_ctxt->socket_ctxt.socketReceivedata.remote_port;
       /* Prepare response buffer to send back to Cellular Service */
       if (DATAPACK_writeStruct(p_rsp_buf,
@@ -824,6 +829,22 @@ at_status_t atcm_modem_get_rsp(atcustom_modem_context_t *p_modem_ctxt,
       }
       break;
     }
+
+#if defined(USE_COM_MDM)
+    case SID_CS_COM_MDM_TRANSACTION:
+    {
+      /* recopy info received for cellular service in p_rsp_buf */
+      if (DATAPACK_writeStruct(p_rsp_buf,
+                               (uint16_t) CSMT_COM_MDM,
+                               (uint16_t) sizeof(csint_ComMdm_t),
+                               (void *)&p_modem_ctxt->SID_ctxt.com_mdm_data) != DATAPACK_OK)
+      {
+        PRINT_ERR("SIM generic access problem")
+        retval = ATSTATUS_ERROR;
+      }
+      break;
+    }
+#endif /* defined(USE_COM_MDM) */
 
     default:
       break;
@@ -908,16 +929,16 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     PRINT_DBG("urc_avail_eps_location_info_tac or urc_avail_eps_location_info_ci")
 
     /* Initialize the local data structure used to create response buffer */
-    csint_location_info_t loc_struct = { .ci_updated = CELLULAR_FALSE, .lac_updated = CELLULAR_FALSE, };
+    csint_location_info_t loc_struct = { .ci_updated = CS_FALSE, .lac_updated = CS_FALSE, };
     if (p_modem_ctxt->persist.urc_avail_eps_location_info_tac == AT_TRUE)
     {
       loc_struct.lac = p_modem_ctxt->persist.eps_location_info.lac;
-      loc_struct.lac_updated = CELLULAR_TRUE;
+      loc_struct.lac_updated = CS_TRUE;
     }
     if (p_modem_ctxt->persist.urc_avail_eps_location_info_ci == AT_TRUE)
     {
       loc_struct.ci = p_modem_ctxt->persist.eps_location_info.ci;
-      loc_struct.ci_updated = CELLULAR_TRUE;
+      loc_struct.ci_updated = CS_TRUE;
     }
     /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
@@ -945,16 +966,16 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     PRINT_DBG("urc_avail_gprs_location_info_tac or urc_avail_gprs_location_info_ci")
 
     /* Initialize the local data structure used to create response buffer */
-    csint_location_info_t loc_struct = { .ci_updated = CELLULAR_FALSE, .lac_updated = CELLULAR_FALSE, };
+    csint_location_info_t loc_struct = { .ci_updated = CS_FALSE, .lac_updated = CS_FALSE, };
     if (p_modem_ctxt->persist.urc_avail_gprs_location_info_lac == AT_TRUE)
     {
       loc_struct.lac = p_modem_ctxt->persist.gprs_location_info.lac;
-      loc_struct.lac_updated = CELLULAR_TRUE;
+      loc_struct.lac_updated = CS_TRUE;
     }
     if (p_modem_ctxt->persist.urc_avail_gprs_location_info_ci == AT_TRUE)
     {
       loc_struct.ci = p_modem_ctxt->persist.gprs_location_info.ci;
-      loc_struct.ci_updated = CELLULAR_TRUE;
+      loc_struct.ci_updated = CS_TRUE;
     }
     /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
@@ -982,16 +1003,16 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     PRINT_DBG("urc_avail_cs_location_info_lac or urc_avail_cs_location_info_ci")
 
     /* Initialize the local data structure used to create response buffer */
-    csint_location_info_t loc_struct = { .ci_updated = CELLULAR_FALSE, .lac_updated = CELLULAR_FALSE, };
+    csint_location_info_t loc_struct = { .ci_updated = CS_FALSE, .lac_updated = CS_FALSE, };
     if (p_modem_ctxt->persist.urc_avail_cs_location_info_lac == AT_TRUE)
     {
       loc_struct.lac = p_modem_ctxt->persist.cs_location_info.lac;
-      loc_struct.lac_updated = CELLULAR_TRUE;
+      loc_struct.lac_updated = CS_TRUE;
     }
     if (p_modem_ctxt->persist.urc_avail_cs_location_info_ci == AT_TRUE)
     {
       loc_struct.ci = p_modem_ctxt->persist.cs_location_info.ci;
-      loc_struct.ci_updated = CELLULAR_TRUE;
+      loc_struct.ci_updated = CS_TRUE;
     }
     /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
@@ -1216,7 +1237,7 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* Initialize the local data structure used to create response buffer */
     CS_SimEvent_status_t sim_status_struct;
     (void) memcpy((void *)&sim_status_struct,
-                  (void *)&p_modem_ctxt->persist.sim_state,
+                  (void *)&p_modem_ctxt->persist.sim_state_infos,
                   sizeof(CS_SimEvent_status_t));
     /* Prepare response buffer to send back to Cellular Service */
     if (DATAPACK_writeStruct(p_rsp_buf,
@@ -1267,6 +1288,26 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
     /* reset flag (systematically to avoid never ending URC) */
     p_modem_ctxt->persist.urc_avail_modem_events = CS_MDMEVENT_NONE;
   }
+#if defined(USE_COM_MDM)
+  else if (p_modem_ctxt->persist.urc_avail_commdm_event_count != 0U)
+  {
+    PRINT_INFO("urc_avail_commdm_event")
+
+    CS_comMdm_status_t comMdmd_event_infos;
+    /* report number of pending COMMDM messages */
+    comMdmd_event_infos.param1 = p_modem_ctxt->persist.urc_avail_commdm_event_count - 1U;
+    if (DATAPACK_writeStruct(p_rsp_buf,
+                             (uint16_t) CSMT_URC_COMMDM_EVENT,
+                             (uint16_t) sizeof(comMdmd_event_infos),
+                             (void *)&comMdmd_event_infos) != DATAPACK_OK)
+    {
+      retval = ATSTATUS_ERROR;
+    }
+
+    /* decrease counter of pending COMMDM messages stored */
+    p_modem_ctxt->persist.urc_avail_commdm_event_count--;
+  }
+#endif /* defined(USE_COM_MDM) */
   else
   {
     PRINT_INFO("no pending URC")
@@ -1294,6 +1335,10 @@ at_status_t atcm_modem_get_urc(atcustom_modem_context_t *p_modem_ctxt,
       (p_modem_ctxt->persist.urc_avail_sim_refresh_event == AT_TRUE) ||
       (p_modem_ctxt->persist.urc_avail_sim_detect_event == AT_TRUE) ||
       (p_modem_ctxt->persist.urc_avail_sim_state_event == AT_TRUE) ||
+#if defined(USE_COM_MDM)
+      (p_modem_ctxt->persist.urc_avail_commdm_event_count != 0U) ||
+#endif /* defined(USE_COM_MDM) */
+
       (p_modem_ctxt->persist.urc_avail_modem_events != CS_MDMEVENT_NONE))
   {
     /* there is at least one pending URC */
@@ -1348,19 +1393,9 @@ at_status_t atcm_subscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, atp
   if ((urcEvent == CS_URCEVENT_EPS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_EPS_LOCATION_INFO))
   {
     /* if CEREG not yet subscbribe */
-    if ((p_modem_ctxt->persist.urc_subscript_eps_networkReg == CELLULAR_FALSE) &&
-        (p_modem_ctxt->persist.urc_subscript_eps_locationInfo == CELLULAR_FALSE))
+    if ((p_modem_ctxt->persist.urc_subscript_eps_networkReg == CS_FALSE) &&
+        (p_modem_ctxt->persist.urc_subscript_eps_locationInfo == CS_FALSE))
     {
-      /* set event as subscribed */
-      if (urcEvent == CS_URCEVENT_EPS_NETWORK_REG_STAT)
-      {
-        p_modem_ctxt->persist.urc_subscript_eps_networkReg = CELLULAR_TRUE;
-      }
-      if (urcEvent == CS_URCEVENT_EPS_LOCATION_INFO)
-      {
-        p_modem_ctxt->persist.urc_subscript_eps_locationInfo = CELLULAR_TRUE;
-      }
-
       /* request all URC, we will filter them */
       if (p_modem_ctxt->persist.psm_urc_requested == AT_TRUE)
       {
@@ -1376,24 +1411,24 @@ at_status_t atcm_subscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, atp
     {
       atcm_program_NO_MORE_CMD(p_atp_ctxt);
     }
+
+    /* set event as subscribed */
+    if (urcEvent == CS_URCEVENT_EPS_NETWORK_REG_STAT)
+    {
+      p_modem_ctxt->persist.urc_subscript_eps_networkReg = CS_TRUE;
+    }
+    if (urcEvent == CS_URCEVENT_EPS_LOCATION_INFO)
+    {
+      p_modem_ctxt->persist.urc_subscript_eps_locationInfo = CS_TRUE;
+    }
   }
   /* is an event linked to CGREG ?  */
   else if ((urcEvent == CS_URCEVENT_GPRS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_GPRS_LOCATION_INFO))
   {
     /* if CGREG not yet subscbribe */
-    if ((p_modem_ctxt->persist.urc_subscript_gprs_networkReg == CELLULAR_FALSE) &&
-        (p_modem_ctxt->persist.urc_subscript_gprs_locationInfo == CELLULAR_FALSE))
+    if ((p_modem_ctxt->persist.urc_subscript_gprs_networkReg == CS_FALSE) &&
+        (p_modem_ctxt->persist.urc_subscript_gprs_locationInfo == CS_FALSE))
     {
-      /* set event as subscribed */
-      if (urcEvent == CS_URCEVENT_GPRS_NETWORK_REG_STAT)
-      {
-        p_modem_ctxt->persist.urc_subscript_gprs_networkReg = CELLULAR_TRUE;
-      }
-      if (urcEvent == CS_URCEVENT_GPRS_LOCATION_INFO)
-      {
-        p_modem_ctxt->persist.urc_subscript_gprs_locationInfo = CELLULAR_TRUE;
-      }
-
       /* request all URC, we will filter them */
       if (p_modem_ctxt->persist.psm_urc_requested == AT_TRUE)
       {
@@ -1409,24 +1444,24 @@ at_status_t atcm_subscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, atp
     {
       atcm_program_NO_MORE_CMD(p_atp_ctxt);
     }
+
+    /* set event as subscribed */
+    if (urcEvent == CS_URCEVENT_GPRS_NETWORK_REG_STAT)
+    {
+      p_modem_ctxt->persist.urc_subscript_gprs_networkReg = CS_TRUE;
+    }
+    if (urcEvent == CS_URCEVENT_GPRS_LOCATION_INFO)
+    {
+      p_modem_ctxt->persist.urc_subscript_gprs_locationInfo = CS_TRUE;
+    }
   }
   /* is an event linked to CREG ? */
   else if ((urcEvent == CS_URCEVENT_CS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_CS_LOCATION_INFO))
   {
     /* if CREG not yet subscbribe */
-    if ((p_modem_ctxt->persist.urc_subscript_cs_networkReg == CELLULAR_FALSE) &&
-        (p_modem_ctxt->persist.urc_subscript_cs_locationInfo == CELLULAR_FALSE))
+    if ((p_modem_ctxt->persist.urc_subscript_cs_networkReg == CS_FALSE) &&
+        (p_modem_ctxt->persist.urc_subscript_cs_locationInfo == CS_FALSE))
     {
-      /* set event as subscribed */
-      if (urcEvent == CS_URCEVENT_CS_NETWORK_REG_STAT)
-      {
-        p_modem_ctxt->persist.urc_subscript_cs_networkReg = CELLULAR_TRUE;
-      }
-      if (urcEvent == CS_URCEVENT_CS_LOCATION_INFO)
-      {
-        p_modem_ctxt->persist.urc_subscript_cs_locationInfo = CELLULAR_TRUE;
-      }
-
       /* request all URC, we will filter them */
       p_modem_ctxt->CMD_ctxt.cxreg_write_cmd_param = CXREG_ENABLE_NETWK_REG_LOC_URC;
       atcm_program_AT_CMD(p_modem_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CREG, FINAL_CMD);
@@ -1434,6 +1469,16 @@ at_status_t atcm_subscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, atp
     else
     {
       atcm_program_NO_MORE_CMD(p_atp_ctxt);
+    }
+
+    /* set event as subscribed */
+    if (urcEvent == CS_URCEVENT_CS_NETWORK_REG_STAT)
+    {
+      p_modem_ctxt->persist.urc_subscript_cs_networkReg = CS_TRUE;
+    }
+    if (urcEvent == CS_URCEVENT_CS_LOCATION_INFO)
+    {
+      p_modem_ctxt->persist.urc_subscript_cs_locationInfo = CS_TRUE;
     }
   }
   else
@@ -1446,7 +1491,7 @@ at_status_t atcm_subscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, atp
 
 /**
   * @brief  atcm_unsubscribe_net_event
-  * @note   Unsubscribe to a network event previoulsy subscribed.
+  * @note   Unsubscribe to a network event previously subscribed.
   * @param  p_modem_ctxt  pointer to modem context
   * @param  p_atp_ctxt    pointer to parser context
   * @retval at_status_t
@@ -1464,16 +1509,16 @@ at_status_t atcm_unsubscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, a
     /* set event as unsubscribed */
     if (urcEvent == CS_URCEVENT_EPS_NETWORK_REG_STAT)
     {
-      p_modem_ctxt->persist.urc_subscript_eps_networkReg = CELLULAR_FALSE;
+      p_modem_ctxt->persist.urc_subscript_eps_networkReg = CS_FALSE;
     }
     if (urcEvent == CS_URCEVENT_EPS_LOCATION_INFO)
     {
-      p_modem_ctxt->persist.urc_subscript_eps_locationInfo = CELLULAR_FALSE;
+      p_modem_ctxt->persist.urc_subscript_eps_locationInfo = CS_FALSE;
     }
 
     /* if no more event for CEREG, send cmd to modem to disable URC */
-    if ((p_modem_ctxt->persist.urc_subscript_eps_networkReg == CELLULAR_FALSE) &&
-        (p_modem_ctxt->persist.urc_subscript_eps_locationInfo == CELLULAR_FALSE))
+    if ((p_modem_ctxt->persist.urc_subscript_eps_networkReg == CS_FALSE) &&
+        (p_modem_ctxt->persist.urc_subscript_eps_locationInfo == CS_FALSE))
     {
       p_modem_ctxt->CMD_ctxt.cxreg_write_cmd_param = CXREG_DISABLE_NETWK_REG_URC;
       atcm_program_AT_CMD(p_modem_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CEREG, FINAL_CMD);
@@ -1489,16 +1534,16 @@ at_status_t atcm_unsubscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, a
     /* set event as unsubscribed */
     if (urcEvent == CS_URCEVENT_GPRS_NETWORK_REG_STAT)
     {
-      p_modem_ctxt->persist.urc_subscript_gprs_networkReg = CELLULAR_FALSE;
+      p_modem_ctxt->persist.urc_subscript_gprs_networkReg = CS_FALSE;
     }
     if (urcEvent == CS_URCEVENT_GPRS_LOCATION_INFO)
     {
-      p_modem_ctxt->persist.urc_subscript_gprs_locationInfo = CELLULAR_FALSE;
+      p_modem_ctxt->persist.urc_subscript_gprs_locationInfo = CS_FALSE;
     }
 
     /* if no more event for CGREG, send cmd to modem to disable URC */
-    if ((p_modem_ctxt->persist.urc_subscript_gprs_networkReg == CELLULAR_FALSE) &&
-        (p_modem_ctxt->persist.urc_subscript_gprs_locationInfo == CELLULAR_FALSE))
+    if ((p_modem_ctxt->persist.urc_subscript_gprs_networkReg == CS_FALSE) &&
+        (p_modem_ctxt->persist.urc_subscript_gprs_locationInfo == CS_FALSE))
     {
       p_modem_ctxt->CMD_ctxt.cxreg_write_cmd_param = CXREG_DISABLE_NETWK_REG_URC;
       atcm_program_AT_CMD(p_modem_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGREG, FINAL_CMD);
@@ -1514,16 +1559,16 @@ at_status_t atcm_unsubscribe_net_event(atcustom_modem_context_t *p_modem_ctxt, a
     /* set event as unsubscribed */
     if (urcEvent == CS_URCEVENT_CS_NETWORK_REG_STAT)
     {
-      p_modem_ctxt->persist.urc_subscript_cs_networkReg = CELLULAR_FALSE;
+      p_modem_ctxt->persist.urc_subscript_cs_networkReg = CS_FALSE;
     }
     if (urcEvent == CS_URCEVENT_CS_LOCATION_INFO)
     {
-      p_modem_ctxt->persist.urc_subscript_cs_locationInfo = CELLULAR_FALSE;
+      p_modem_ctxt->persist.urc_subscript_cs_locationInfo = CS_FALSE;
     }
 
     /* if no more event for CREG, send cmd to modem to disable URC */
-    if ((p_modem_ctxt->persist.urc_subscript_cs_networkReg == CELLULAR_FALSE) &&
-        (p_modem_ctxt->persist.urc_subscript_cs_locationInfo == CELLULAR_FALSE))
+    if ((p_modem_ctxt->persist.urc_subscript_cs_networkReg == CS_FALSE) &&
+        (p_modem_ctxt->persist.urc_subscript_cs_locationInfo == CS_FALSE))
     {
       p_modem_ctxt->CMD_ctxt.cxreg_write_cmd_param = CXREG_DISABLE_NETWK_REG_URC;
       atcm_program_AT_CMD(p_modem_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CREG, FINAL_CMD);
@@ -1598,14 +1643,14 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
   PRINT_API("enter reset_persistent_context()")
 
   /* URC subscriptions */
-  p_persistent_ctxt->urc_subscript_eps_networkReg = CELLULAR_FALSE;
-  p_persistent_ctxt->urc_subscript_eps_locationInfo = CELLULAR_FALSE;
-  p_persistent_ctxt->urc_subscript_gprs_networkReg = CELLULAR_FALSE;
-  p_persistent_ctxt->urc_subscript_gprs_locationInfo = CELLULAR_FALSE;
-  p_persistent_ctxt->urc_subscript_cs_networkReg = CELLULAR_FALSE;
-  p_persistent_ctxt->urc_subscript_cs_locationInfo = CELLULAR_FALSE;
-  p_persistent_ctxt->urc_subscript_signalQuality = CELLULAR_FALSE;
-  p_persistent_ctxt->urc_subscript_pdn_event = CELLULAR_FALSE;
+  p_persistent_ctxt->urc_subscript_eps_networkReg = CS_FALSE;
+  p_persistent_ctxt->urc_subscript_eps_locationInfo = CS_FALSE;
+  p_persistent_ctxt->urc_subscript_gprs_networkReg = CS_FALSE;
+  p_persistent_ctxt->urc_subscript_gprs_locationInfo = CS_FALSE;
+  p_persistent_ctxt->urc_subscript_cs_networkReg = CS_FALSE;
+  p_persistent_ctxt->urc_subscript_cs_locationInfo = CS_FALSE;
+  p_persistent_ctxt->urc_subscript_signalQuality = CS_FALSE;
+  p_persistent_ctxt->urc_subscript_pdn_event = CS_FALSE;
 
   /* URC availabilities */
   p_persistent_ctxt->urc_avail_eps_network_registration = AT_FALSE;
@@ -1624,6 +1669,9 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
   p_persistent_ctxt->urc_avail_sim_refresh_event = AT_FALSE;
   p_persistent_ctxt->urc_avail_sim_detect_event = AT_FALSE;
   p_persistent_ctxt->urc_avail_sim_state_event = AT_FALSE;
+#if defined(USE_COM_MDM)
+  p_persistent_ctxt->urc_avail_commdm_event_count = 0U;
+#endif /* defined(USE_COM_MDM) */
 
   /* Modem events subscriptions */
   p_persistent_ctxt->modem_events_subscript = CS_MDMEVENT_NONE;
@@ -1652,12 +1700,13 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
     csint_pdn_infos_t *p_tmp;
     p_tmp = &p_persistent_ctxt->pdp_ctxt_infos[i];
     p_tmp->conf_id = CS_PDN_NOT_DEFINED; /* not used */
-    p_tmp->apn_present = CELLULAR_TRUE;
+    p_tmp->apn_present = CS_TRUE;
     (void) memset((void *)&p_tmp->apn, 0, MAX_APN_SIZE);
     (void) memset((void *)&p_tmp->pdn_conf, 0, sizeof(CS_PDN_configuration_t));
     /* set default PDP type = IPV4 */
     /* code commented to avoid Code Sonar error (due to previous memset 0)
-     * p_tmp->pdn_conf.pdp_type = CS_PDPTYPE_IP; */
+     *    p_tmp->pdn_conf.pdp_type = CS_PDPTYPE_IP
+     */
   }
 
   /* set default PDP parameters (ie for PDN_PREDEF_CONFIG) from configuration file if defined */
@@ -1665,18 +1714,25 @@ void atcm_reset_persistent_context(atcustom_persistent_context_t *p_persistent_c
   p_predef = &p_persistent_ctxt->pdp_ctxt_infos[CS_PDN_PREDEF_CONFIG];
   p_persistent_ctxt->pdn_default_conf_id = CS_PDN_PREDEF_CONFIG;
   p_predef->conf_id = CS_PDN_PREDEF_CONFIG;
-  p_predef->apn_present = CELLULAR_TRUE;
+  p_predef->apn_present = CS_TRUE;
 
   /* set default PDN parameters */
   reserve_user_modem_cid(p_persistent_ctxt, CS_PDN_PREDEF_CONFIG, 1U);
   p_predef->pdn_conf.pdp_type = CS_PDPTYPE_IP;
-  (void) memcpy((AT_CHAR_t *)&p_predef->apn, "", sizeof(""));
+  (void) memcpy((AT_CHAR_t *)&p_predef->apn, (AT_CHAR_t *)"", sizeof(""));
 
   /* socket */
   for (uint8_t i = 0U; i < CELLULAR_MAX_SOCKETS; i++)
   {
     atcustom_persistent_SOCKET_context_t *p_tmp;
     p_tmp = &p_persistent_ctxt->socket[i];
+    /* Important note about socket_connId_value parameter:
+     *  This is the connection Id shared between the Host and the Modem for a specific socket connection.
+     *  Two different behaviors exist depending of modems:
+     *   > case #1: the Host is responsible to allocate a Socket ID. The constraint is to use Socket ID values
+     *              that are in a range supported by the modem.
+     *   > case #2: the Socket ID is allocated by the Modem during socket creation process.
+     */
     p_tmp->socket_connId_value = ((uint8_t)i + 1U); /* socket ID range from 1 to 6,
                                                      * if a modem does not support this range => need to adapt */
     p_tmp->socket_connected = AT_FALSE;
@@ -1734,18 +1790,18 @@ void atcm_reset_SID_context(atcustom_SID_context_t *p_sid_ctxt)
   (void) memset((void *)&p_sid_ctxt->write_operator_infos, 0, sizeof(CS_OperatorSelector_t));
   p_sid_ctxt->write_operator_infos.format = CS_ONF_NOT_PRESENT;
   /* code commented to avoid Code Sonar error (variable already initialized with same value)
-   * p_sid_ctxt->write_operator_infos.AcT_present = CELLULAR_FALSE;
+   *   p_sid_ctxt->write_operator_infos.AcT_present = CS_FALSE
    */
 
   (void) memset((void *)&p_sid_ctxt->read_operator_infos, 0, sizeof(CS_RegistrationStatus_t));
   /* code commented to avoid Code Sonar error (variable already initialized with same value)
-  * read_operator_infos.EPS_NetworkRegState = CS_NRS_NOT_REGISTERED_NOT_SEARCHING;
-  * read_operator_infos.GPRS_NetworkRegState = CS_NRS_NOT_REGISTERED_NOT_SEARCHING;
-  * read_operator_infos.CS_NetworkRegState = CS_NRS_NOT_REGISTERED_NOT_SEARCHING;
-  * read_operator_infos.optional_fields_presence = CS_RSF_NONE;
+  *    read_operator_infos.EPS_NetworkRegState = CS_NRS_NOT_REGISTERED_NOT_SEARCHING
+  *    read_operator_infos.GPRS_NetworkRegState = CS_NRS_NOT_REGISTERED_NOT_SEARCHING
+  *    read_operator_infos.CS_NetworkRegState = CS_NRS_NOT_REGISTERED_NOT_SEARCHING
+  *    read_operator_infos.optional_fields_presence = CS_RSF_NONE
   */
   p_sid_ctxt->modem_init.init = CS_CMI_MINI;
-  p_sid_ctxt->modem_init.reset = CELLULAR_FALSE;
+  p_sid_ctxt->modem_init.reset = CS_FALSE;
   (void) memset((void *)&p_sid_ctxt->modem_init.pincode.pincode, 0, sizeof(csint_pinCode_t));
 
   p_sid_ctxt->p_device_info = NULL;
@@ -1858,7 +1914,7 @@ at_status_t atcm_searchCmdInLUT(atcustom_modem_context_t *p_modem_ctxt,
         if ((strlen((const CRC_CHAR_t *)(p_modem_ctxt->p_modem_LUT)[i].cmd_str) == element_infos->str_size))
         {
           /* compare strings content */
-          if (0 == memcmp((const void *) & (p_msg_in->buffer[element_infos->str_start_idx]),
+          if (0 == memcmp((const AT_CHAR_t *) & (p_msg_in->buffer[element_infos->str_start_idx]),
                           (const AT_CHAR_t *)(p_modem_ctxt->p_modem_LUT)[i].cmd_str,
                           (size_t) element_infos->str_size))
           {
@@ -2332,6 +2388,19 @@ at_status_t atcm_retrieve_SID_parameters(atcustom_modem_context_t *p_modem_ctxt,
         }
         break;
 
+#if defined(USE_COM_MDM)
+      case SID_CS_COM_MDM_TRANSACTION:
+        /* retrieve client data */
+        if (DATAPACK_readStruct((uint8_t *)p_atp_ctxt->p_cmd_input,
+                                (uint16_t) CSMT_COM_MDM,
+                                (uint16_t) sizeof(csint_ComMdm_t),
+                                (void *)&p_modem_ctxt->SID_ctxt.com_mdm_data) != DATAPACK_OK)
+        {
+          retval = ATSTATUS_ERROR;
+        }
+        break;
+#endif /* defined(USE_COM_MDM) */
+
       /*********************
       LIST OF SID NOT IMPLEMENTED YET:
         SID_CS_AUTOACTIVATE_PDN,
@@ -2481,7 +2550,7 @@ void reset_pdn_event(atcustom_persistent_context_t *p_persistent_ctxt)
   */
 void atcm_report_urc_sim_event(atcustom_modem_context_t *p_modem_ctxt, CS_SimEvent_status_t *sim_event)
 {
-  /* limitation: if an event of same type has not been reported yet, it will be overwrited
+  /* limitation: if an event of same type has not been reported yet, it will be overwritten
   *             by last event
   */
   if (sim_event != NULL)

@@ -30,13 +30,25 @@
 #include "dc_common.h"
 #include "error_handler.h"
 
+#include "application.h"
 #include "config_persistence.h"
 #include "lwm2m.h"
 #include "menu.h"
+#include "persistence.h"
 
 #include "device_object.h"
-#include "joystick_object.h"
 #include "sensor_objects.h"
+
+#include "joystick_object.h"
+
+#ifdef USE_SIM_BOOTSTRAP
+#include <anjay/bootstrapper.h>
+#include <avsystem/commons/avs_errno.h>
+#include <avsystem/commons/avs_stream.h>
+#include <avsystem/commons/avs_stream_md5.h>
+
+#include "sim_bootstrap.h"
+#endif // USE_SIM_BOOTSTRAP
 
 #ifdef USE_FW_UPDATE
 #include "firmware_update.h"
@@ -51,10 +63,11 @@
 
 #define LOG(level, ...) avs_log(app, level, __VA_ARGS__)
 
-static anjay_t *g_anjay;
+static anjay_t *volatile g_anjay;
 static avs_crypto_prng_ctx_t *g_prng_ctx;
 
 static osThreadId g_lwm2m_task_handle;
+static avs_sched_handle_t lwm2m_notify_job_handle;
 
 extern RNG_HandleTypeDef hrng;
 
@@ -73,7 +86,10 @@ static void dc_cellular_callback(dc_com_event_id_t dc_event_id,
             LOG(INFO, "network is up");
             (void) osMessagePut(status_msg_queue, (uint32_t) dc_event_id, 0);
         } else {
-            anjay_event_loop_interrupt(g_anjay);
+            anjay_t *anjay = g_anjay;
+            if (anjay) {
+                anjay_event_loop_interrupt(anjay);
+            }
             LOG(INFO, "network is down");
         }
     } else if (dc_event_id == DC_CELLULAR_CONFIG) {
@@ -96,6 +112,7 @@ static void lwm2m_notify_job(avs_sched_t *sched, const void *anjay_ptr) {
     anjay_t *anjay = *(anjay_t *const *) anjay_ptr;
 
     device_object_update(anjay);
+
     joystick_object_update(anjay);
 
 #ifdef USE_AIBP
@@ -116,53 +133,23 @@ static void lwm2m_notify_job(avs_sched_t *sched, const void *anjay_ptr) {
         basic_sensor_objects_update(anjay);
     }
 
+    if (menu_is_module_persistence_enabled()
+            && persistence_mod_persist_if_required(anjay)) {
+        LOG(ERROR, "Failed to persist modules");
+    }
+
     heartbeat_led_toggle();
 
     cycle++;
-    AVS_SCHED_DELAYED(sched, NULL, avs_time_duration_from_scalar(1, AVS_TIME_S),
+    AVS_SCHED_DELAYED(sched, &lwm2m_notify_job_handle,
+                      avs_time_duration_from_scalar(1, AVS_TIME_S),
                       lwm2m_notify_job, &anjay, sizeof(anjay));
 }
 
-static void lwm2m_thread(void const *user_arg) {
-    (void) user_arg;
-
-    (void) osMessageGet(status_msg_queue, RTOS_WAIT_FOREVER);
-
-    lwm2m_notify_job(anjay_get_scheduler(g_anjay), &g_anjay);
-    // TODO handle connection lost
-    anjay_event_loop_run(g_anjay, avs_time_duration_from_scalar(1, AVS_TIME_S));
-}
-
-static int
-entropy_callback(unsigned char *out_buf, size_t out_buf_len, void *user_ptr) {
-    uint32_t random_number;
-    for (size_t i = 0; i < out_buf_len / sizeof(random_number); i++) {
-        if (HAL_RNG_GenerateRandomNumber(&hrng, &random_number) != HAL_OK) {
-            return -1;
-        }
-        memcpy(out_buf, &random_number, sizeof(random_number));
-        out_buf += sizeof(random_number);
-    }
-
-    size_t last_chunk_size = out_buf_len % sizeof(random_number);
-    if (last_chunk_size) {
-        if (HAL_RNG_GenerateRandomNumber(&hrng, &random_number) != HAL_OK) {
-            return -1;
-        }
-        memcpy(out_buf, &random_number, last_chunk_size);
-    }
-
-    return 0;
-}
-
-static int setup_security_object() {
-    if (anjay_security_object_install(g_anjay)) {
-        return -1;
-    }
-
+static int setup_security_object_from_config(void) {
     anjay_security_instance_t security_instance = {
         .ssid = 1,
-        .server_uri = config_get_server_uri(),
+        .server_uri = g_config.server_uri,
     };
     if (strcmp(g_config.security, "psk") == 0) {
         security_instance.security_mode = ANJAY_SECURITY_PSK;
@@ -198,10 +185,23 @@ static int setup_security_object() {
                                               &security_instance_id);
 }
 
-static int setup_server_object() {
-    if (anjay_server_object_install(g_anjay)) {
-        return -1;
+static const char *binding_mode_from_uri(const char *uri) {
+    static const struct {
+        const char *prefix;
+        const char *mode;
+    } mode_dict[] = { { "coap+tcp://", "T" }, { "coaps+tcp://", "T" } };
+
+    for (size_t i = 0; i < AVS_ARRAY_SIZE(mode_dict); i++) {
+        if (strncmp(mode_dict[i].prefix, uri, strlen(mode_dict[i].prefix))
+                == 0) {
+            return mode_dict[i].mode;
+        }
     }
+
+    return "U";
+}
+
+static int setup_server_object_from_config(void) {
     if (g_config.bootstrap[0] == 'y') {
         return 0;
     }
@@ -211,7 +211,7 @@ static int setup_server_object() {
         .default_min_period = -1,
         .default_max_period = -1,
         .disable_timeout = -1,
-        .binding = "U"
+        .binding = binding_mode_from_uri(g_config.server_uri)
     };
 
     anjay_iid_t server_instance_id = ANJAY_ID_INVALID;
@@ -219,31 +219,192 @@ static int setup_server_object() {
                                             &server_instance_id);
 }
 
-void lwm2m_init(void) {
+static int install_required_objects(void) {
+    if (anjay_security_object_install(g_anjay)
+            || anjay_server_object_install(g_anjay)
+            || device_object_install(g_anjay)) {
+        LOG(ERROR, "failed to install required objects");
+        return -1;
+    }
+    return 0;
+}
 
+#ifdef USE_SIM_BOOTSTRAP
+static int try_bootstrap_from_sim(void) {
+    if (!menu_is_module_persistence_enabled()) {
+        if (avs_is_err(anjay_sim_bootstrap_perform(
+                    g_anjay, sim_bootstrap_perform_command, NULL))) {
+            LOG(ERROR, "failed to bootstrap from SIM");
+            return -1;
+        } else {
+            LOG(INFO, "Successfully bootstrapped from SIM");
+            return 0;
+        }
+    }
+
+    avs_stream_t *stream =
+            anjay_sim_bootstrap_stream_create(sim_bootstrap_perform_command,
+                                              NULL);
+    if (!stream) {
+        goto fail;
+    }
+    uint8_t md5[AVS_COMMONS_MD5_LENGTH];
+    if (!avs_is_ok(anjay_sim_bootstrap_calculate_md5(stream, &md5))) {
+        LOG(ERROR, "Failed to calculate SIM Bootstrap data MD5 hash");
+        goto fail;
+    }
+
+    if (!memcmp(md5, g_config.sim_bs_data_md5, AVS_COMMONS_MD5_LENGTH)) {
+        LOG(INFO, "MD5 did not change, continue");
+        goto fail;
+    }
+
+    LOG(INFO, "New MD5, bootstrapping from SIM");
+
+    if (avs_is_ok(anjay_bootstrapper(g_anjay, stream))) {
+        LOG(INFO, "Successfully bootstrapped from SIM");
+        memcpy(g_config.sim_bs_data_md5, md5, AVS_COMMONS_MD5_LENGTH);
+        if (config_save(&g_config)) {
+            LOG(ERROR, "Failed to persist SIM Bootstrap data MD5");
+        }
+        avs_stream_cleanup(&stream);
+        return 0;
+    } else {
+        LOG(ERROR, "Error during bootstrapping from SIM");
+    }
+
+fail:
+    avs_stream_cleanup(&stream);
+    return -1;
+}
+#endif // USE_SIM_BOOTSTRAP
+
+static int setup_required_objects(void) {
+#ifdef USE_SIM_BOOTSTRAP
+    if (menu_is_sim_bootstrap_enabled() && !try_bootstrap_from_sim()) {
+        return 0;
+    }
+#endif // USE_SIM_BOOTSTRAP
+
+    if (menu_is_module_persistence_enabled()) {
+        if (!persistence_mod_restore(g_anjay)) {
+            LOG(INFO, "Restored Anjay modules from Persistence");
+            return 0;
+        }
+        LOG(WARNING,
+            "failed to restore modules from persistence, using fallback from "
+            "console config");
+        persistence_clear();
+    }
+
+    if (setup_security_object_from_config()
+            || setup_server_object_from_config()) {
+        LOG(ERROR, "failed to setup from console config");
+        return -1;
+    }
+    return 0;
+}
+
+static anjay_t *create_and_setup_anjay(void) {
+    anjay_configuration_t config = {
+        .endpoint_name = g_config.endpoint_name,
+        .in_buffer_size = 2048,
+        .out_buffer_size = 2048,
+        .msg_cache_size = 2048,
+        .use_connection_id = true,
+        .prng_ctx = g_prng_ctx
+    };
+
+    anjay_t *anjay = NULL;
+    anjay = anjay_new(&config);
+    if (!anjay) {
+        LOG(ERROR, "failed to create Anjay object");
+        ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
+        return NULL;
+    }
+
+    g_anjay = anjay;
+
+    basic_sensor_objects_install(anjay);
+    three_axis_sensor_objects_install(anjay);
+
+    joystick_object_install(anjay);
+
+#ifdef USE_FW_UPDATE
+    fw_update_install(anjay);
+#endif /* USE_FW_UPDATE */
+
+#ifdef USE_AIBP
+    ml_model_object_install(anjay);
+
+    if (ai_bridge_type == AI_BRIDGE_ANOMALY_TYPE) {
+        anomaly_detector_object_install(anjay);
+    }
+
+    if (ai_bridge_type == AI_BRIDGE_CLASSIFIER_TYPE) {
+        pattern_detector_object_install(anjay);
+    }
+#endif
+
+    return anjay;
+}
+
+static void lwm2m_thread(void const *user_arg) {
+    (void) user_arg;
+
+    (void) osMessageGet(status_msg_queue, RTOS_WAIT_FOREVER);
+
+    int sync_time_result = avs_time_stm32_sync_time();
+    if (sync_time_result) {
+        LOG(WARNING, "failed to synchronize time");
+    }
+
+    anjay_t *anjay = create_and_setup_anjay();
+
+    if (install_required_objects() || setup_required_objects()) {
+        LOG(ERROR, "failed to install and setup required objects");
+        ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
+    }
+
+    lwm2m_notify_job(anjay_get_scheduler(anjay), &anjay);
+    // TODO handle connection lost
+
+    anjay_event_loop_run(anjay, avs_time_duration_from_scalar(1, AVS_TIME_S));
+
+}
+
+static int
+entropy_callback(unsigned char *out_buf, size_t out_buf_len, void *user_ptr) {
+    uint32_t random_number;
+    for (size_t i = 0; i < out_buf_len / sizeof(random_number); i++) {
+        if (HAL_RNG_GenerateRandomNumber(&hrng, &random_number) != HAL_OK) {
+            return -1;
+        }
+        memcpy(out_buf, &random_number, sizeof(random_number));
+        out_buf += sizeof(random_number);
+    }
+
+    size_t last_chunk_size = out_buf_len % sizeof(random_number);
+    if (last_chunk_size) {
+        if (HAL_RNG_GenerateRandomNumber(&hrng, &random_number) != HAL_OK) {
+            return -1;
+        }
+        memcpy(out_buf, &random_number, last_chunk_size);
+    }
+
+    return 0;
+}
+
+void lwm2m_init(void) {
     osMessageQDef(status_msg_queue, 1, uint32_t);
     status_msg_queue = osMessageCreate(osMessageQ(status_msg_queue), NULL);
     if (!status_msg_queue) {
         LOG(ERROR, "failed to create message queue");
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
     }
-
     g_prng_ctx = avs_crypto_prng_new(entropy_callback, NULL);
     if (!g_prng_ctx) {
         LOG(ERROR, "failed to create PRNG ctx");
-        ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
-    }
-
-    anjay_configuration_t config = {
-        .endpoint_name = config_get_endpoint_name(),
-        .in_buffer_size = 2048,
-        .out_buffer_size = 2048,
-        .msg_cache_size = 2048,
-        .prng_ctx = g_prng_ctx
-    };
-
-    if (!(g_anjay = anjay_new(&config))) {
-        LOG(ERROR, "failed to create Anjay object");
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
     }
 
@@ -255,32 +416,8 @@ void lwm2m_init(void) {
         LOG(ERROR, "failed to subscribe to datacache events");
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
     }
-
-    if (setup_security_object() || setup_server_object()
-            || device_object_install(g_anjay)) {
-        LOG(ERROR, "failed to setup required objects");
-        ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
-    }
-
-    basic_sensor_objects_install(g_anjay);
-    three_axis_sensor_objects_install(g_anjay);
-    joystick_object_install(g_anjay);
-#ifdef USE_FW_UPDATE
-    fw_update_install(g_anjay);
-#endif /* USE_FW_UPDATE */
-
-#ifdef USE_AIBP
-    ml_model_object_install(g_anjay);
-
-    if (ai_bridge_type == AI_BRIDGE_ANOMALY_TYPE) {
-        anomaly_detector_object_install(g_anjay);
-    }
-
-    if (ai_bridge_type == AI_BRIDGE_CLASSIFIER_TYPE) {
-        pattern_detector_object_install(g_anjay);
-    }
-#endif
 }
+
 
 static uint32_t lwm2m_thread_stack_buffer[LWM2M_THREAD_STACK_SIZE];
 static osStaticThreadDef_t lwm2m_thread_controlblock;

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -23,6 +24,7 @@
 #include "config_persistence.h"
 #include "console.h"
 #include "default_config.h"
+#include "persistence.h"
 
 #define LOG(level, ...) avs_log(menu, level, __VA_ARGS__)
 
@@ -38,7 +40,12 @@ typedef enum {
     OPTION_PRIVATE_CERT_OR_PSK_KEY,
     OPTION_APN,
     OPTION_APN_USERNAME,
-    OPTION_APN_PASSWORWD,
+    OPTION_APN_PASSWORD,
+    OPTION_USE_PERSISTENCE,
+#ifdef USE_SIM_BOOTSTRAP
+    OPTION_USE_SIM_BOOTSTRAP,
+#endif // USE_SIM_BOOTSTRAP
+    OPTION_CLEAR_MOD_PERSISTENCE,
     OPTION_DISCARD_CHANGES,
     OPTION_FACTORY_RESET,
     _OPTION_END
@@ -70,8 +77,22 @@ static menu_option_t OPTIONS[] = {
     [OPTION_APN] = { "APN", g_config.apn, sizeof(g_config.apn) },
     [OPTION_APN_USERNAME] = { "APN username", g_config.apn_username,
                               sizeof(g_config.apn_username) },
-    [OPTION_APN_PASSWORWD] = { "APN password", g_config.apn_password,
-                               sizeof(g_config.apn_password) },
+    [OPTION_APN_PASSWORD] = { "APN password", g_config.apn_password,
+                              sizeof(g_config.apn_password) },
+    [OPTION_USE_PERSISTENCE] =
+            {
+                    "Use module persistence (0 - disabled, 1 - enabled)",
+                    g_config.use_persistence,
+                    sizeof(g_config.use_persistence) },
+#ifdef USE_SIM_BOOTSTRAP
+    [OPTION_USE_SIM_BOOTSTRAP] = { "Use SIM bootstrap (y/n)",
+                                   g_config.use_sim_bootstrap,
+                                   sizeof(g_config.use_sim_bootstrap) },
+#endif // USE_SIM_BOOTSTRAP
+    [OPTION_CLEAR_MOD_PERSISTENCE] =
+            {
+                    "Clear module persistence (applies immediately)",
+                    NULL, 0 },
     [OPTION_DISCARD_CHANGES] = { "Discard changes", NULL, 0 },
     [OPTION_FACTORY_RESET] = { "Factory reset", NULL, 0 },
 };
@@ -127,7 +148,10 @@ static void config_restore_defaults(void) {
         .security = DEFAULT_SECURITY,
         .apn = DEFAULT_APN,
         .apn_username = DEFAULT_APN_USERNAME,
-        .apn_password = DEFAULT_APN_PASSWORD
+        .apn_password = DEFAULT_APN_PASSWORD,
+        .use_persistence = DEFAULT_USE_PERSISTENCE,
+        .sim_bs_data_md5 = MD5_OF_ZERO_BYTES_INITIALIZER,
+        .use_sim_bootstrap = DEFAULT_USE_SIM_BOOTSTRAP
     };
     generate_default_endpoint_name(g_config.endpoint_name,
                                    sizeof(g_config.endpoint_name));
@@ -135,8 +159,10 @@ static void config_restore_defaults(void) {
 }
 
 static void enter_menu(void) {
-    bool changed = false;
     bool menu_running = true;
+    config_t *old_config = avs_malloc(sizeof(config_t));
+    AVS_ASSERT(old_config, "Out of memory");
+    memcpy(old_config, &g_config, sizeof(config_t));
     while (menu_running) {
         print_menu();
         menu_option_id_t option_id;
@@ -146,30 +172,42 @@ static void enter_menu(void) {
         }
         if (OPTIONS[option_id].value) {
             get_value(option_id);
-            changed = true;
         } else {
             switch (option_id) {
+            case OPTION_CLEAR_MOD_PERSISTENCE:
+                if (get_confirmation()) {
+                    console_printf("Clearing module persistence...\r\n");
+                    persistence_clear();
+                }
+                break;
             case OPTION_DISCARD_CHANGES:
                 if (get_confirmation()) {
                     console_printf("Discarding changes...\r\n");
-                    if (config_load(&g_config)) {
-                        LOG(WARNING, "Could not restore current configuration");
-                    } else {
-                        changed = false;
-                    }
+                    memcpy(&g_config, old_config, sizeof(config_t));
                 }
                 break;
             case OPTION_FACTORY_RESET:
                 if (get_confirmation()) {
-                    changed = true;
                     config_restore_defaults();
                     console_printf("Performing factory reset...\r\n");
+                    console_printf(
+                            "NOTE: this doesn't affect module and core "
+                            "persistence, clear it separately if needed\r\n");
                 }
                 break;
             case OPTION_SAVE_EXIT:
                 menu_running = false;
-                if (changed) {
+                if (memcmp(old_config, &g_config, sizeof(config_t)) != 0) {
                     console_printf("\r\nSaving config...\r\n");
+                    if (old_config->use_sim_bootstrap[0]
+                            != g_config.use_sim_bootstrap[0]) {
+                        console_printf("SIM bootstrap setting changed, "
+                                       "clearing persistence and SIM bootstrap "
+                                       "data hash...\r\n");
+                        memcpy(g_config.sim_bs_data_md5, MD5_OF_ZERO_BYTES,
+                               AVS_COMMONS_MD5_LENGTH);
+                        persistence_clear();
+                    }
                     if (config_save(&g_config)) {
                         LOG(WARNING, "Could not save config");
                     }
@@ -181,7 +219,19 @@ static void enter_menu(void) {
             }
         }
     }
+    avs_free(old_config);
 }
+
+bool menu_is_module_persistence_enabled(void) {
+    return g_config.use_persistence[0] == '1';
+}
+
+
+#ifdef USE_SIM_BOOTSTRAP
+bool menu_is_sim_bootstrap_enabled(void) {
+    return g_config.use_sim_bootstrap[0] == 'y';
+}
+#endif // USE_SIM_BOOTSTRAP
 
 void menu_init(void) {
     console_init();
@@ -196,28 +246,14 @@ void menu_init(void) {
     if (console_wait_for_key_press(3000)) {
         enter_menu();
     }
-}
-
-const char *config_get_server_uri(void) {
-    return g_config.server_uri;
-}
-
-const char *config_get_endpoint_name(void) {
-    return g_config.endpoint_name;
-}
-
-const char *config_get_psk(void) {
-    return g_config.private_cert_or_psk_key;
-}
-
-const char *config_get_apn(void) {
-    return g_config.apn;
-}
-
-const char *config_get_apn_username(void) {
-    return g_config.apn_username;
-}
-
-const char *config_get_apn_password(void) {
-    return g_config.apn_password;
+    if (menu_is_module_persistence_enabled()) {
+        console_printf("\r\n");
+        console_printf(
+                "############ MODULE PERSISTENCE ENABLED ############\r\n");
+        console_printf("Configuration of security and server objects from\r\n");
+        console_printf(
+                "menu WILL NOT BE USED, unless applications fails to\r\n");
+        console_printf("load state of aforementioned modules from\r\n");
+        console_printf("persistence\r\n");
+    }
 }

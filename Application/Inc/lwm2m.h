@@ -21,4 +21,5 @@ void lwm2m_init(void);
 
 void lwm2m_start(void);
 
+
 #endif // LWM2M_H

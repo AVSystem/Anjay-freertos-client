@@ -69,10 +69,12 @@ sysctrl_status_t SysCtrl_TYPE1SC_sim_select(sysctrl_device_type_t type, sysctrl_
  * They are very specific to this modem and are called by at_custom files of this modem
  */
 sysctrl_status_t SysCtrl_TYPE1SC_reinit_channel(IPC_Handle_t *ipc_handle, SysCtrl_TYPE1SC_HwFlowCtrl_t hwFC_status);
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
 sysctrl_status_t SysCtrl_TYPE1SC_request_suspend_channel(IPC_Handle_t *ipc_handle, sysctrl_device_type_t type);
 sysctrl_status_t SysCtrl_TYPE1SC_complete_suspend_channel(IPC_Handle_t *ipc_handle, sysctrl_device_type_t type);
 sysctrl_status_t SysCtrl_TYPE1SC_resume_channel(IPC_Handle_t *ipc_handle, sysctrl_device_type_t type,
                                                 uint8_t modem_originated);
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
 /**
   * @}

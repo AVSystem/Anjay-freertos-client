@@ -46,14 +46,6 @@
 #include "at_custom_modem_socket.h"
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
-
-#if defined(USE_MODEM_BG96)
-#if defined(HWREF_B_CELL_BG96_V2)
-#else
-#error Hardware reference not specified
-#endif /* HWREF_B_CELL_BG96_V2 */
-#endif /* USE_MODEM_BG96 */
-
 /** @addtogroup AT_CUSTOM AT_CUSTOM
   * @{
   */
@@ -97,6 +89,11 @@
   * @{
   */
 static atcustom_modem_context_t BG96_ctxt;
+
+/* Socket Data receive: to analyze size received in data header */
+static AT_CHAR_t SocketHeaderDataRx_Buf[4];
+static uint8_t SocketHeaderDataRx_Cpt;
+static uint8_t SocketHeaderDataRx_Cpt_Complete;
 /**
   * @}
   */
@@ -110,16 +107,16 @@ bg96_shared_variables_t bg96_shared =
   .QCFG_command_param              = QCFG_unknown,
   .QCFG_command_write              = AT_FALSE,
   .QINDCFG_command_param           = QINDCFG_unknown,
-  .QIOPEN_waiting                  = AT_FALSE,
-  .QIOPEN_current_socket_connected = 0U,
   .QICGSP_config_command           = AT_TRUE,
   .bg96_sim_status_retries         = 0U,
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
   .pdn_already_active              = false,
 #endif /* USE_SOCKETS_TYPE */
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
   .host_lp_state                   = HOST_LP_STATE_IDLE,
   .modem_lp_state                  = MDM_LP_STATE_IDLE,
   .modem_resume_from_PSM           = false,
+#endif /* (ENABLE_BG96_LOW_POWER_MODE == 1U) */
 };
 
 /**
@@ -130,11 +127,6 @@ bg96_shared_variables_t bg96_shared =
   *    AT_CUSTOM QUECTEL_BG96 SPECIFIC Private Functions Prototypes
   * @{
   */
-/* Socket Data receive: to analyze size received in data header */
-static AT_CHAR_t SocketHeaderDataRx_Buf[4];
-static uint8_t SocketHeaderDataRx_Cpt;
-static uint8_t SocketHeaderDataRx_Cpt_Complete;
-
 static void bg96_modem_init(atcustom_modem_context_t *p_modem_ctxt);
 
 static void socketHeaderRX_reset(void);
@@ -215,6 +207,9 @@ void ATCustom_BG96_init(atparser_context_t *p_atp_ctxt)
     {CMD_AT_AND_W,       "&W",           BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,   fRspAnalyze_None},
     {CMD_AT_AND_D,       "&D",           BG96_DEFAULT_TIMEOUT,  fCmdBuild_AT_AND_D,   fRspAnalyze_None},
     {CMD_AT_DIRECT_CMD,  "",             BG96_DEFAULT_TIMEOUT,  fCmdBuild_DIRECT_CMD, fRspAnalyze_DIRECT_CMD},
+    /* note: for CMD_AT_DIRECT_CMD, the default timeout value will be replaced by the timeout
+     *       value given by the upper layer.
+     */
     {CMD_AT_CSIM,        "+CSIM",        BG96_DEFAULT_TIMEOUT,  fCmdBuild_CSIM,       fRspAnalyze_CSIM},
 
     /* MODEM SPECIFIC COMMANDS */
@@ -245,6 +240,7 @@ void ATCustom_BG96_init(atparser_context_t *p_atp_ctxt)
     /* MODEM SPECIFIC COMMANDS USED FOR SOCKET MODE */
     {CMD_AT_QIURC,       "+QIURC",       BG96_DEFAULT_TIMEOUT,  fCmdBuild_NoParams, fRspAnalyze_QIURC_BG96},
     {CMD_AT_QIACT,       "+QIACT",       BG96_QIACT_TIMEOUT,    fCmdBuild_QIACT_BG96,   fRspAnalyze_QIACT_BG96},
+    {CMD_AT_QIDEACT,     "+QIDEACT",     BG96_QIDEACT_TIMEOUT,  fCmdBuild_QIDEACT_BG96,   fRspAnalyze_None},
     {CMD_AT_QIOPEN,      "+QIOPEN",      BG96_QIOPEN_TIMEOUT,   fCmdBuild_QIOPEN_BG96,  fRspAnalyze_QIOPEN_BG96},
     {CMD_AT_QICLOSE,     "+QICLOSE",     BG96_QICLOSE_TIMEOUT,  fCmdBuild_QICLOSE_BG96, fRspAnalyze_None},
     {CMD_AT_QISEND,      "+QISEND",      BG96_DEFAULT_TIMEOUT,  fCmdBuild_QISEND_BG96,  fRspAnalyze_None},
@@ -354,6 +350,13 @@ uint8_t ATCustom_BG96_checkEndOfMsgCallback(uint8_t rxChar)
           socketHeaderRX_reset();
           BG96_ctxt.socket_ctxt.socket_RxData_state = SocketRxDataState_receiving_header;
         }
+      }
+      else
+      {
+        /* this is not +QIRD, skip this command and wait for header */
+        socketHeaderRX_reset();
+        BG96_ctxt.state_SyntaxAutomaton = WAITING_FOR_LF;
+        BG96_ctxt.socket_ctxt.socket_RxData_state = SocketRxDataState_waiting_header;
       }
     }
 
@@ -590,6 +593,8 @@ at_endmsg_t ATCustom_BG96_extractElement(atparser_context_t *p_atp_ctxt,
 
   at_endmsg_t retval_msg_end_detected = ATENDMSG_NO;
   bool exit_loop;
+  static bool first_colon_found = false;
+  static bool inside_quotes = false;
   uint16_t *p_parseIndex = &(element_infos->current_parse_idx);
 
   PRINT_API("enter ATCustom_BG96_extractElement()")
@@ -598,6 +603,7 @@ at_endmsg_t ATCustom_BG96_extractElement(atparser_context_t *p_atp_ctxt,
   /* if this is beginning of message, check that message header is correct and jump over it */
   if (*p_parseIndex == 0U)
   {
+    first_colon_found = false;
     /* ###########################  START CUSTOMIZATION PART  ########################### */
     /* MODEM RESPONSE SYNTAX:
       * <CR><LF><response><CR><LF>
@@ -652,14 +658,54 @@ at_endmsg_t ATCustom_BG96_extractElement(atparser_context_t *p_atp_ctxt,
       exit_loop = false;
       do
       {
+        bool ignore_quote = false;
+
         switch (p_msg_in->buffer[*p_parseIndex])
         {
           /* ###########################  START CUSTOMIZATION PART  ########################### */
-          /* ----- test separators ----- */
-          case ':':
-          case ',':
-            exit_loop = true;
+          /* ----- test separators -----
+           *  AT responses and URC format : +CMD: vvv,www,,xxx,"yyy",zzz
+           *  only first ':' is considered as a separator (':' can be part of a field for IPv6 address for example)
+           *  if a field is inside quotes (like ,"yyy", above), comma separtor should not be analyzed.
+           *  String inside a string is also considered : \"
+           */
+          case 0x3A: /* : = colon */
+            /* only first colon character found is considered as a separator. */
+            if (!first_colon_found)
+            {
+              first_colon_found = true;
+              exit_loop = true;
+            }
             break;
+
+          case 0x2C: /* , = comma */
+            /* usual fields separator.
+            * but ignore comma inside a string.
+            */
+            if (!inside_quotes)
+            {
+              exit_loop = true;
+            }
+            break;
+
+          case 0x22: /* " = double quote*/
+          {
+            /* check if this is a string inside a string */
+            if (*p_parseIndex > 0U)
+            {
+              /* do we have an anti-slash before the quote ? */
+              if (p_msg_in->buffer[(*p_parseIndex) - 1U] == 0x5CU) /* \ = anti-slash */
+              {
+                ignore_quote = true;
+              }
+            }
+            /* is it s a valid quote ? */
+            if (!ignore_quote)
+            {
+              inside_quotes = !inside_quotes;
+            }
+            break;
+          }
 
           /* ----- test end of message ----- */
           case '\r':
@@ -668,11 +714,17 @@ at_endmsg_t ATCustom_BG96_extractElement(atparser_context_t *p_atp_ctxt,
             break;
 
           default:
-            /* increment end position */
-            element_infos->str_end_idx = *p_parseIndex;
-            element_infos->str_size++;
+            /* nothing special */
+            __NOP();
             break;
             /* ###########################  END CUSTOMIZATION PART  ########################### */
+        }
+
+        if (!exit_loop)
+        {
+          /* increment end position (except if exit has been detected) */
+          element_infos->str_end_idx = *p_parseIndex;
+          element_infos->str_size++;
         }
 
         /* increment index */
@@ -713,7 +765,29 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
   /* Analyze data received from the modem and
     * search in LUT the ID corresponding to command received
   */
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  bool no_valid_command_found;
+
+  if (BG96_ctxt.socket_ctxt.socket_receive_state == SocketRcvState_RequestData_Payload)
+  {
+    /* receiving data payload on a socket: do not analyze received date (ie do not search in the LUT) */
+    no_valid_command_found = true;
+  }
+  else if (ATSTATUS_OK != atcm_searchCmdInLUT(&BG96_ctxt, p_atp_ctxt, p_msg_in, element_infos))
+  {
+    /* no matching command has been found in the LUT */
+    no_valid_command_found = true;
+  }
+  else
+  {
+    /* a matching command has been successfully found in the LUT */
+    no_valid_command_found = false;
+  }
+
+  if (no_valid_command_found)
+#else
   if (ATSTATUS_OK != atcm_searchCmdInLUT(&BG96_ctxt, p_atp_ctxt, p_msg_in, element_infos))
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
   {
     /* No command corresponding to a LUT entry has been found.
      * May be we received a text line without command prefix.
@@ -810,6 +884,7 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
             PRINT_DBG("Echo successfully disabled")
           }
         }
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
         if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_PING_IP_ADDRESS)
         {
           /* PING requests for BG96 are asynchronous.
@@ -820,6 +895,17 @@ at_action_rsp_t ATCustom_BG96_analyzeCmd(at_context_t *p_at_ctxt,
           PRINT_DBG("this is a valid PING request")
           atcm_validate_ping_request(&BG96_ctxt);
         }
+
+        if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
+        {
+          if (p_atp_ctxt->current_atcmd.id == (CMD_ID_t) CMD_AT_QIOPEN)
+          {
+            /* AT+QIOPEN: OK received */
+            bg96_shared.QIOPEN_OK = AT_TRUE;
+          }
+        }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
+
         retval = ATACTION_RSP_FRC_END;
         break;
       }
@@ -1345,9 +1431,11 @@ void ATC_BG96_reset_variables(void)
   bg96_shared.mode_and_bands_config.CatNB1_bands_LsbPart = 0xFFFFFFFFU;
 
   /* other values */
+#if (ENABLE_BG96_LOW_POWER_MODE == 1U)
   bg96_shared.host_lp_state = HOST_LP_STATE_IDLE;
   bg96_shared.modem_lp_state = MDM_LP_STATE_IDLE;
   bg96_shared.modem_resume_from_PSM = false;
+#endif /* (ENABLE_BG96_LOW_POWER_MODE == 1U) */
 }
 
 /**
@@ -1369,7 +1457,7 @@ at_bool_t ATC_BG96_init_low_power(atcustom_modem_context_t *p_modem_ctxt)
 {
   at_bool_t lp_enabled;
 
-  if (p_modem_ctxt->SID_ctxt.init_power_config.low_power_enable == CELLULAR_TRUE)
+  if (p_modem_ctxt->SID_ctxt.init_power_config.low_power_enable == CS_TRUE)
   {
     /* this parameter is used in CGREG/CEREG to enable or not PSM urc.
      * BG96 specific case: CEREG returns ERROR or UNKNOWN when CEREG=4 and CPSMS=0.
@@ -1383,13 +1471,13 @@ at_bool_t ATC_BG96_init_low_power(atcustom_modem_context_t *p_modem_ctxt)
      *
      * BG96 specific: always set psm_mode to PSM_MODE_DISABLE, will be set to enable only after a sleep request.
      */
-    p_modem_ctxt->SID_ctxt.set_power_config.psm_present = CELLULAR_TRUE;
+    p_modem_ctxt->SID_ctxt.set_power_config.psm_present = CS_TRUE;
     p_modem_ctxt->SID_ctxt.set_power_config.psm_mode = PSM_MODE_ENABLE;
     (void) memcpy((void *) &p_modem_ctxt->SID_ctxt.set_power_config.psm,
                   (void *) &p_modem_ctxt->SID_ctxt.init_power_config.psm,
                   sizeof(CS_PSM_params_t));
 
-    p_modem_ctxt->SID_ctxt.set_power_config.edrx_present = CELLULAR_TRUE;
+    p_modem_ctxt->SID_ctxt.set_power_config.edrx_present = CS_TRUE;
     p_modem_ctxt->SID_ctxt.set_power_config.edrx_mode = EDRX_MODE_DISABLE;
     (void) memcpy((void *) &p_modem_ctxt->SID_ctxt.set_power_config.edrx,
                   (void *) &p_modem_ctxt->SID_ctxt.init_power_config.edrx,
@@ -1418,7 +1506,7 @@ at_bool_t ATC_BG96_set_low_power(atcustom_modem_context_t *p_modem_ctxt)
 {
   at_bool_t lp_set_and_enabled;
 
-  if (p_modem_ctxt->SID_ctxt.set_power_config.psm_present == CELLULAR_TRUE)
+  if (p_modem_ctxt->SID_ctxt.set_power_config.psm_present == CS_TRUE)
   {
     /* the modem info structure SID_ctxt.set_power_config has been already updated */
 

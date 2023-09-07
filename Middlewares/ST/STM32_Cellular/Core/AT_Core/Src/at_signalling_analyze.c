@@ -182,8 +182,6 @@ at_action_rsp_t fRspAnalyze_CmeErr(at_context_t *p_at_ctxt, atcustom_modem_conte
                                    const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
   const atparser_context_t *p_atp_ctxt = &(p_at_ctxt->parser);
-  /*UNUSED(p_msg_in);*/
-  /*UNUSED(element_infos);*/
 
   at_action_rsp_t retval = ATACTION_RSP_ERROR;
   PRINT_API("enter fRspAnalyze_CmeErr()")
@@ -2114,8 +2112,8 @@ at_action_rsp_t fRspAnalyze_CSIM(at_context_t *p_at_ctxt, atcustom_modem_context
       /* Reserve one byte at the end the string with a '\0' */
       length_to_copy = ATC_GET_MINIMUM_SIZE(p_modem_ctxt->SID_ctxt.sim_generic_access.bytes_received,
                                             (p_modem_ctxt->SID_ctxt.sim_generic_access.data->rsp_str_size - 1U));
-      (void)memcpy((CRC_CHAR_t *)p_modem_ctxt->SID_ctxt.sim_generic_access.data->p_rsp_str,
-                   (const CS_CHAR_t *)&p_msg_in->buffer[element_infos->str_start_idx + 1U],  /* skip '"' */
+      (void)memcpy((void *)p_modem_ctxt->SID_ctxt.sim_generic_access.data->p_rsp_str,
+                   (const void *)&p_msg_in->buffer[element_infos->str_start_idx + 1U],  /* skip '"' */
                    (size_t)length_to_copy);
 
       /* Last byte is always set to '\0' */
@@ -2589,7 +2587,7 @@ static at_action_rsp_t analyze_CmeError(at_context_t *p_at_ctxt, atcustom_modem_
       /* other error code */
       p_modem_ctxt->persist.sim_pin_code_ready = AT_FALSE;
       p_modem_ctxt->persist.sim_state = CS_SIMSTATE_UNKNOWN;
-      atcm_set_error_report(CSERR_SIM, p_modem_ctxt);
+      atcm_set_error_report(CSERR_UNKNOWN, p_modem_ctxt);
     }
   }
   END_PARAM_LOOP()

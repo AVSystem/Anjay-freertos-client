@@ -24,7 +24,20 @@
 #define DEFAULT_APN "internet"
 #define DEFAULT_APN_USERNAME "internet"
 #define DEFAULT_APN_PASSWORD "internet"
-#define FIRMWARE_VERSION "23.02"
+#define DEFAULT_USE_PERSISTENCE "0"
+#ifdef USE_SIM_BOOTSTRAP
+#define DEFAULT_USE_SIM_BOOTSTRAP "y"
+#else // USE_SIM_BOOTSTRAP
+#define DEFAULT_USE_SIM_BOOTSTRAP "n"
+#endif // USE_SIM_BOOTSTRAP
+#define FIRMWARE_VERSION "23.09"
+#define MD5_OF_ZERO_BYTES_INITIALIZER                                     \
+    {                                                                     \
+        0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, \
+                0x98, 0xEC, 0xF8, 0x42, 0x7E                              \
+    }
+#define MD5_OF_ZERO_BYTES \
+    ((const char[AVS_COMMONS_MD5_LENGTH]) MD5_OF_ZERO_BYTES_INITIALIZER)
 
 void generate_default_endpoint_name(char *endpoint_name, size_t len);
 

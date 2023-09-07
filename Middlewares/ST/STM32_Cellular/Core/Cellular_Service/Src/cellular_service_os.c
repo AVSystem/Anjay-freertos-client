@@ -105,6 +105,7 @@ CS_Status_t osCDS_socket_set_callbacks(socket_handle_t sockHandle,
   return (result);
 }
 
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 /**
   * @brief  Define configurable options for a created socket.
   * @note   This function is called to configure one parameter at a time.
@@ -144,7 +145,7 @@ CS_Status_t osCDS_socket_set_option(socket_handle_t sockHandle,
 
 CS_Status_t osCDS_socket_get_option(void)
 {
-  CS_Status_t result = CELLULAR_ERROR;
+  CS_Status_t result = CS_ERROR;
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
@@ -157,6 +158,7 @@ CS_Status_t osCDS_socket_get_option(void)
 
   return (result);
 }
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
 /**
   * @brief  Bind the socket to a local port.
@@ -168,7 +170,7 @@ CS_Status_t osCDS_socket_get_option(void)
 CS_Status_t osCDS_socket_bind(socket_handle_t sockHandle,
                               uint16_t local_port)
 {
-  CS_Status_t result = CELLULAR_ERROR;
+  CS_Status_t result = CS_ERROR;
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
@@ -196,7 +198,7 @@ CS_Status_t osCDS_socket_connect(socket_handle_t sockHandle,
                                  CS_CHAR_t *p_ip_addr_value,
                                  uint16_t remote_port)
 {
-  CS_Status_t result = CELLULAR_ERROR;
+  CS_Status_t result = CS_ERROR;
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
@@ -222,7 +224,7 @@ CS_Status_t osCDS_socket_connect(socket_handle_t sockHandle,
   */
 CS_Status_t osCDS_socket_listen(socket_handle_t sockHandle)
 {
-  CS_Status_t result = CELLULAR_ERROR;
+  CS_Status_t result = CS_ERROR;
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
@@ -248,7 +250,7 @@ CS_Status_t osCDS_socket_send(socket_handle_t sockHandle,
                               const CS_CHAR_t *p_buf,
                               uint32_t length)
 {
-  CS_Status_t result = CELLULAR_ERROR;
+  CS_Status_t result = CS_ERROR;
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
@@ -308,7 +310,7 @@ CS_Status_t osCDS_socket_sendto(socket_handle_t sockHandle,
                                 uint16_t remote_port)
 
 {
-  CS_Status_t result = CELLULAR_ERROR;
+  CS_Status_t result = CS_ERROR;
 
   if (CST_get_state() == CST_MODEM_DATA_READY_STATE)
   {
@@ -412,31 +414,31 @@ CS_Status_t osCDS_socket_cnx_status(socket_handle_t sockHandle,
   */
 CS_Bool_t osCDS_cellular_service_init(void)
 {
-  static CS_Bool_t CellularServiceInitialized = CELLULAR_FALSE;
+  static CS_Bool_t CellularServiceInitialized = CS_FALSE;
   CS_Bool_t result;
 
-  result = CELLULAR_TRUE;
-  if (CellularServiceInitialized == CELLULAR_FALSE)
+  result = CS_TRUE;
+  if (CellularServiceInitialized == CS_FALSE)
   {
     CellularServiceMutexHandle = rtosalMutexNew((const rtosal_char_t *)"CS_MUT_CTRL_PLANE");
     if (CellularServiceMutexHandle == NULL)
     {
-      result = CELLULAR_FALSE;
+      result = CS_FALSE;
       /* Platform is reset */
       ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
     }
     CellularServiceGeneralMutexHandle = rtosalMutexNew((const rtosal_char_t *)"CS_MUT_DATA_PLANE");
     if (CellularServiceGeneralMutexHandle == NULL)
     {
-      result = CELLULAR_FALSE;
+      result = CS_FALSE;
       /* Platform is reset */
       ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 2, ERROR_FATAL);
     }
 
-    /* To do next line of code not done under if result == CELLULAR_TRUE
-       because if result == CELLULAR_FALSE platform is reset (avoid quality error)
+    /* To do next line of code not done under if result == CS_TRUE
+       because if result == CS_FALSE platform is reset (avoid quality error)
      */
-    CellularServiceInitialized = CELLULAR_TRUE;
+    CellularServiceInitialized = CS_TRUE;
   }
 
   return result;
@@ -527,14 +529,14 @@ CS_Status_t osCDS_subscribe_modem_event(CS_ModemEvent_t events_mask, cellular_mo
   */
 CS_Status_t osCDS_power_on(void)
 {
-  CS_Status_t result = CELLULAR_OK;
+  CS_Status_t result = CS_OK;
 
   if (cst_context.modem_on == false)
   {
     (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
     result = CS_power_on();
     (void)rtosalMutexRelease(CellularServiceMutexHandle);
-    if (result == CELLULAR_OK)
+    if (result == CS_OK)
     {
       cst_context.modem_on = true;
     }
@@ -550,14 +552,14 @@ CS_Status_t osCDS_power_on(void)
   */
 CS_Status_t osCDS_power_off(void)
 {
-  CS_Status_t result = CELLULAR_OK;
+  CS_Status_t result = CS_OK;
 
   if (cst_context.modem_on == true)
   {
     (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
     result = CS_power_off();
     (void)rtosalMutexRelease(CellularServiceMutexHandle);
-    if (result == CELLULAR_OK)
+    if (result == CS_OK)
     {
       cst_context.modem_on = false;
     }
@@ -1039,5 +1041,87 @@ CS_Status_t osCS_SetPowerConfig(CS_set_power_config_t *p_power_config)
 
 
 #endif  /* (USE_LOW_POWER == 1) */
+
+/* =========================================================
+   ===========   Com MDM Functions BEGIN       =============
+   ========================================================= */
+#if defined(USE_COM_MDM)
+
+/**
+  * @brief  Register a callback for MDM URC messages from modem
+  * @note
+  * @param  commdm_urc_cb Pointer to the call backfunction
+  * @retval CS_Status_t
+  */CS_Status_t osCS_ComMdm_subscribe_event(CS_comMdm_callback_t commdm_urc_cb)
+{
+  CS_Status_t result;
+
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
+  result = CS_ComMdm_subscribe_event(commdm_urc_cb);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
+
+  return (result);
+}
+
+/**
+  * @brief  Send a command to the modem and wait for the network response
+  * @note
+  * @param  txBuf Pointer to the structure describing data to transmit
+  * @param  rxBuf Pointer to the structure describing received response data
+  * @param  errorCode Pointer to an integer representing the error status associated with the response data
+  * @retval CS_Status_t
+  */
+CS_Status_t osCS_ComMdm_transaction(CS_Tx_Buffer_t *txBuf, CS_Rx_Buffer_t *rxBuf, int32_t *errorCode)
+{
+  CS_Status_t result;
+
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
+  result = CS_ComMdm_transaction(txBuf, rxBuf, errorCode);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
+
+  return (result);
+}
+
+/**
+  * @brief  Send a command to the modem without waiting any response
+  * @note
+  * @param  txBuf Pointer to the structure describing data to transmit
+  * @param  errorCode Pointer to an integer representing the error status
+  * @retval CS_Status_t
+  */
+CS_Status_t osCS_ComMdm_send(CS_Tx_Buffer_t *txBuf, int32_t *errorCode)
+{
+  CS_Status_t result;
+
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
+  result = CS_ComMdm_send(txBuf, errorCode);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
+
+  return (result);
+}
+
+/**
+  * @brief  Read data previously received by the modem
+  * @note
+  * @param  rxBuf Pointer to the structure describing received data
+  * @param  errorCode Pointer to an integer representing the error status associated with the received data
+  * @retval CS_Status_t
+  */
+CS_Status_t osCS_ComMdm_receive(CS_Rx_Buffer_t *rxBuf, int32_t *errorCode)
+{
+  CS_Status_t result;
+
+  (void)rtosalMutexAcquire(CellularServiceMutexHandle, RTOSAL_WAIT_FOREVER);
+  result = CS_ComMdm_receive(rxBuf, errorCode);
+  (void)rtosalMutexRelease(CellularServiceMutexHandle);
+
+  return (result);
+}
+
+/* =========================================================
+   ===========   Com MDM Functions end       ===============
+   ========================================================= */
+
+#endif /* defined(USE_COM_MDM) */
 
 

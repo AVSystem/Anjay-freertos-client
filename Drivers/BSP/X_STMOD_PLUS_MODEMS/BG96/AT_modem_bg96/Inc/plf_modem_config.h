@@ -39,20 +39,14 @@ extern "C" {
 /** @defgroup AT_CUSTOM_QUECTEL_BG96_CONFIG_Exported_Defines AT_CUSTOM QUECTEL_BG96 CONFIG Exported Defines
   * @{
   */
-#if defined(HWREF_B_CELL_BG96_V2)
-/* already explicitly defined:
- * using HWREF_B_CELL_BG96_V2 directly on STMOD+ connector
- */
-#else
-/* set default config */
-#define HWREF_B_CELL_BG96_V2
-#endif /* HWREF_B_CELL_BG96_V2 */
+
+/* Modem identification flag */
+#define USE_MODEM_BG96
 
 /* Low Power */
 #define ENABLE_BG96_LOW_POWER_MODE  USE_LOW_POWER
 
 /* MODEM parameters */
-#define USE_MODEM_BG96
 #define CONFIG_MODEM_UART_BAUDRATE (115200U)
 #define CONFIG_MODEM_USE_STMOD_CONNECTOR
 

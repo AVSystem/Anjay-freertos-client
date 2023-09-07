@@ -35,7 +35,7 @@ extern "C" {
 #include "cc.h"
 /*cstat +MISRAC2012-* */
 
-#include "ipc_uart.h"
+#include "ipc_common.h"
 
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
@@ -68,6 +68,13 @@ extern int16_t ppposif_ipc_write(IPC_Device_t pDevice, u8_t *data, int16_t len);
   * @retval data rcv byte number
   */
 extern int16_t   ppposif_ipc_read(IPC_Device_t pDevice, u8_t *buff, int16_t size);
+
+/**
+  * @brief  component close
+  * @param  pDevice: device to close.
+  * @retval return code
+  */
+extern void ppposif_ipc_close(IPC_Device_t pDevice);
 
 /**
   * @brief  component de init

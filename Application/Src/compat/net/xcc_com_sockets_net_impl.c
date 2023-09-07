@@ -458,8 +458,9 @@ avs_error_t _avs_net_create_udp_socket(avs_net_socket_t **socket_ptr,
 
 avs_error_t _avs_net_create_tcp_socket(avs_net_socket_t **socket_ptr,
                                        const void *configuration) {
-    // FIXME: TCP sockets do not work yet; to investigate
-    return avs_errno(AVS_ENOTSUP);
+    return net_create_socket(
+            socket_ptr, (const avs_net_socket_configuration_t *) configuration,
+            COM_SOCK_STREAM);
 }
 
 int xcc_net_socket_poll_single(xcc_net_socket_impl_t *socket,

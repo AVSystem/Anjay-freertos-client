@@ -21,7 +21,6 @@
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
 
 #include "rtosal.h"
-#include "ipc_uart.h"
 #include "main.h"
 #include "error_handler.h"
 #include "plf_config.h"
@@ -126,6 +125,19 @@ void ppposif_ipc_select(IPC_Device_t pDevice)
 }
 
 /**
+  * @brief  component close
+  * @param  pDevice: device to close.
+  * @retval return code
+  */
+
+void ppposif_ipc_close(IPC_Device_t pDevice)
+{
+  /* Release the semaphore. ppp/ipc may be closed while data exchange. Data exchange get the semaphore while */
+  /* waiting a response */
+  (void)rtosalSemaphoreRelease(ppposif_ipc_ctx[pDevice].sndSemaphore);
+}
+
+/**
   * @brief  component de init
   * @param  pDevice: device to de init.
   * @retval return code
@@ -171,7 +183,7 @@ int16_t ppposif_ipc_write(IPC_Device_t pDevice, u8_t *data, int16_t len)
   IPC_Status_t status;
   ppposif_ipc_ctx[pDevice].TransmitOnGoing = 1U;
 
-  /*   for(int i=0; i<temp_len; i++) ppposif_ipc_ctx[pDevice].snd_buff[i] = data[i];*/
+  /*   for(int i=0; i<temp_len; i++) ppposif_ipc_ctx[pDevice].snd_buff[i] = data[i] */
 
   status = IPC_send(ppposif_ipc_ctx[pDevice].ipcHandle, (uint8_t *) data, (uint16_t)temp_len);
   if (status != IPC_OK)

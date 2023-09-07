@@ -139,6 +139,35 @@ at_status_t fCmdBuild_QIACT_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_
 }
 
 /**
+  * @brief  Build specific modem command : QIDEACT.
+  * @param  p_atp_ctxt Pointer to the structure of Parser context.
+  * @param  p_modem_ctxt Pointer to the structure of Modem context.
+  * @retval at_status_t
+  */
+at_status_t fCmdBuild_QIDEACT_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_context_t *p_modem_ctxt)
+{
+  at_status_t retval = ATSTATUS_OK;
+  PRINT_API("enter fCmdBuild_QIDEACT_BG96()")
+
+  /* only for write command, set parameters */
+  if (p_atp_ctxt->current_atcmd.type == ATTYPE_WRITE_CMD)
+  {
+    CS_PDN_conf_id_t current_conf_id = atcm_get_cid_current_SID(p_modem_ctxt);
+    uint8_t modem_cid = atcm_get_affected_modem_cid(&p_modem_ctxt->persist, current_conf_id);
+    PRINT_INFO("user cid = %d, modem cid = %d", (uint8_t)current_conf_id, modem_cid)
+    /* check if this PDP context has been defined */
+    if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].conf_id == CS_PDN_NOT_DEFINED)
+    {
+      PRINT_INFO("PDP context not explicitly defined for conf_id %d (using modem params)", current_conf_id)
+    }
+
+    (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "%d",  modem_cid);
+  }
+
+  return (retval);
+}
+
+/**
   * @brief  Build specific modem command : QIOPEN.
   * @param  p_atp_ctxt Pointer to the structure of Parser context.
   * @param  p_modem_ctxt Pointer to the structure of Modem context.
@@ -206,8 +235,6 @@ at_status_t fCmdBuild_QIOPEN_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem
                        p_modem_ctxt->socket_ctxt.p_socket_info->local_port,
                        access_mode);
 
-        /* waiting for +QIOPEN now */
-        bg96_shared.QIOPEN_waiting = AT_TRUE;
       }
       /* QIOPEN for server mode (not supported yet)
       *  else if (curSID == ?) for server mode (corresponding to CDS_socket_listen)
@@ -328,7 +355,7 @@ at_status_t fCmdBuild_QISEND_WRITE_DATA_BG96(atparser_context_t *p_atp_ctxt,
     if (p_modem_ctxt->SID_ctxt.socketSendData_struct.p_buffer_addr_send != NULL)
     {
       uint32_t str_size = p_modem_ctxt->SID_ctxt.socketSendData_struct.buffer_size;
-      (void) memcpy((void *)p_atp_ctxt->current_atcmd.params,
+      (void) memcpy((CS_CHAR_t *)p_atp_ctxt->current_atcmd.params,
                     (const CS_CHAR_t *)p_modem_ctxt->SID_ctxt.socketSendData_struct.p_buffer_addr_send,
                     (size_t) str_size);
 
@@ -577,8 +604,10 @@ at_status_t fCmdBuild_QICSGP_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem
           context_type_value = 1U;
           break;
         case CS_PDPTYPE_IPV6:
-        case CS_PDPTYPE_IPV4V6:
           context_type_value = 2U;
+          break;
+        case CS_PDPTYPE_IPV4V6:
+          context_type_value = 3U;
           break;
 
         default :
@@ -601,7 +630,7 @@ at_status_t fCmdBuild_QICSGP_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem
 
 
       /* build command */
-      if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CELLULAR_TRUE)
+      if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CS_TRUE)
       {
         /* use the APN explicitly providedby user */
         p_apn = (CS_CHAR_t *) &p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn;
@@ -815,9 +844,34 @@ at_action_rsp_t fRspAnalyze_QIURC_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
           *  with the current implementation, in case of many possible host IP address, we use
           *  the last one received
           */
-          (void) memcpy((void *)bg96_shared.QIURC_dnsgip_param.hostIPaddr,
-                        (const void *) & (p_msg_in->buffer[element_infos->str_start_idx]),
-                        (size_t) element_infos->str_size);
+          csint_ip_addr_info_t  ip_addr_info;
+          uint16_t ip_addr_info_size;
+          (void) memset((void *)&ip_addr_info, 0, sizeof(csint_ip_addr_info_t));
+
+          /* try to remove quotes, if any, around IP address */
+          ip_addr_info_size =
+            ATutil_extract_str_from_quotes(
+              (const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
+              element_infos->str_size,
+              ip_addr_info.ip_addr_value,
+              MAX_SIZE_IPADDR);
+
+          /* recopy address to user */
+          if (ip_addr_info_size != 0U)
+          {
+            /* quotes have been removed, recopy cleaned IP address */
+            (void) memcpy((void *)bg96_shared.QIURC_dnsgip_param.hostIPaddr,
+                          (const void *) & (ip_addr_info.ip_addr_value),
+                          (size_t) ip_addr_info_size);
+          }
+          else
+          {
+            /* no quotes detected, recopy received field without any modification */
+            (void) memcpy((void *)bg96_shared.QIURC_dnsgip_param.hostIPaddr,
+                          (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
+                          (size_t) element_infos->str_size);
+          }
+
           PRINT_DBG("+QIURC dnsgip Host address #%ld =%s", bg96_shared.QIURC_dnsgip_param.ip_count,
                     bg96_shared.QIURC_dnsgip_param.hostIPaddr)
           bg96_shared.QIURC_dnsgip_param.ip_count--;
@@ -1057,66 +1111,64 @@ at_action_rsp_t fRspAnalyze_QIOPEN_BG96(at_context_t *p_at_ctxt, atcustom_modem_
   PRINT_API("enter fRspAnalyze_QIOPEN_BG96()")
   uint32_t bg96_current_qiopen_connectId = 0U;
 
-  /* are we waiting for QIOPEN ? */
-  if (bg96_shared.QIOPEN_waiting == AT_TRUE)
+  START_PARAM_LOOP()
+  if (element_infos->param_rank == 2U)
   {
-    START_PARAM_LOOP()
-    if (element_infos->param_rank == 2U)
-    {
-      uint32_t connectID;
-      connectID = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
-      bg96_current_qiopen_connectId = connectID;
-      bg96_shared.QIOPEN_current_socket_connected = 0U;
-    }
-    else if (element_infos->param_rank == 3U)
-    {
-      uint32_t err_value;
-      err_value = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
+    uint32_t connectID;
+    connectID = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
+    bg96_current_qiopen_connectId = connectID;
+  }
+  else if (element_infos->param_rank == 3U)
+  {
+    uint32_t err_value;
+    err_value = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size);
 
-      /* compare QIOPEN connectID with the value requested by user (ie in current SID)
-      *  and check if err=0
-      */
-      if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
+    /* compare QIOPEN connectID with the value requested by user (ie in current SID)
+    *  and check if err=0
+    */
+    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
+    {
+      if ((bg96_current_qiopen_connectId ==
+           atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle)) &&
+          (err_value == 0U))
       {
-        if ((bg96_current_qiopen_connectId ==
-             atcm_socket_get_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle)) &&
-            (err_value == 0U))
-        {
-          PRINT_INFO("socket (connectId=%ld) opened", bg96_current_qiopen_connectId)
-          bg96_shared.QIOPEN_current_socket_connected = 1U;
-          bg96_shared.QIOPEN_waiting = AT_FALSE;
-          retval = ATACTION_RSP_FRC_END;
-        }
-        else
-        {
-          if (err_value != 0U)
-          {
-            PRINT_ERR("+QIOPEN returned error #%ld", err_value)
-          }
-          else
-          {
-            PRINT_ERR("+QIOPEN problem")
-          }
-          retval = ATACTION_RSP_ERROR;
-        }
+        PRINT_INFO("socket (connectId=%ld) opened", bg96_current_qiopen_connectId)
+        /* +QIOPEN URC received and connection is a success */
+        bg96_shared.QIOPEN_URC_OK = AT_TRUE;
+        retval = ATACTION_RSP_FRC_END;
       }
       else
       {
-        PRINT_ERR("No socket info context")
+        if (err_value != 0U)
+        {
+          /* QIOPEN returns an error code */
+          PRINT_ERR("+QIOPEN returned error #%ld", err_value)
+        }
+        else
+        {
+          /* if falls here, err_value=0 but bg96_current_qiopen_connectId does not match
+           * returns an error.
+           */
+          PRINT_ERR("+QIOPEN cid does not match")
+        }
+
+        /* release modem cid */
+        (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
         retval = ATACTION_RSP_ERROR;
       }
     }
     else
     {
-      /* other parameters ignored */
-      __NOP(); /* to avoid warning */
+      PRINT_ERR("No socket info context")
+      retval = ATACTION_RSP_ERROR;
     }
-    END_PARAM_LOOP()
   }
   else
   {
-    PRINT_INFO("+QIOPEN not expected, ignore it")
+    /* other parameters ignored */
+    __NOP(); /* to avoid warning */
   }
+  END_PARAM_LOOP()
 
   return (retval);
 }
@@ -1260,22 +1312,34 @@ at_action_rsp_t fRspAnalyze_QIRD_data_BG96(at_context_t *p_at_ctxt, atcustom_mod
             element_infos->str_size)
 
   /* Recopy data to client buffer if:
+  *   - socket receive state is correct
   *   - pointer on data buffer exists
   *   - and size of data <= maximum size
   */
-  if ((p_modem_ctxt->socket_ctxt.socketReceivedata.p_buffer_addr_rcv != NULL) &&
-      (element_infos->str_size <= p_modem_ctxt->socket_ctxt.socketReceivedata.max_buffer_size))
+  if (p_modem_ctxt->socket_ctxt.socket_receive_state == SocketRcvState_RequestData_Payload)
   {
-    /* recopy data to client buffer */
-    (void) memcpy((void *)p_modem_ctxt->socket_ctxt.socketReceivedata.p_buffer_addr_rcv,
-                  (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
-                  (size_t) element_infos->str_size);
-    p_modem_ctxt->socket_ctxt.socketReceivedata.buffer_size = element_infos->str_size;
+    if ((p_modem_ctxt->socket_ctxt.socketReceivedata.p_buffer_addr_rcv != NULL) &&
+        (element_infos->str_size <= p_modem_ctxt->socket_ctxt.socketReceivedata.max_buffer_size))
+    {
+      /* recopy data to client buffer */
+      (void) memcpy((void *)p_modem_ctxt->socket_ctxt.socketReceivedata.p_buffer_addr_rcv,
+                    (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
+                    (size_t) element_infos->str_size);
+      p_modem_ctxt->socket_ctxt.socketReceivedata.buffer_size = element_infos->str_size;
+    }
+    else
+    {
+      PRINT_ERR("ERROR (receive buffer is a NULL ptr or data exceed buffer size)")
+      retval = ATACTION_RSP_ERROR;
+    }
+
+    /* end of data payload reception */
+    p_modem_ctxt->socket_ctxt.socket_receive_state = SocketRcvState_No_Activity;
   }
   else
   {
-    PRINT_ERR("ERROR (receive buffer is a NULL ptr or data exceed buffer size)")
-    retval = ATACTION_RSP_ERROR;
+    /* if falling here, ignore the data receievd (certainly an echo) */
+    PRINT_DBG("ignore received line")
   }
 
   return (retval);
@@ -1424,7 +1488,7 @@ at_action_rsp_t fRspAnalyze_QISTATE_BG96(at_context_t *p_at_ctxt, atcustom_modem
 at_action_rsp_t fRspAnalyze_QPING_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                        const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
-  /*UNUSED(p_at_ctxt);*/
+  UNUSED(p_at_ctxt);
 
   at_action_rsp_t retval = ATACTION_RSP_URC_FORWARDED;
   PRINT_API("enter fRspAnalyze_QPING_BG96()")
@@ -1459,7 +1523,7 @@ at_action_rsp_t fRspAnalyze_QPING_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
       /* increment index */
       p_modem_ctxt->persist.ping_resp_urc.index++;
     }
-    p_modem_ctxt->persist.ping_resp_urc.ping_status = (result == 0U) ? CELLULAR_OK : CELLULAR_ERROR;
+    p_modem_ctxt->persist.ping_resp_urc.ping_status = (result == 0U) ? CS_OK : CS_ERROR;
   }
   else if (element_infos->param_rank == 3U)
   {
@@ -1467,23 +1531,23 @@ at_action_rsp_t fRspAnalyze_QPING_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
     if (p_msg_in->buffer[element_infos->str_start_idx] == 0x22U)
     {
       /* this is an IP address: intermediate ping response */
-      if (p_modem_ctxt->persist.ping_resp_urc.is_final_report == CELLULAR_TRUE)
+      if (p_modem_ctxt->persist.ping_resp_urc.is_final_report == CS_TRUE)
       {
         PRINT_DBG("intermediate ping report")
-        p_modem_ctxt->persist.ping_resp_urc.is_final_report = CELLULAR_FALSE;
+        p_modem_ctxt->persist.ping_resp_urc.is_final_report = CS_FALSE;
       }
     }
     else
     {
       /* this is not an IP address: final ping response */
-      if (p_modem_ctxt->persist.ping_resp_urc.is_final_report == CELLULAR_FALSE)
+      if (p_modem_ctxt->persist.ping_resp_urc.is_final_report == CS_FALSE)
       {
         PRINT_DBG("final ping report")
-        p_modem_ctxt->persist.ping_resp_urc.is_final_report = CELLULAR_TRUE;
+        p_modem_ctxt->persist.ping_resp_urc.is_final_report = CS_TRUE;
       }
     }
 
-    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CELLULAR_FALSE)
+    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CS_FALSE)
     {
       /* <IP_address> */
       atcm_extract_IP_address((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
@@ -1500,7 +1564,7 @@ at_action_rsp_t fRspAnalyze_QPING_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   }
   else if (element_infos->param_rank == 4U)
   {
-    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CELLULAR_FALSE)
+    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CS_FALSE)
     {
       /* <bytes> */
       uint32_t ping_bytes = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
@@ -1516,7 +1580,7 @@ at_action_rsp_t fRspAnalyze_QPING_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   }
   else if (element_infos->param_rank == 5U)
   {
-    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CELLULAR_FALSE)
+    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CS_FALSE)
     {
       /* <time>*/
       uint32_t timeval = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
@@ -1532,7 +1596,7 @@ at_action_rsp_t fRspAnalyze_QPING_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   }
   else if (element_infos->param_rank == 6U)
   {
-    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CELLULAR_FALSE)
+    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CS_FALSE)
     {
       /* <ttl>*/
       uint32_t ttl = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
@@ -1548,7 +1612,7 @@ at_action_rsp_t fRspAnalyze_QPING_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   }
   else if (element_infos->param_rank == 7U)
   {
-    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CELLULAR_TRUE)
+    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CS_TRUE)
     {
       /* <max_time>*/
       /* parameter ignored */
@@ -1558,7 +1622,7 @@ at_action_rsp_t fRspAnalyze_QPING_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   }
   else if (element_infos->param_rank == 8U)
   {
-    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CELLULAR_TRUE)
+    if (p_modem_ctxt->persist.ping_resp_urc.is_final_report  == CS_TRUE)
     {
       /* <avg_time>*/
       /* parameter ignored */

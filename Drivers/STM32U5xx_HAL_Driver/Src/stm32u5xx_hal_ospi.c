@@ -3000,6 +3000,7 @@ static void OSPI_DMAAbortCplt(DMA_HandleTypeDef *hdma)
   * @param  Tickstart : Tick start value
   * @retval HAL status
   */
+__attribute__((optimize("O0")))
 static HAL_StatusTypeDef OSPI_WaitFlagStateUntilTimeout(OSPI_HandleTypeDef *hospi, uint32_t Flag,
                                                         FlagStatus State, uint32_t Tickstart, uint32_t Timeout)
 {
@@ -3031,6 +3032,7 @@ static HAL_StatusTypeDef OSPI_WaitFlagStateUntilTimeout(OSPI_HandleTypeDef *hosp
   * @param  cmd   : structure that contains the command configuration information
   * @retval HAL status
   */
+__attribute__((optimize("O0")))
 static HAL_StatusTypeDef OSPI_ConfigCmd(OSPI_HandleTypeDef *hospi, OSPI_RegularCmdTypeDef *cmd)
 {
   HAL_StatusTypeDef status = HAL_OK;

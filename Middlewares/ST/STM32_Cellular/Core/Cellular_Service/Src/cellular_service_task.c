@@ -160,14 +160,15 @@ cst_nfmc_context_t cst_nfmc_context;                    /* NFMC context         
 /* CST context */
 cst_context_t cst_context =
 {
-  CST_BOOT_STATE, CST_NO_FAIL, CS_PDN_EVENT_NW_DETACH,    /* Automaton State, FAIL Cause,  */
-  { 0U, 0U},                                         /* signal quality */
+  false,                                               /* cellular_service_init done */
+  CST_BOOT_STATE, CST_NO_FAIL, CS_PDN_EVENT_NW_DETACH, /* Automaton State, FAIL Cause,  */
+  { 0U, 0U},                                           /* signal quality */
   CS_NRS_NOT_REGISTERED_NOT_SEARCHING, CS_NRS_NOT_REGISTERED_NOT_SEARCHING, CS_NRS_NOT_REGISTERED_NOT_SEARCHING,
-  0U,                                                /* activate_pdn_nfmc_tempo_count */
-  0U,                                                /* register_retry_tempo_count */
-  0U,                                                /* sim slot index */
-  false,                                             /* modem power status : power off */
-  0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U     /* fail counters */
+  0U,                                                  /* activate_pdn_nfmc_tempo_count */
+  0U,                                                  /* register_retry_tempo_count */
+  0U,                                                  /* sim slot index */
+  false,                                               /* modem power status : power off */
+  0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U       /* fail counters */
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -236,6 +237,12 @@ static void CST_cellular_service_task(void *argument);
 bool CST_polling_active;            /* modem polling activation flag */
 static bool CST_polling_on_going;   /* modem polling already asked, and on going */
 
+/* Mutex handler */
+osMutexId CellularQueueMutexHandle;
+
+cst_autom_event_t last_cs_autom_event;     /* The last pushed (and still not pulled) event in CST queue */
+bool last_cs_autom_event_relevant = false; /* last_cs_autom_eventvalue is relevant or not */
+
 #if (( USE_TRACE_CELLULAR_SERVICE == 1) || ( USE_CMD_CONSOLE == 1 ))
 /* State names to display */
 const uint8_t *CST_StateName[CST_MAX_STATE] =
@@ -273,16 +280,53 @@ const uint8_t *CST_StateName[CST_MAX_STATE] =
   */
 void  CST_send_message(CST_message_type_t type, cst_autom_event_t event)
 {
-  PRINT_CELLULAR_SERVICE("CST: CST_send_message: %s\n\r", cst_event_name[event])
   cst_message_t cmd_message;
+  bool send_message = true;
 
-  cmd_message = 0U;
-  SET_AUTOMATON_MSG_TYPE(cmd_message, type);
-  SET_AUTOMATON_MSG_ID(cmd_message, event);
-
-  if (rtosalMessageQueuePut((osMessageQId)cst_queue_id, cmd_message, 0U) != osOK)
+  switch (type)
   {
-    PRINT_CELLULAR_SERVICE_ERR("CST: CST queue msg %ld can NOT be added. (Queue full ?)\n\r", cmd_message)
+    case CST_MESSAGE_CS_EVENT:
+      PRINT_CELLULAR_SERVICE("CST: CST_send_message: %s\n\r", cst_event_name[event])
+      if ((! last_cs_autom_event_relevant) || (event != last_cs_autom_event))
+      {
+        (void)rtosalMutexAcquire(CellularQueueMutexHandle, RTOSAL_WAIT_FOREVER);
+        last_cs_autom_event = event;
+        last_cs_autom_event_relevant = true;
+        (void)rtosalMutexRelease(CellularQueueMutexHandle);
+      }
+      else
+      {
+        send_message = false;
+      }
+      break;
+
+    case CST_MESSAGE_DC_EVENT:
+      PRINT_CELLULAR_SERVICE("CST: CST_send_message: data cache %d\n\r", event)
+      break;
+
+    case CST_MESSAGE_CMD:
+      PRINT_CELLULAR_SERVICE("CST: CST_send_message: cmd %d\n\r", event)
+      break;
+
+    default:
+      PRINT_CELLULAR_SERVICE("CST: CST_send_message: unknown %d\n\r", event)
+      break;
+  }
+
+  if (send_message)
+  {
+    cmd_message = 0U;
+    SET_AUTOMATON_MSG_TYPE(cmd_message, type);
+    SET_AUTOMATON_MSG_ID(cmd_message, event);
+
+    if (rtosalMessageQueuePut((osMessageQId)cst_queue_id, cmd_message, 0U) != osOK)
+    {
+      PRINT_CELLULAR_SERVICE_ERR("CST: CST queue msg %ld can NOT be added. (Queue full ?)\n\r", cmd_message)
+    }
+  }
+  else
+  {
+    PRINT_CELLULAR_SERVICE("CST: CST_send_message: Message already on top of queue. Not added.\n\r")
   }
 }
 
@@ -384,11 +428,11 @@ static void CST_polling_timer_callback(void *argument)
       CST_send_message(CST_MESSAGE_CS_EVENT, CST_POLLING_TIMER_EVENT);
     }
     /*
-        else
-        {
-          PRINT_CELLULAR_SERVICE("CST: Discard pooling timer message, another pooling message is already on going\n\r")
-        }
-    */
+     * else
+     * {*
+     *   PRINT_CELLULAR_SERVICE("CST: Discard pooling timer message, another pooling message is already on going\n\r")
+     * }*
+     */
   }
 }
 
@@ -581,11 +625,30 @@ static void CST_off_state_target_cmd_state_mngt(void)
   if (cst_cellular_params.target_state == DC_TARGET_STATE_OFF)
   {
     (void)CST_modem_power_off();
+    CST_set_modem_state(&dc_com_db, CA_MODEM_POWER_OFF, (uint8_t *)"CA_MODEM_POWER_OFF");
   }
   else if (cst_cellular_params.target_state == DC_TARGET_STATE_MODEM_ONLY)
   {
     PRINT_CELLULAR_SERVICE("CST: osCDS_power_on()\n\r")
-    (void)osCDS_power_on();
+    cs_status = osCDS_power_on();
+    if (cs_status != CS_OK)
+    {
+      /* Modem powered on failed */
+      CST_config_fail(((uint8_t *)"CST_cmd"),
+                      CST_MODEM_POWER_ON_FAIL,
+                      &cst_context.power_on_reset_count,
+                      CST_POWER_ON_RESET_MAX);
+
+    }
+    else
+    {
+      /* Modem powered on OK: update DC*/
+      (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(dc_cellular_info_t));
+      cst_cellular_info.rt_state    = DC_SERVICE_RUN;
+      (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(dc_cellular_info_t));
+      CST_set_modem_state(&dc_com_db, CA_MODEM_STATE_POWERED_ON, (uint8_t *)"CA_MODEM_STATE_POWERED_ON");
+      CST_set_state(CST_MODEM_POWER_ON_ONLY_STATE);
+    }
   }
   else
   {
@@ -600,7 +663,7 @@ static void CST_off_state_target_cmd_state_mngt(void)
       PRINT_CELLULAR_SERVICE("CST: osCDS_power_on()\n\r")
       cs_status = osCDS_power_on();
 
-      if (cs_status != CELLULAR_OK)
+      if (cs_status != CS_OK)
       {
         /* Modem powered on failed */
         CST_config_fail(((uint8_t *)"CST_cmd"),
@@ -662,7 +725,7 @@ static void CST_init_state_mngt(void)
       PRINT_CELLULAR_SERVICE("CST: osCDS_power_on()\n\r")
       cs_status = osCDS_power_on();
 
-      if (cs_status != CELLULAR_OK)
+      if (cs_status != CS_OK)
       {
         /* Modem powered on failed */
         CST_config_fail(((uint8_t *)"CST_cmd"),
@@ -859,7 +922,7 @@ static void CST_modem_reboot_mngt(void)
   /* modem power off */
   cs_status = CST_modem_power_off();
 
-  if (cs_status != CELLULAR_OK)
+  if (cs_status != CS_OK)
   {
     CST_config_fail(((uint8_t *)"CST_modem_reboot_mngt"),
                     CST_MODEM_RESET_FAIL,
@@ -914,7 +977,7 @@ static void  CST_net_register_mngt(void)
   /* find network and register when found */
   PRINT_CELLULAR_SERVICE("CST: osCDS_register_net()\n\r")
   cs_status = osCDS_register_net(&ctxt_operator, &cst_ctxt_reg_status);
-  if (cs_status == CELLULAR_OK)
+  if (cs_status == CS_OK)
   {
     /* service OK: update current network status */
     cst_context.current_EPS_NetworkRegState  = cst_ctxt_reg_status.EPS_NetworkRegState;
@@ -958,7 +1021,7 @@ static void  CST_signal_quality_test_mngt(void)
   cs_status = CST_set_signal_quality();
 
   PRINT_CELLULAR_SERVICE("CST: CST_signal_quality_test_mngt\n\r")
-  if (cs_status == CELLULAR_OK)
+  if (cs_status == CS_OK)
   {
     /* Signal Quality is OK */
     /* Start attachment timeout */
@@ -1004,7 +1067,7 @@ static void  CST_network_status_test_mngt(void)
     /* if signal level is KO we lost the signal then enter to the wait for signal state*/
     cs_status = CST_set_signal_quality();
 
-    if (cs_status != CELLULAR_OK)
+    if (cs_status != CS_OK)
     {
       /* When registered then stop the NW REG TIMER */
       (void)rtosalTimerStop(cst_network_status_timer_handle);
@@ -1053,17 +1116,14 @@ static void  CST_pdn_event_nw_detach_mngt(void)
   }
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
-  osCCS_get_wait_cs_resource();
   PRINT_CELLULAR_SERVICE("CST: osCDS_suspend_data()\n\r")
+  osCCS_get_wait_cs_resource();
   (void)osCDS_suspend_data();
-#endif  /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
+  osCCS_get_release_cs_resource();
+#endif      /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
 
   /* get new network status */
   ret = CST_get_network_status();
-
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
-  osCCS_get_release_cs_resource();
-#endif      /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
 
   if (ret == CST_NET_REGISTERED)
   {
@@ -1242,7 +1302,7 @@ static void  CST_attach_modem_mngt(void)
   /* gets net status */
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_net_status()\n\r")
   cs_status = osCDS_get_net_status(&reg_status);
-  if (cs_status == CELLULAR_OK)
+  if (cs_status == CS_OK)
   {
     /* service available */
     if (((uint16_t)reg_status.optional_fields_presence & (uint16_t)CS_RSF_FORMAT_PRESENT) != 0U)
@@ -1260,7 +1320,7 @@ static void  CST_attach_modem_mngt(void)
 
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_attach_status()\n\r")
   cs_status = osCDS_get_attach_status(&cst_ctxt_attach_status);
-  if (cs_status != CELLULAR_OK)
+  if (cs_status != CS_OK)
   {
     /* service not available : FAIL */
     PRINT_CELLULAR_SERVICE("CST: --> attach modem fail\n\r")
@@ -1326,14 +1386,15 @@ static void CST_ppp_config_mngt(void)
 
 static void CST_data_ready_mngt(void)
 {
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
-#else
+  static uint8_t cs_ip_addr[DC_MAX_IP_ADDR_SIZE];
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  uint8_t cs_ip_addr_tmp[DC_MAX_IP_ADDR_SIZE] = {0U};
   CS_IPaddrType_t  ip_addr_type;
   dc_network_addr_t ip_addr;
+  uint8_t address_starting_byte = 0U;
   uint32_t err;
-  static uint8_t cs_ip_addr[DC_MAX_IP_ADDR_SIZE];
 #endif  /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
-  /* resets failure couters  */
+  /* resets failure counters  */
   cst_context.power_on_reset_count       = 0U;
   cst_context.reset_count                = 0U;
   cst_context.csq_reset_count            = 0U;
@@ -1353,52 +1414,51 @@ static void CST_data_ready_mngt(void)
   CST_send_message(CST_MESSAGE_CS_EVENT, CST_NO_EVENT);
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
-  (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info));
-  switch (cst_cellular_info.rt_state_ppp)
-  {
-    case DC_SERVICE_ON:
-    {
-      /* PPP client ON => data transfer feature available */
-      /* update nifman DC entry (service on) */
-      CST_data_cache_cellular_info_set(DC_SERVICE_ON, &cst_cellular_info.ip_addr);
-      break;
-    }
-    case DC_SERVICE_OFF:
-    {
-      CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
-      break;
-    }
-    default:
-    {
-      /* all other event => data transfer feature no more available */
-      /* update nifman DC entry (service off)                        */
-      CST_data_cache_cellular_info_set(DC_SERVICE_FAIL, NULL);
-      break;
-    }
-  }
+  CST_data_cache_cellular_info_set(DC_SERVICE_ON, &cst_cellular_info.ip_addr);
+  cs_ip_addr[0] = (uint8_t)(cst_cellular_info.ip_addr.addr & (uint8_t)0xFF);
+  cs_ip_addr[1] = (uint8_t)((cst_cellular_info.ip_addr.addr >> 8) & (uint8_t)0xFF);
+  cs_ip_addr[2] = (uint8_t)((cst_cellular_info.ip_addr.addr >> 16) & (uint8_t)0xFF);
+  cs_ip_addr[3] = (uint8_t)((cst_cellular_info.ip_addr.addr >> 24) & (uint8_t)0xFF);
 #else
-
-  (void)CST_get_dev_IP_address(&ip_addr_type, cs_ip_addr);
-  err = crc_get_ip_addr(&cs_ip_addr[1], cs_ip_addr, NULL);
+  (void)CST_get_dev_IP_address(&ip_addr_type, cs_ip_addr_tmp);
+  /* For compatibility reasons, check if IP address is starting by a double quote (0x22).
+   * If this is the case, shift the address by 1 byte.
+   */
+  if (cs_ip_addr_tmp[0] == 0x22U)
+  {
+    address_starting_byte = 1U;
+  }
+  /* convert IP address string format (without quotes) to 4 bytes with integer values.
+   * Note: only works for IPv4, IPv6 not supported.
+   */
+  err = crc_get_ip_addr(&cs_ip_addr_tmp[address_starting_byte], cs_ip_addr, NULL);
   if (err == 0U)
   {
     ip_addr.addr = (uint32_t)cs_ip_addr[0] +
                    ((uint32_t)cs_ip_addr[1] <<  8) +
                    ((uint32_t)cs_ip_addr[2] << 16) +
                    ((uint32_t)cs_ip_addr[3] << 24);
-    /* Display trace even in release binary. Used for tests */
-    PRINT_FORCE("Network is up with IP %d.%d.%d.%d\r\n",
-                cs_ip_addr[0], cs_ip_addr[1], cs_ip_addr[2], cs_ip_addr[3])
   }
   else
   {
     ip_addr.addr = 0;
-    /* Display trace even in release binary. Used for tests */
-    PRINT_FORCE("Network is up with no IP\r\n")
   }
-
   CST_data_cache_cellular_info_set(DC_SERVICE_ON, &ip_addr);
 #endif  /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
+  /* Display trace even in release binary. Used for tests */
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  if (err == 0U)
+  {
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
+    PRINT_FORCE("Network is up with IP %d.%d.%d.%d\r\n",
+                cs_ip_addr[0], cs_ip_addr[1], cs_ip_addr[2], cs_ip_addr[3])
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+  }
+  else
+  {
+    PRINT_FORCE("Network is up with no IP\r\n")
+  }
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 }
 
 /**
@@ -1438,7 +1498,7 @@ static void CST_modem_activate_pdn_mngt(void)
   PRINT_CELLULAR_SERVICE("CST: osCDS_activate_pdn()\n\r")
   cs_status = osCDS_activate_pdn(CS_PDN_CONFIG_DEFAULT);
 
-  if (cs_status != CELLULAR_OK)
+  if (cs_status != CS_OK)
   {
     if (cst_nfmc_context.active == false)
     {
@@ -1540,7 +1600,7 @@ static void CST_target_state_cmd_event_mngt(void)
     PRINT_CELLULAR_SERVICE("CST: Transition to CST_MODEM_SIM_ONLY_STATE Ongoing\n\r")
     /* reinit the mode with SIM_ONLY mode */
     PRINT_CELLULAR_SERVICE("CST: osCDS_init_modem()\n\r")
-    (void) osCDS_init_modem(CS_CMI_SIM_ONLY, CELLULAR_FALSE, PLF_CELLULAR_SIM_PINCODE);
+    (void) osCDS_init_modem(CS_CMI_SIM_ONLY, CS_FALSE, PLF_CELLULAR_SIM_PINCODE);
 
     /* set 'SIM_CONNECTED in Data Cache to inform application */
     CST_set_modem_state(&dc_com_db, CA_MODEM_STATE_SIM_CONNECTED, (uint8_t *)"CA_MODEM_STATE_SIM_CONNECTED");
@@ -1601,7 +1661,7 @@ static void CST_polling_timer_mngt(void)
       PRINT_CELLULAR_SERVICE("CST: osCDS_resume_data()\n\r")
       cs_status = osCDS_resume_data();
       osCCS_get_release_cs_resource();
-      if (cs_status != CELLULAR_OK)
+      if (cs_status != CS_OK)
       {
         /* to add resume_data failure */
         CST_cellular_data_fail_mngt();
@@ -1650,8 +1710,6 @@ static void CST_data_mode_target_state_event_mngt(void)
   {
     /* the target state has changed: not more FULL */
     /* Close network Data transfer service */
-    CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
-
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
     /* lwip mode : must close ppp before to set lodem off */
     (void)ppposif_client_close(PPPOSIF_CAUSE_POWER_OFF);
@@ -1660,6 +1718,33 @@ static void CST_data_mode_target_state_event_mngt(void)
     /* apply target state command */
     CST_target_state_cmd_event_mngt();
 #endif /* USE_SOCKETS_TYPE == USE_SOCKETS_LWIP */
+  }
+}
+
+/**
+  * @brief  target state event management in case of current state == SIM_ ONLY
+  * @param  -
+  * @retval -
+  */
+static void CST_modem_on_only_target_state_event_mngt(void)
+{
+  if (cst_cellular_params.target_state == DC_TARGET_STATE_OFF)
+  {
+    /* The only way to exit from Modem on only state is to power off the modem */
+    /* Other transition are not allowed. */
+    /* new Modem target state 'MODEM OFF' requested */
+    /* modem power off */
+    (void)CST_modem_power_off();
+
+    CST_set_modem_state(&dc_com_db, CA_MODEM_POWER_OFF, (uint8_t *)"CA_MODEM_POWER_OFF");
+
+    CST_set_state(CST_MODEM_OFF_STATE);
+    CST_send_message(CST_MESSAGE_CS_EVENT, CST_MODEM_INIT_EVENT);
+  }
+  else
+  {
+    /* Nothing to do */
+    __NOP();
   }
 }
 
@@ -2082,6 +2167,12 @@ static void CST_data_ready_state(cst_autom_event_t autom_event)
       break;
 #endif  /* (USE_LOW_POWER == 1) */
 
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
+    case CST_PPP_CLOSED_EVENT:
+      CST_ppp_closed_event_mngt();
+      break;
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
+
     default:
       /* Nothing to do */
       break;
@@ -2101,12 +2192,46 @@ static void CST_modem_off_state(cst_autom_event_t autom_event)
 #endif /* (USE_LOW_POWER == 1) */
   switch (autom_event)
   {
+    case CST_BOOT_EVENT:
+      CST_boot_event_mngt();
+      break;
+
     case CST_TARGET_STATE_CMD_EVENT:
       CST_off_state_target_cmd_state_mngt();
       break;
 
     case CST_MODEM_INIT_EVENT:
       CST_modem_off_mngt();
+      break;
+
+    case CST_REBOOT_MODEM_EVENT:
+      CST_reboot_modem_event_mngt();
+      break;
+
+    default:
+      /* Nothing to do */
+      break;
+  }
+}
+
+/**
+  * @brief  modem power on only state processing
+  * @param  autom_event - automaton event
+  * @retval -
+  */
+static void CST_modem_power_on_only_state(cst_autom_event_t autom_event)
+{
+#if (USE_LOW_POWER == 1)
+  (void)rtosalTimerStop(cst_lp_inactivity_timer_handle);
+#endif /* (USE_LOW_POWER == 1) */
+  switch (autom_event)
+  {
+    case CST_BOOT_EVENT:
+      CST_boot_event_mngt();
+      break;
+
+    case CST_TARGET_STATE_CMD_EVENT:
+      CST_modem_on_only_target_state_event_mngt();
       break;
 
     case CST_REBOOT_MODEM_EVENT:
@@ -2334,7 +2459,9 @@ static void CST_ppp_closed_event_mngt(void)
   PRINT_CELLULAR_SERVICE("CST: osCDS_suspend_data()\n\r")
   (void)osCDS_suspend_data();
   osCCS_get_release_cs_resource();
-
+  CST_network_status_test_mngt();
+  /* update nifman DC entry (service off)                        */
+  CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
   /* configure modem off state */
   CST_target_state_cmd_event_mngt();
 }
@@ -2349,46 +2476,7 @@ static void CST_ppp_opened_event_mngt(void)
 #if (USE_LOW_POWER == 1)
   (void)rtosalTimerStop(cst_lp_inactivity_timer_handle);
 #endif /* (USE_LOW_POWER == 1) */
-  dc_nifman_info_t nifman_info;
-
-  /* PPP client event reveived */
-  (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info));
-  switch (cst_cellular_info.rt_state_ppp)
-  {
-    case DC_SERVICE_ON:
-    {
-      CST_data_ready_mngt();
-      break;
-    }
-    case DC_SERVICE_OFF:
-    {
-      (void)dc_com_read(&dc_com_db, DC_CELLULAR_NIFMAN_INFO, (void *)&nifman_info, sizeof(nifman_info));
-      nifman_info.rt_state   =  DC_SERVICE_OFF;
-      nifman_info.network    =  DC_CELLULAR_SOCKETS_LWIP;
-      (void)dc_com_write(&dc_com_db, DC_CELLULAR_NIFMAN_INFO, (void *)&nifman_info, sizeof(nifman_info));
-
-      cst_cellular_info.rt_state   =  DC_SERVICE_OFF;
-      (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info));
-      break;
-    }
-    default:
-    {
-      /* all other event => data transfer feature no more available */
-      /* update nifman DC entry (service off)                        */
-      (void)dc_com_read(&dc_com_db, DC_CELLULAR_NIFMAN_INFO, (void *)&nifman_info, sizeof(nifman_info));
-      nifman_info.rt_state   =  DC_SERVICE_OFF;
-      (void)dc_com_write(&dc_com_db, DC_CELLULAR_NIFMAN_INFO, (void *)&nifman_info, sizeof(nifman_info));
-      cst_cellular_info.rt_state   =  DC_SERVICE_OFF;
-      (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info));
-
-      CST_config_fail(((uint8_t *)"CST_ppp_opened_event_mngt"),
-                      CST_PPP_FAIL,
-                      &cst_context.ppp_fail_count,
-                      CST_PPP_FAIL_MAX);
-
-      break;
-    }
-  }
+  CST_data_ready_mngt();
 }
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
 
@@ -2411,6 +2499,10 @@ static void CST_ppp_config_on_going_state(cst_autom_event_t autom_event)
 
     case CST_TARGET_STATE_CMD_EVENT:
       CST_data_mode_target_state_event_mngt();
+      break;
+
+    case CST_PPP_CLOSED_EVENT:
+      CST_ppp_closed_event_mngt();
       break;
 
     default:
@@ -2649,7 +2741,7 @@ static void CST_cellular_service_task(void *argument)
           break;
 
         case CST_MODEM_POWER_ON_ONLY_STATE:
-          /* Nothing to do */
+          CST_modem_power_on_only_state(autom_event);
           break;
 
         case CST_MODEM_REPROG_STATE:
@@ -2755,7 +2847,7 @@ CS_Status_t  CST_radio_on(void)
 {
   /* Sends a message to start automaton */
   CST_send_message(CST_MESSAGE_CMD, CST_BOOT_EVENT);
-  return CELLULAR_OK;
+  return CS_OK;
 }
 
 /**
@@ -2767,7 +2859,7 @@ CS_Status_t  CST_radio_on(void)
 CS_Status_t  CST_modem_power_on(void)
 {
   CST_send_message(CST_MESSAGE_CMD, CST_MODEM_POWER_ON_ONLY_EVENT);
-  return CELLULAR_OK;
+  return CS_OK;
 }
 
 /**
@@ -2803,12 +2895,12 @@ CS_Status_t CST_cellular_service_init(void)
 
   /* request modem init to Cellular Service */
   ret = CS_init();
-  if (ret != CELLULAR_OK)
+  if (ret != CS_OK)
   {
     ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 6, ERROR_WARNING);
   }
 
-  if (ret == CELLULAR_OK)
+  if (ret == CS_OK)
   {
 #if (USE_CELLULAR_SERVICE_TASK_TEST == 1)
     /* instrumentation code to test automaton */
@@ -2842,42 +2934,86 @@ CS_Status_t CST_cellular_service_init(void)
     CSP_Init();
 #endif /* (USE_LOW_POWER == 1) */
 
+    CellularQueueMutexHandle = rtosalMutexNew((const rtosal_char_t *)"CS_MUT_QUEUE_FULL");
+    if (CellularQueueMutexHandle == NULL)
+    {
+      /* Platform is reset */
+      ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
+      ret = CS_ERROR;
+    }
+
     cst_queue_id = rtosalMessageQueueNew((const rtosal_char_t *)"CST_QUE_MAIN", CST_QUEUE_SIZE);
     if (cst_queue_id == NULL)
     {
       ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 5, ERROR_FATAL);
-      ret = CELLULAR_ERROR;
+      ret = CS_ERROR;
     }
 
     /* creates timers */
     /* initializes modem polling timer */
     cst_polling_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_POOLING",
                                               (os_ptimer)CST_polling_timer_callback, osTimerPeriodic, NULL);
+    if (cst_polling_timer_handle == NULL)
+    {
+      /* Platform is reset */
+      ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
+      ret = CS_ERROR;
+    }
 
     /* initializes pdn activation timer */
     cst_pdn_activate_retry_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_PDN_ACTIVATE_RETRY",
                                                          (os_ptimer)CST_pdn_activate_retry_timer_callback,
                                                          osTimerOnce, NULL);
+    if (cst_pdn_activate_retry_timer_handle == NULL)
+    {
+      /* Platform is reset */
+      ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
+      ret = CS_ERROR;
+    }
 
     /* initializes network monitoring state timer */
     cst_network_status_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_NET_STATUS",
                                                      (os_ptimer)CST_network_status_timer_callback, osTimerOnce,
                                                      NULL);
+    if (cst_network_status_timer_handle == NULL)
+    {
+      /* Platform is reset */
+      ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
+      ret = CS_ERROR;
+    }
 
     /* initializes register timer */
     cst_register_retry_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_REGISTER_RETRY",
                                                      (os_ptimer)CST_register_retry_timer_callback, osTimerOnce,
                                                      NULL);
+    if (cst_register_retry_timer_handle == NULL)
+    {
+      /* Platform is reset */
+      ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
+      ret = CS_ERROR;
+    }
 
     /* initializes FOTA timer */
     cst_fota_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_FOTA",
                                            (os_ptimer)CST_fota_timer_callback, osTimerOnce, NULL);
+    if (cst_fota_timer_handle == NULL)
+    {
+      /* Platform is reset */
+      ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
+      ret = CS_ERROR;
+    }
 
 #if (USE_LOW_POWER == 1)
     /* initializes low power inactivity timer */
     cst_lp_inactivity_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_LP_INACTIVITY",
                                                     (os_ptimer)CST_lp_inactivity_timer_callback, osTimerOnce,
                                                     NULL);
+    if (cst_lp_inactivity_timer_handle == NULL)
+    {
+      /* Platform is reset */
+      ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 1, ERROR_FATAL);
+      ret = CS_ERROR;
+    }
 #endif /* (USE_LOW_POWER == 1) */
 
   }
@@ -2893,6 +3029,7 @@ CS_Status_t CST_cellular_service_init(void)
 CS_Status_t CST_cellular_service_start(void)
 {
   static osThreadId cst_cellular_service_thread_id = NULL;
+  dc_cellular_target_state_t target_state;
   dc_nfmc_info_t  nfmc_info;
   uint32_t        cst_polling_period;
   dc_com_status_t dc_ret;
@@ -2901,112 +3038,132 @@ CS_Status_t CST_cellular_service_start(void)
   rtosalStatus    os_ret;
 
   dc_ret  = DC_COM_OK;
-  cst_ret = CELLULAR_OK;
+  cst_ret = CS_OK;
   cs_ret  = 0U;
 
+  /* Initialize modem target state with the one defined in plateform config */
+  if (dc_com_read(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state)) == DC_COM_OK)
+  {
+    target_state.rt_state     = DC_SERVICE_ON;
+    target_state.target_state = (dc_cs_target_state_t)PLF_CELLULAR_TARGET_STATE;
+    if (cst_context.start_done == false)
+    {
+      /* Very first start */
+      target_state.callback = false;
+    }
+    else
+    {
+      /* Other starts (re-starts) */
+      /* Force use of target state */
+      target_state.callback = true;
+    }
+    (void)dc_com_write(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&target_state, sizeof(target_state));
+  }
+
+  if (cst_context.start_done == false)
+  {
+    /* First time start */
+    cst_context.start_done = true;
+
 #if (USE_CMD_CONSOLE == 1)
-  (void)CST_cmd_cellular_service_start();
+    (void)CST_cmd_cellular_service_start();
 #endif /*  (USE_CMD_CONSOLE == 1) */
 
-  /* reads cellular configuration in Data Cache */
-  if (dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params)) ==
-      DC_COM_ERROR)
-  {
-    dc_ret = DC_COM_ERROR;
-  }
+    /* reads cellular configuration in Data Cache */
+    if (dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params)) ==
+        DC_COM_ERROR)
+    {
+      dc_ret = DC_COM_ERROR;
+    }
 
-  /* read Data Cache SIM slot entry  */
-  if (dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_sim_info, sizeof(cst_sim_info)) == DC_COM_ERROR)
-  {
-    dc_ret = DC_COM_ERROR;
-  }
+    /* read Data Cache SIM slot entry  */
+    if (dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_sim_info, sizeof(cst_sim_info)) == DC_COM_ERROR)
+    {
+      dc_ret = DC_COM_ERROR;
+    }
 
-  /* read Data Cache NFMC entry  */
-  if (dc_com_read(&dc_com_db, DC_CELLULAR_NFMC_INFO, (void *)&nfmc_info, sizeof(nfmc_info)) == DC_COM_ERROR)
-  {
-    dc_ret = DC_COM_ERROR;
-  }
+    /* read Data Cache NFMC entry  */
+    if (dc_com_read(&dc_com_db, DC_CELLULAR_NFMC_INFO, (void *)&nfmc_info, sizeof(nfmc_info)) == DC_COM_ERROR)
+    {
+      dc_ret = DC_COM_ERROR;
+    }
 
-  /* read Data Cache cellular info entry  */
-  if (dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info)) == DC_COM_ERROR)
-  {
-    dc_ret = DC_COM_ERROR;
-  }
+    /* read Data Cache cellular info entry  */
+    if (dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info)) ==
+        DC_COM_ERROR)
+    {
+      dc_ret = DC_COM_ERROR;
+    }
 
-  cst_sim_info.sim_status[CA_SIM_REMOVABLE_SLOT] = CA_SIM_NOT_USED;
-  cst_sim_info.sim_status[CA_SIM_EXTERNAL_MODEM_SLOT]  = CA_SIM_NOT_USED;
-  cst_sim_info.sim_status[CA_SIM_INTERNAL_MODEM_SLOT] = CA_SIM_NOT_USED;
-  cst_context.sim_slot_index = 0U;
-  cst_sim_info.active_slot = cst_cellular_params.sim_slot[cst_context.sim_slot_index].sim_slot_type;
-  cst_sim_info.index_slot  = cst_context.sim_slot_index;
-  if (dc_com_write(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_sim_info, sizeof(cst_sim_info)) == DC_COM_ERROR)
-  {
-    dc_ret = DC_COM_ERROR;
-  }
+    cst_sim_info.sim_status[CA_SIM_REMOVABLE_SLOT] = CA_SIM_NOT_USED;
+    cst_sim_info.sim_status[CA_SIM_EXTERNAL_MODEM_SLOT]  = CA_SIM_NOT_USED;
+    cst_sim_info.sim_status[CA_SIM_INTERNAL_MODEM_SLOT] = CA_SIM_NOT_USED;
+    cst_context.sim_slot_index = 0U;
+    cst_sim_info.active_slot = cst_cellular_params.sim_slot[cst_context.sim_slot_index].sim_slot_type;
+    cst_sim_info.index_slot  = cst_context.sim_slot_index;
+    if (dc_com_write(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_sim_info, sizeof(cst_sim_info)) == DC_COM_ERROR)
+    {
+      dc_ret = DC_COM_ERROR;
+    }
 
 #if (USE_LOW_POWER == 1)
-  CSP_Start();
+    CSP_Start();
 #endif  /* (USE_LOW_POWER == 1) */
 
-  /* register component to Data Cache  */
-  if (dc_com_core_register_gen_event_cb(&dc_com_db, CST_notif_callback, (const void *)NULL) == DC_COM_INVALID_ENTRY)
-  {
-    dc_ret = DC_COM_ERROR;
-  }
+    /* register component to Data Cache  */
+    if (dc_com_core_register_gen_event_cb(&dc_com_db, CST_notif_callback, (const void *)NULL) == DC_COM_INVALID_ENTRY)
+    {
+      dc_ret = DC_COM_ERROR;
+    }
 
-  cst_cellular_info.mno_name[0]           = 0U;
-  cst_cellular_info.rt_state              = DC_SERVICE_UNAVAIL;
+    cst_cellular_info.mno_name[0]           = 0U;
+    cst_cellular_info.rt_state              = DC_SERVICE_UNAVAIL;
 
-  /* write Data Cache cellular info entry  */
-  if (dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info)) == DC_COM_ERROR)
-  {
-    dc_ret = DC_COM_ERROR;
-  }
+    /* write Data Cache cellular info entry  */
+    if (dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info)) ==
+        DC_COM_ERROR)
+    {
+      dc_ret = DC_COM_ERROR;
+    }
 
-  /* initializes Data Cache NFMC entry  */
-  nfmc_info.rt_state = DC_SERVICE_UNAVAIL;
-  if (dc_com_write(&dc_com_db, DC_CELLULAR_NFMC_INFO, (void *)&nfmc_info, sizeof(nfmc_info)) == DC_COM_ERROR)
-  {
-    dc_ret = DC_COM_ERROR;
-  }
+    /* initializes Data Cache NFMC entry  */
+    nfmc_info.rt_state = DC_SERVICE_UNAVAIL;
+    if (dc_com_write(&dc_com_db, DC_CELLULAR_NFMC_INFO, (void *)&nfmc_info, sizeof(nfmc_info)) == DC_COM_ERROR)
+    {
+      dc_ret = DC_COM_ERROR;
+    }
 
-  /* creates and starts cellar service task automaton */
-  cst_cellular_service_thread_id = rtosalThreadNew((const rtosal_char_t *)"CellularService",
-                                                   (os_pthread)CST_cellular_service_task, CELLULAR_SERVICE_THREAD_PRIO,
-                                                   CELLULAR_SERVICE_THREAD_STACK_SIZE, NULL);
+    /* creates and starts cellar service task automaton */
+    cst_cellular_service_thread_id = rtosalThreadNew((const rtosal_char_t *)"CellularService",
+                                                     (os_pthread)CST_cellular_service_task,
+                                                     CELLULAR_SERVICE_THREAD_PRIO,
+                                                     CELLULAR_SERVICE_THREAD_STACK_SIZE, NULL);
 
-  if (cst_cellular_service_thread_id == NULL)
-  {
-    /* thread creation fails */
-    cs_ret |= (uint32_t)CELLULAR_ERROR;
-    ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 7, ERROR_FATAL);
-  }
+    if (cst_cellular_service_thread_id == NULL)
+    {
+      /* thread creation fails */
+      cs_ret |= (uint32_t)CS_ERROR;
+      ERROR_Handler(DBG_CHAN_CELLULAR_SERVICE, 7, ERROR_FATAL);
+    }
 
-  /* start modem polling timer */
+    /* start modem polling timer */
 #if (CST_MODEM_POLLING_PERIOD == 0)
-  cst_polling_period = CST_MODEM_POLLING_PERIOD_DEFAULT;
+    cst_polling_period = CST_MODEM_POLLING_PERIOD_DEFAULT;
 #else
-  cst_polling_period = CST_MODEM_POLLING_PERIOD;
+    cst_polling_period = CST_MODEM_POLLING_PERIOD;
 #endif /* (CST_MODEM_POLLING_PERIOD == 1) */
-  os_ret = rtosalTimerStart(cst_polling_timer_handle, cst_polling_period);
-  if (os_ret != osOK)
-  {
-    /* polling timer start fails */
-    cs_ret |= (uint32_t)CELLULAR_ERROR;
+    os_ret = rtosalTimerStart(cst_polling_timer_handle, cst_polling_period);
+    if (os_ret != osOK)
+    {
+      /* polling timer start fails */
+      cs_ret |= (uint32_t)CS_ERROR;
+    }
+
+    if ((dc_ret != DC_COM_OK) || (cs_ret != 0U))
+    {
+      /* At least one error occurs during start function */
+      cst_ret = CS_ERROR;
+    }
   }
-
-#if (USE_LOW_POWER == 1)
-  /* initializes low power inactivity timer */
-  cst_lp_inactivity_timer_handle = rtosalTimerNew((const rtosal_char_t *)"CST_TIM_LP_INACTIVITY",
-                                                  (os_ptimer)CST_lp_inactivity_timer_callback, osTimerOnce,
-                                                  NULL);
-#endif /* (USE_LOW_POWER == 1) */
-
-  if ((dc_ret != DC_COM_OK) || (cs_ret != 0U))
-  {
-    /* At least one error occurs during start function */
-    cst_ret = CELLULAR_ERROR;
-  }
-
   return cst_ret;
 }

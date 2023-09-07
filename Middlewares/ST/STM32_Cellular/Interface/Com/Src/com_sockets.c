@@ -521,8 +521,6 @@ void com_sockets_start(void)
 #else
   com_start_lwip_mcu();
 #endif /* USE_SOCKETS_TYPE == USE_SOCKETS_MODEM */
-
-  /* no com_sockets_statistic_start(); */
 }
 
 #endif /* USE_COM_SOCKETS == 1 */

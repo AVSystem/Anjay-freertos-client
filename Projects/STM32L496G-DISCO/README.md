@@ -54,21 +54,20 @@ You need to follow a strict compilation order:
 1. Compile **UserApp** application (set **Build configuration** to **Release**)<br/>
    It generates:<br/>
    - The user application binary file that is uploaded to the device using the Secure Firmware Update process <br/>
-     (`Projects/STM32L496G-DISCO/UserApp/Binary/Anjay-freertos-client-STM32L496G-[MODEM].sfb`).
+     (`Projects/STM32L496G-DISCO/UserApp/Binary/Anjay-freertos-client-STM32L496G-BG96.sfb`).
    - A binary file concatenating the SBSFU binary, the user application binary in clear format, and the corresponding
      FW header <br/>
-     (`Projects/STM32L496G-DISCO/UserApp/Binary/SBSFU_Anjay-freertos-client-STM32L496G-[MODEM].bin`).
+     (`Projects/STM32L496G-DISCO/UserApp/Binary/SBSFU_Anjay-freertos-client-STM32L496G-BG96.bin`).
 
    You can set a custom firmware version in the `Application/Inc/default_config.h` file (using `FIRMWARE_VERSION` define).
    It will be useful when performing FOTA to distinguish the firmware images from each other.
-1. Flashing<br/>
-   Use **STM32CubeProgrammer** application with `SBSFU_Anjay-freertos-client-STM32L496G-[MODEM].bin` file to program the board (it is advisable to perform **Full chip erase** first). You can open serial port to change default credentials in order to connect to Coiote DM.
-   After that, you can use Coiote DM to perform firmware update with `Anjay-freertos-client-STM32L496G-[MODEM].sfb` file.
-1. In order to reprogram the board using **STM32CubeProgrammer** and `*.bin` file, it may be necessary to run the following command:
+1. **SBSFU** is a write-protected secure application so you need to unlock the board with the following command:
     ```
     ./<path_to_STM32_Programmer_CLI> -c port=SWD mode=UR -ob RDP=0xBB -ob RDP=0xAA WRP1A_STRT=0xFF WRP1A_END=0x0 -ob displ
     ```
-    because **SBSFU** is a write-protected secure application and some of the settings need to be restored.
+1. Copy `SBSFU_Anjay-freertos-client-STM32L496G-BG96.bin` file to the board mass storage.
+1. Open serial port to change the default credentials in order to connect to Coiote DM.
+   After that, you can use Coiote DM to perform firmware update with `Anjay-freertos-client-STM32L496G-BG96.sfb` file.
 
 ## Performing firmware update
 
@@ -83,7 +82,7 @@ In order to perform firmware update:
     #define FIRMWARE_VERSION "v2.0"
     ```
     and build the application with a new firmware.
-1. Upload the generated firmware file (`Anjay-freertos-client-STM32L496G-[MODEM].sfb`) to [Coiote DM](https://eu.iot.avsystem.cloud) (go to Device management and select `Firmware update`) and click `Upgrade`.
+1. Upload the generated firmware file (`Anjay-freertos-client-STM32L496G-BG96.sfb`) to [Coiote DM](https://eu.iot.avsystem.cloud) (go to Device management and select `Firmware update`) and click `Upgrade`.
 1. After the FOTA finishes, the device will reboot and the following log should appear:
     ```
     Firmware updated from version 'v1.0' to 'v2.0'

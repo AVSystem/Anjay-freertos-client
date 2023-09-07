@@ -124,7 +124,7 @@ typedef enum
   SocketRcvState_No_Activity,
   SocketRcvState_RequestSize,          /* send command to know socket data size to read */
   SocketRcvState_RequestData_Header,   /* send command to read socket data: 1st step = read header */
-  SocketRcvState_RequestData_Payload,  /* send command to read socket data: 1st step = read payload */
+  SocketRcvState_RequestData_Payload,  /* send command to read socket data: 2nd step = read payload */
 } atcustom_socket_receive_state_t;
 
 typedef enum
@@ -183,6 +183,11 @@ typedef struct
   at_bool_t   urc_avail_sim_refresh_event; /* SIM refresh event */
   at_bool_t   urc_avail_sim_detect_event;  /* runtime SIM hotswap detection */
   at_bool_t   urc_avail_sim_state_event;   /* SIM state changed */
+
+#if defined(USE_COM_MDM)
+  /* COM-MDM URC received */
+  uint8_t     urc_avail_commdm_event_count;
+#endif /* defined(USE_COM_MDM) */
 
   /* Modem events subscriptions */
   CS_ModemEvent_t modem_events_subscript; /* bitmask */
@@ -276,6 +281,11 @@ typedef struct
   CS_wakeup_origin_t          wakeup_origin;          /* SID_CS_WAKEUP */
 
   csint_error_report_t        error_report;           /* used if an error occurs during an SID */
+
+#if defined(USE_COM_MDM)
+  csint_ComMdm_t              com_mdm_data;          /* SID_CS_COM_MDM_TRANSACTION */
+#endif /* defined(USE_COM_MDM) */
+
 } atcustom_SID_context_t;
 
 /* atcustom_CMD_context_t is a structure to save CMD data

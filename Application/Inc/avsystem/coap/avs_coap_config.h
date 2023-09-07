@@ -105,7 +105,7 @@
  * NOTE: Enabling at least one transport is necessary for the library to be
  * useful.
  */
-/* #undef WITH_AVS_COAP_TCP */
+#define WITH_AVS_COAP_TCP
 
 /**
  * Enable support for OSCORE (RFC 8613).

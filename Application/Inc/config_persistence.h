@@ -17,13 +17,9 @@
 #ifndef CONFIG_PERSISTENCE_H
 #define CONFIG_PERSISTENCE_H
 
-#include "cellular_service_datacache.h"
+#include <avsystem/commons/avs_stream_md5.h>
 
-#define MAGIC "cfgstart3"
-#define MAGIC_SIZE sizeof(MAGIC)
-#define MAGIC_BASE_ADDR 0
-#define CONFIG_BASE_ADDR (MAGIC_BASE_ADDR + MAGIC_SIZE)
-#define CONFIG_BLOCK_ADDR 0
+#include "cellular_service_datacache.h"
 
 #define APN_SIZE sizeof(((dc_sim_slot_t *) 0)->apn)
 #define APN_USERNAME_SIZE sizeof(((dc_sim_slot_t *) 0)->username)
@@ -40,6 +36,9 @@ typedef struct {
     char firmware_version[32];
     char bootstrap[2];
     char security[5];
+    char use_persistence[2];
+    char sim_bs_data_md5[AVS_COMMONS_MD5_LENGTH];
+    char use_sim_bootstrap[2];
 } config_t;
 
 int config_save(const config_t *in_config);

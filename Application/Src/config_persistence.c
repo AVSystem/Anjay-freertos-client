@@ -15,35 +15,42 @@
  */
 
 #include <avsystem/commons/avs_log.h>
+#include <avsystem/commons/avs_persistence.h>
 
 #include <string.h>
 
-#include "config_persistence.h"
-#include "quadspi.h"
+#include <config_persistence.h>
+#include <nvm_partition.h>
 
 #define LOG(level, ...) avs_log(config, level, __VA_ARGS__)
 
 static int load_config_from_flash(config_t *out_config) {
-    char magic[MAGIC_SIZE];
-    if (BSP_QSPI_Read((uint8_t *) magic, MAGIC_BASE_ADDR, MAGIC_SIZE)
-            || strcmp(magic, MAGIC)
-            || BSP_QSPI_Read((uint8_t *) out_config,
-                             CONFIG_BASE_ADDR,
-                             sizeof(*out_config))) {
+    avs_stream_t *stream;
+    if (nvm_partition_stream_input_open(NVM_PARTITION_CONFIG, &stream)
+            || !stream) {
         return -1;
     }
-    return 0;
+    avs_error_t read_err =
+            avs_stream_read_reliably(stream, out_config, sizeof(*out_config));
+
+    avs_error_t cleanup_err = avs_stream_cleanup(&stream);
+    return avs_is_ok(read_err) && avs_is_ok(cleanup_err) ? 0 : -1;
 }
 
 int config_save(const config_t *in_config) {
-    if (BSP_QSPI_Erase_Block(CONFIG_BLOCK_ADDR)
-            || BSP_QSPI_Write((uint8_t *) MAGIC, MAGIC_BASE_ADDR, MAGIC_SIZE)
-            || BSP_QSPI_Write((uint8_t *) in_config,
-                              CONFIG_BASE_ADDR,
-                              sizeof(*in_config))) {
+    avs_stream_t *stream;
+    if (nvm_partition_stream_output_open(NVM_PARTITION_CONFIG, &stream)
+            || !stream) {
         return -1;
     }
-    return 0;
+    avs_error_t write_err =
+            avs_stream_write(stream, in_config, sizeof(*in_config));
+    avs_error_t cleanup_err = avs_stream_cleanup(&stream);
+    if (avs_is_err(write_err) || avs_is_err(cleanup_err)) {
+        return -1;
+    }
+
+    return nvm_partition_mark_valid(NVM_PARTITION_CONFIG);
 }
 
 int config_load(config_t *out_config) {

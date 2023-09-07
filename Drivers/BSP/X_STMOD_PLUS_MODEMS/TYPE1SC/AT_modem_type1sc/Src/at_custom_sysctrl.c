@@ -18,11 +18,22 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
+#include <stdbool.h>
 #include "at_sysctrl.h"
 #include "at_custom_sysctrl.h"
 #include "ipc_common.h"
 #include "plf_config.h"
 
+#if !defined(USE_HAL_STUB)
+/* call HAL functions */
+#define GPIO_WRITE(gpio, pin, state) HAL_GPIO_WritePin(gpio, pin, state)
+#define GPIO_READ(gpio, pin)         HAL_GPIO_ReadPin(gpio, pin)
+#else
+/* call stub functions (for testing purposes) */
+#include "at_hw_abstraction.h"
+#define GPIO_WRITE(gpio, pin, state) AT_HwAbs_GPIO_WritePin(gpio, pin, state)
+#define GPIO_READ(gpio, pin)         AT_HwAbs_GPIO_ReadPin(gpio, pin)
+#endif /* !defined(USE_HAL_STUB) */
 
 /** @addtogroup AT_CUSTOM AT_CUSTOM
   * @{
@@ -68,6 +79,13 @@
 #define PRINT_ERR(...)   __NOP(); /* Nothing to do */
 #endif /* USE_TRACE_SYSCTRL */
 
+#define MAX_COUNT_OPEN_CHANNEL_HOST_RX_HIGH (500U)
+#define MAX_COUNT_CLOSE_CHANNEL_HOST_RING_LOW (500U)
+#define MAX_COUNT_DISABLE_UART_HOST_RX_LOW (500U)
+#define MAX_COUNT_HOST_RESUME_HOST_RX_HIGH (1000U)
+#define MAX_COUNT_HOST_RESUME_RING_HIGH (1500U)
+#define MAX_COUNT_MODEM_RESUME_HOST_RX_HIGH (500U)
+
 /**
   * @}
   */
@@ -81,18 +99,30 @@
   * @}
   */
 
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SYSCTRL_Private_Variables_Prototypes
+  * AT_CUSTOM ALTAIR_T1SC SYSCTRL Private Variables Prototypes
+  * @{
+  */
+static bool modem_uart_initialized = false; /* used to manage UART init/deinit */
+/**
+  * @}
+  */
+
 /** @defgroup AT_CUSTOM_ALTAIR_T1SC_SYSCTRL_Private_Functions_Prototypes
   * AT_CUSTOM ALTAIR_T1SC SYSCTRL Private Functions Prototypes
   * @{
   */
 static sysctrl_status_t TYPE1SC_setup(void);
+static sysctrl_status_t enable_UART(IPC_Handle_t *ipc_handle, SysCtrl_TYPE1SC_HwFlowCtrl_t hwFC_status);
 static void TYPE1SC_LP_disable_modem_uart(void);
+static void disable_RING(void);
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
 static void enable_RING_wait_for_falling(void); /* waiting event to enter in sleep (before complete) */
 static void enable_RING_wait_for_rising(void);  /* waiting event in sleep mode = modem wake up */
-static void disable_RING(void);
 static sysctrl_status_t HIFC_A_host_resume(IPC_Handle_t *ipc_handle);
 static sysctrl_status_t HIFC_A_modem_resume(IPC_Handle_t *ipc_handle);
-static sysctrl_status_t enable_UART(IPC_Handle_t *ipc_handle, SysCtrl_TYPE1SC_HwFlowCtrl_t hwFC_status);
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
+
 /**
   * @}
   */
@@ -168,7 +198,7 @@ sysctrl_status_t SysCtrl_TYPE1SC_open_channel(sysctrl_device_type_t type)
   PRINT_INFO("set MODEM DTR pin to HIGH")
 #endif /* (DEBUG_LOW_POWER == 1) */
   /* set DTR to HIGH */
-  HAL_GPIO_WritePin(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_SET);
 
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO(">>> Waiting for HOST_RX pin set to HIGH by modem")
@@ -176,8 +206,8 @@ sysctrl_status_t SysCtrl_TYPE1SC_open_channel(sysctrl_device_type_t type)
   /* wait for HOST_RX set to HIGH by modem before to reconfigure UART */
   uint32_t count = 0U;
   uint32_t count_delay = 10U;
-  uint32_t count_max = 500U;
-  while ((HAL_GPIO_ReadPin(MODEM_RX_GPIO_PORT, MODEM_RX_PIN) == GPIO_PIN_RESET) &&
+  uint32_t count_max = MAX_COUNT_OPEN_CHANNEL_HOST_RX_HIGH;
+  while ((GPIO_READ(MODEM_RX_GPIO_PORT, MODEM_RX_PIN) == GPIO_PIN_RESET) &&
          (count < count_max))
   {
     SysCtrl_delay(count_delay);
@@ -226,15 +256,15 @@ sysctrl_status_t SysCtrl_TYPE1SC_close_channel(sysctrl_device_type_t type)
 #endif /* (DEBUG_LOW_POWER == 1) */
 
   /* set HOST_TO_MODEM (=DTR) to LOW */
-  HAL_GPIO_WritePin(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_RESET);
 
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO(">>> Waiting for RING state set to LOW by modem")
 #endif /* (DEBUG_LOW_POWER == 1) */
   uint32_t count = 0U;
   uint32_t count_delay = 10U;
-  uint32_t count_max = 500U;
-  while ((HAL_GPIO_ReadPin(MODEM_RING_GPIO_PORT, MODEM_RING_PIN) == GPIO_PIN_SET) &&
+  uint32_t count_max = MAX_COUNT_CLOSE_CHANNEL_HOST_RING_LOW;
+  while ((GPIO_READ(MODEM_RING_GPIO_PORT, MODEM_RING_PIN) == GPIO_PIN_SET) &&
          (count < count_max))
   {
     SysCtrl_delay(count_delay);
@@ -260,6 +290,7 @@ sysctrl_status_t SysCtrl_TYPE1SC_close_channel(sysctrl_device_type_t type)
   }
   else
   {
+    modem_uart_initialized = false;
     /* now, disable UART interface with modem */
     TYPE1SC_LP_disable_modem_uart();
     SysCtrl_delay(150U);
@@ -281,16 +312,21 @@ sysctrl_status_t SysCtrl_TYPE1SC_power_on(sysctrl_device_type_t type)
   sysctrl_status_t retval = SCSTATUS_OK;
 
   /* Power OFF */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
   SysCtrl_delay(150U);
 
   PRINT_INFO("MODEM POWER ON")
   /* Power ON */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
   SysCtrl_delay(150U);
 
-  /* enable RING pin (normal mode) */
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
+  /* enable RING pin (default mode) */
   enable_RING_wait_for_falling();
+#else
+  /* disable RING pin (not used if modem low power not supported) */
+  disable_RING();
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
   PRINT_DBG("MODEM POWER ON done")
   return (retval);
@@ -308,7 +344,7 @@ sysctrl_status_t SysCtrl_TYPE1SC_power_off(sysctrl_device_type_t type)
 
   PRINT_INFO("MODEM POWER OFF")
   /* Power OFF */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
   SysCtrl_delay(150U);
 
   /* disable RING pin */
@@ -331,9 +367,9 @@ sysctrl_status_t SysCtrl_TYPE1SC_reset(sysctrl_device_type_t type)
   /* Reference: TYPE1SC */
   PRINT_INFO("!!! Modem hardware reset triggered !!!")
 
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
   SysCtrl_delay(150U);
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
   SysCtrl_delay(TYPE1SC_BOOT_TIME);
 
   return (retval);
@@ -356,6 +392,7 @@ sysctrl_status_t SysCtrl_TYPE1SC_sim_select(sysctrl_device_type_t type, sysctrl_
   return (retval);
 }
 
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
 /**
   * @brief  Request to suspend the communication channel.
   * @param  ipc_handle Pointer to the IPC structure.
@@ -381,7 +418,7 @@ sysctrl_status_t SysCtrl_TYPE1SC_request_suspend_channel(IPC_Handle_t *ipc_handl
    */
 
   PRINT_INFO(">>> Request modem to enter Low Power: Set HOST_TO_MODEM (=DTR) to LOW")
-  HAL_GPIO_WritePin(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_RESET);
 
   return (retval);
 }
@@ -415,6 +452,7 @@ sysctrl_status_t SysCtrl_TYPE1SC_complete_suspend_channel(IPC_Handle_t *ipc_hand
   }
   else
   {
+    modem_uart_initialized = false;
     PRINT_DBG("modem channel closed")
   }
 
@@ -475,6 +513,7 @@ sysctrl_status_t SysCtrl_TYPE1SC_resume_channel(IPC_Handle_t *ipc_handle,
 
   return (retval);
 }
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
 /**
   * @brief  Reinitialize the communication channel after switching HW Flow Control mode.
@@ -507,60 +546,6 @@ sysctrl_status_t SysCtrl_TYPE1SC_reinit_channel(IPC_Handle_t *ipc_handle, SysCtr
   */
 
 /**
-  * @brief  Configure RING GPIO Interrupt mode to wait for falling signal.
-  * @retval none
-  */
-static void enable_RING_wait_for_falling(void)
-{
-  /* activate MODEM_TO_HOST (=RING) interrupt to detect modem enters in Low Power mode
-    * falling edge
-  */
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  GPIO_InitStruct.Pin = MODEM_RING_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL; /* GPIO_NOPULL or GPIO_PULLUP or GPIO_PULLDOWN ? */
-  HAL_GPIO_Init(MODEM_RING_GPIO_PORT, &GPIO_InitStruct);
-
-  HAL_NVIC_EnableIRQ(MODEM_RING_IRQN);
-}
-
-/**
-  * @brief  Configure RING GPIO Interrupt mode to wait for rising signal.
-  * @retval none
-  */
-static void enable_RING_wait_for_rising(void)
-{
-  /* activate MODEM_TO_HOST (=RING) interrupt to detect modem enters
-   * in Low Power mode
-   */
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  GPIO_InitStruct.Pin = MODEM_RING_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(MODEM_RING_GPIO_PORT, &GPIO_InitStruct);
-
-  HAL_NVIC_EnableIRQ(MODEM_RING_IRQN);
-}
-
-/**
-  * @brief  Disable RING GPIO Interrupt mode.
-  * @retval none
-  */
-static void disable_RING(void)
-{
-  /* deactivate MODEM_TO_HOST (=RING) interrupt
-  * set pin in analog mode
-  */
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  GPIO_InitStruct.Pin = MODEM_RING_PIN;
-  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(MODEM_RING_GPIO_PORT, &GPIO_InitStruct);
-
-  HAL_NVIC_DisableIRQ(MODEM_RING_IRQN);
-}
-
-/**
   * @brief  Setup modem hardware configuration.
   * @retval none
   */
@@ -573,8 +558,8 @@ static sysctrl_status_t TYPE1SC_setup(void)
   /* GPIO config
    * Initial pins state
    */
-  HAL_GPIO_WritePin(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
 
   /* Init GPIOs - common parameters */
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -596,6 +581,107 @@ static sysctrl_status_t TYPE1SC_setup(void)
   /* Print current modem UART setup */
   PRINT_FORCE("TYPE1SC UART config: BaudRate=%d / HW flow ctrl=%d", MODEM_UART_BAUDRATE,
               ((MODEM_UART_HWFLOWCTRL == UART_HWCONTROL_NONE) ? 0 : 1))
+
+  return (retval);
+}
+
+/**
+  * @brief  Enable Modem UART.
+  * @param  ipc_handle Pointer to the structure of IPC.
+  * @param  hwFC_status Hardware Flow Control mode.
+  * @retval sysctrl_status_t
+  */
+static sysctrl_status_t enable_UART(IPC_Handle_t *ipc_handle, SysCtrl_TYPE1SC_HwFlowCtrl_t hwFC_status)
+{
+  sysctrl_status_t retval = SCSTATUS_OK;
+  PRINT_DBG("enter enable_UART")
+
+  /* UART deinitialization if required */
+  if (modem_uart_initialized)
+  {
+    if (HAL_UART_DeInit(&MODEM_UART_HANDLE) != HAL_OK)
+    {
+      PRINT_ERR("HAL_UART_DeInit error")
+      retval = SCSTATUS_ERROR;
+    }
+    else
+    {
+      modem_uart_initialized = false;
+
+    }
+  }
+
+  if (retval == SCSTATUS_OK)
+  {
+    /* apply a delay before to reconfigure UART */
+    SysCtrl_delay(50U);
+
+    /* UART configuration */
+    MODEM_UART_HANDLE.Instance = MODEM_UART_INSTANCE;
+    MODEM_UART_HANDLE.Init.BaudRate = MODEM_UART_BAUDRATE;
+    MODEM_UART_HANDLE.Init.WordLength = MODEM_UART_WORDLENGTH;
+    MODEM_UART_HANDLE.Init.StopBits = MODEM_UART_STOPBITS;
+    MODEM_UART_HANDLE.Init.Parity = MODEM_UART_PARITY;
+    MODEM_UART_HANDLE.Init.Mode = MODEM_UART_MODE;
+    if (hwFC_status == SYSCTRL_HW_FLOW_CONTROL_NONE)
+    {
+      /* force to No Hardware Flow Control */
+      MODEM_UART_HANDLE.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+    }
+    else if (hwFC_status == SYSCTRL_HW_FLOW_CONTROL_RTS_CTS)
+    {
+      /* force to RTS/CTE Hardware Flow Control */
+      MODEM_UART_HANDLE.Init.HwFlowCtl = UART_HWCONTROL_RTS_CTS;
+    }
+    else /* if (hwFC_status == SYSCTRL_HW_FLOW_CONTROL_USER_SETTING) */
+    {
+      /* set the user setting for Hardware Flow Control */
+      MODEM_UART_HANDLE.Init.HwFlowCtl = MODEM_UART_HWFLOWCTRL;
+    }
+    PRINT_INFO("UART config: setting HW Flow Control to %d",
+               (MODEM_UART_HANDLE.Init.HwFlowCtl == UART_HWCONTROL_NONE) ? 0 : 1);
+    MODEM_UART_HANDLE.Init.OverSampling = UART_OVERSAMPLING_16;
+    MODEM_UART_HANDLE.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+    /* do not activate autobaud (not compatible with current implementation) */
+    MODEM_UART_HANDLE.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+
+    /* UART initialization */
+    if (HAL_UART_Init(&MODEM_UART_HANDLE) == HAL_OK)
+    {
+      modem_uart_initialized = true;
+
+      /* In the code generated by CubeMX for HAL_UART_MspInit() (which is called by HAL_UART_Init()),
+       * CTS and RTS are configured because default project uses Hardware Flow Control.
+       * If HwFC has been deactivated by user, we need to deactivate corresponding PINS.
+      */
+      if (MODEM_UART_HANDLE.Init.HwFlowCtl == UART_HWCONTROL_NONE)
+      {
+        GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+        GPIO_InitStruct.Pin = MODEM_CTS_PIN;
+        GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+        GPIO_InitStruct.Pull = GPIO_NOPULL;
+        HAL_GPIO_Init(MODEM_CTS_GPIO_PORT, &GPIO_InitStruct);
+
+        GPIO_InitStruct.Pin = MODEM_RTS_PIN;
+        GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+        GPIO_InitStruct.Pull = GPIO_NOPULL;
+        HAL_GPIO_Init(MODEM_RTS_GPIO_PORT, &GPIO_InitStruct);
+      }
+
+      if (ipc_handle != NULL)
+      {
+        PRINT_DBG("call IPC_reset")
+        (void) IPC_reset(ipc_handle);
+      }
+      HAL_NVIC_EnableIRQ(MODEM_UART_IRQN);
+    }
+    else
+    {
+      PRINT_ERR("error in HAL_UART_Init")
+      retval = SCSTATUS_ERROR;
+    }
+  }
 
   return (retval);
 }
@@ -630,7 +716,7 @@ static void TYPE1SC_LP_disable_modem_uart(void)
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO(">>> set RTS pin to LOW)")
 #endif /* (DEBUG_LOW_POWER == 1) */
-  HAL_GPIO_WritePin(MODEM_RTS_GPIO_PORT, MODEM_RTS_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_RTS_GPIO_PORT, MODEM_RTS_PIN, GPIO_PIN_RESET);
 
   /* Re-configure HOST_RX pin to monitor it */
   GPIO_InitStruct.Pin = MODEM_RX_PIN;
@@ -648,15 +734,15 @@ static void TYPE1SC_LP_disable_modem_uart(void)
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO(">>> Request modem to enter Low Power (set HOST-TX pin to LOW)")
 #endif /* (DEBUG_LOW_POWER == 1) */
-  HAL_GPIO_WritePin(MODEM_TX_GPIO_PORT, MODEM_TX_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_TX_GPIO_PORT, MODEM_TX_PIN, GPIO_PIN_RESET);
 
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO(">>> Waiting for HOST-RX pin set to LOW by modem")
 #endif /* (DEBUG_LOW_POWER == 1) */
   uint32_t count = 0U;
   uint32_t count_delay = 10U;
-  uint32_t count_max = 500U;
-  while ((HAL_GPIO_ReadPin(MODEM_RX_GPIO_PORT, MODEM_RX_PIN) == GPIO_PIN_SET) &&
+  uint32_t count_max = MAX_COUNT_DISABLE_UART_HOST_RX_LOW;
+  while ((GPIO_READ(MODEM_RX_GPIO_PORT, MODEM_RX_PIN) == GPIO_PIN_SET) &&
          (count < count_max))
   {
     SysCtrl_delay(count_delay);
@@ -697,6 +783,67 @@ static void TYPE1SC_LP_disable_modem_uart(void)
 }
 
 /**
+  * @brief  Disable RING GPIO Interrupt mode.
+  * @retval none
+  */
+static void disable_RING(void)
+{
+  /* deactivate MODEM_TO_HOST (=RING) interrupt
+  * set pin in analog mode
+  */
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  GPIO_InitStruct.Pin = MODEM_RING_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(MODEM_RING_GPIO_PORT, &GPIO_InitStruct);
+
+  /*
+   * AVSystem changes: Remove disabling IRQ for Modem Ring as it also affects
+   * the User Button.
+   */
+  // HAL_NVIC_DisableIRQ(MODEM_RING_IRQN);
+}
+
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
+/**
+  * @brief  Configure RING GPIO Interrupt mode to wait for falling signal.
+  * @retval none
+  */
+static void enable_RING_wait_for_falling(void)
+{
+  /* activate MODEM_TO_HOST (=RING) interrupt to detect modem enters in Low Power mode
+    * falling edge
+  */
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  GPIO_InitStruct.Pin = MODEM_RING_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL; /* GPIO_NOPULL or GPIO_PULLUP or GPIO_PULLDOWN ? */
+  HAL_GPIO_Init(MODEM_RING_GPIO_PORT, &GPIO_InitStruct);
+
+  HAL_NVIC_SetPriority(MODEM_RING_IRQN, 5, 0);
+  HAL_NVIC_EnableIRQ(MODEM_RING_IRQN);
+}
+
+/**
+  * @brief  Configure RING GPIO Interrupt mode to wait for rising signal.
+  * @retval none
+  */
+static void enable_RING_wait_for_rising(void)
+{
+  /* activate MODEM_TO_HOST (=RING) interrupt to detect modem enters
+   * in Low Power mode
+   */
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  GPIO_InitStruct.Pin = MODEM_RING_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(MODEM_RING_GPIO_PORT, &GPIO_InitStruct);
+
+  HAL_NVIC_SetPriority(MODEM_RING_IRQN, 5, 0);
+  HAL_NVIC_EnableIRQ(MODEM_RING_IRQN);
+}
+
+/**
   * @brief  Resume modem UART on Host request (HIFC mode A).
   * @param  ipc_handle Pointer to the structure of IPC.
   * @retval sysctrl_status_t
@@ -708,15 +855,15 @@ static sysctrl_status_t HIFC_A_host_resume(IPC_Handle_t *ipc_handle)
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO("set HOST_TO_MODEM (=DTR) pin to 1 ")
 #endif /* (DEBUG_LOW_POWER == 1) */
-  HAL_GPIO_WritePin(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_SET);
 
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO(">>> Waiting for HOST_RX pin set to HIGH by modem")
 #endif /* (DEBUG_LOW_POWER == 1) */
   uint32_t count = 0U;
   uint32_t count_delay = 10U;
-  uint32_t count_max = 1000U;
-  while ((HAL_GPIO_ReadPin(MODEM_RX_GPIO_PORT, MODEM_RX_PIN) == GPIO_PIN_RESET) &&
+  uint32_t count_max = MAX_COUNT_HOST_RESUME_HOST_RX_HIGH;
+  while ((GPIO_READ(MODEM_RX_GPIO_PORT, MODEM_RX_PIN) == GPIO_PIN_RESET) &&
          (count < count_max))
   {
     SysCtrl_delay(count_delay);
@@ -742,8 +889,8 @@ static sysctrl_status_t HIFC_A_host_resume(IPC_Handle_t *ipc_handle)
 #endif /* (DEBUG_LOW_POWER == 1) */
   count = 0U;
   count_delay = 10U;
-  count_max = 1500U;
-  while ((HAL_GPIO_ReadPin(MODEM_RING_GPIO_PORT, MODEM_RING_PIN) == GPIO_PIN_RESET) &&
+  count_max = MAX_COUNT_HOST_RESUME_RING_HIGH;
+  while ((GPIO_READ(MODEM_RING_GPIO_PORT, MODEM_RING_PIN) == GPIO_PIN_RESET) &&
          (count < count_max))
   {
     SysCtrl_delay(count_delay);
@@ -783,7 +930,7 @@ static sysctrl_status_t HIFC_A_modem_resume(IPC_Handle_t *ipc_handle)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(MODEM_TX_GPIO_PORT, &GPIO_InitStruct);
-  HAL_GPIO_WritePin(MODEM_TX_GPIO_PORT, MODEM_TX_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_TX_GPIO_PORT, MODEM_TX_PIN, GPIO_PIN_SET);
 
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO(">>> Waiting for HOST_RX pin set to HIGH by modem")
@@ -791,8 +938,8 @@ static sysctrl_status_t HIFC_A_modem_resume(IPC_Handle_t *ipc_handle)
 
   uint32_t count = 0U;
   uint32_t count_delay = 10U;
-  uint32_t count_max = 500U;
-  while ((HAL_GPIO_ReadPin(MODEM_RX_GPIO_PORT, MODEM_RX_PIN) == GPIO_PIN_RESET) &&
+  uint32_t count_max = MAX_COUNT_MODEM_RESUME_HOST_RX_HIGH;
+  while ((GPIO_READ(MODEM_RX_GPIO_PORT, MODEM_RX_PIN) == GPIO_PIN_RESET) &&
          (count < count_max))
   {
     SysCtrl_delay(count_delay);
@@ -818,100 +965,11 @@ static sysctrl_status_t HIFC_A_modem_resume(IPC_Handle_t *ipc_handle)
 #if (DEBUG_LOW_POWER == 1)
   PRINT_INFO("set MODEM DTR (HOST_TO_MODEM pin to 1 ")
 #endif /* (DEBUG_LOW_POWER == 1) */
-  HAL_GPIO_WritePin(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_SET);
 
   return (retval);
 }
-
-/**
-  * @brief  Enable Modem UART.
-  * @param  ipc_handle Pointer to the structure of IPC.
-  * @param  hwFC_status Hardware Flow Control mode.
-  * @retval sysctrl_status_t
-  */
-static sysctrl_status_t enable_UART(IPC_Handle_t *ipc_handle, SysCtrl_TYPE1SC_HwFlowCtrl_t hwFC_status)
-{
-  sysctrl_status_t retval = SCSTATUS_OK;
-  PRINT_DBG("enter enable_UART")
-
-  /* UART deinitialization */
-  if (HAL_UART_DeInit(&MODEM_UART_HANDLE) != HAL_OK)
-  {
-    PRINT_ERR("HAL_UART_DeInit error")
-    retval = SCSTATUS_ERROR;
-  }
-  else
-  {
-    /* apply a delay before to reconfigure UART */
-    SysCtrl_delay(50U);
-
-    /* UART configuration */
-    MODEM_UART_HANDLE.Instance = MODEM_UART_INSTANCE;
-    MODEM_UART_HANDLE.Init.BaudRate = MODEM_UART_BAUDRATE;
-    MODEM_UART_HANDLE.Init.WordLength = MODEM_UART_WORDLENGTH;
-    MODEM_UART_HANDLE.Init.StopBits = MODEM_UART_STOPBITS;
-    MODEM_UART_HANDLE.Init.Parity = MODEM_UART_PARITY;
-    MODEM_UART_HANDLE.Init.Mode = MODEM_UART_MODE;
-    if (hwFC_status == SYSCTRL_HW_FLOW_CONTROL_NONE)
-    {
-      /* force to No Hardware Flow Control */
-      MODEM_UART_HANDLE.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-    }
-    else if (hwFC_status == SYSCTRL_HW_FLOW_CONTROL_RTS_CTS)
-    {
-      /* force to RTS/CTE Hardware Flow Control */
-      MODEM_UART_HANDLE.Init.HwFlowCtl = UART_HWCONTROL_RTS_CTS;
-    }
-    else /* if (hwFC_status == SYSCTRL_HW_FLOW_CONTROL_USER_SETTING) */
-    {
-      /* set the user setting for Hardware Flow Control */
-      MODEM_UART_HANDLE.Init.HwFlowCtl = MODEM_UART_HWFLOWCTRL;
-    }
-    PRINT_INFO("UART config: setting HW Flow Control to %d",
-               (MODEM_UART_HANDLE.Init.HwFlowCtl == UART_HWCONTROL_NONE) ? 0 : 1);
-    MODEM_UART_HANDLE.Init.OverSampling = UART_OVERSAMPLING_16;
-    MODEM_UART_HANDLE.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-    /* do not activate autobaud (not compatible with current implementation) */
-    MODEM_UART_HANDLE.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-
-    /* UART initialization */
-    if (HAL_UART_Init(&MODEM_UART_HANDLE) == HAL_OK)
-    {
-      /* In the code generated by CubeMX for HAL_UART_MspInit() (which is called by HAL_UART_Init()),
-       * CTS and RTS are configured because default project uses Hardware Flow Control.
-       * If HwFC has been deactivated by user, we need to deactivate corresponding PINS.
-      */
-      if (MODEM_UART_HANDLE.Init.HwFlowCtl == UART_HWCONTROL_NONE)
-      {
-        GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-        GPIO_InitStruct.Pin = MODEM_CTS_PIN;
-        GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(MODEM_CTS_GPIO_PORT, &GPIO_InitStruct);
-
-        GPIO_InitStruct.Pin = MODEM_RTS_PIN;
-        GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;
-        HAL_GPIO_Init(MODEM_RTS_GPIO_PORT, &GPIO_InitStruct);
-      }
-
-      if (ipc_handle != NULL)
-      {
-        PRINT_DBG("call IPC_reset")
-        (void) IPC_reset(ipc_handle);
-      }
-      HAL_NVIC_EnableIRQ(MODEM_UART_IRQN);
-    }
-    else
-    {
-      PRINT_ERR("error in HAL_UART_Init")
-      retval = SCSTATUS_ERROR;
-    }
-  }
-
-  return (retval);
-}
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
 /**
   * @}

@@ -26,12 +26,12 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "plf_config.h"
+
 #include "cellular_runtime_standard.h"
 #include "cellular_runtime_custom.h"
 
 /* define debug levels (bitmap) */
 typedef uint8_t dbg_levels_t;
-
 #define DBL_LVL_P0     (dbg_levels_t)0x01U
 #define DBL_LVL_P1     (dbg_levels_t)0x02U
 #define DBL_LVL_P2     (dbg_levels_t)0x04U
@@ -45,9 +45,10 @@ typedef uint8_t dbg_levels_t;
 /* Warn and Error traces only */
 /* #define TRACE_IF_MASK    (uint16_t)(DBL_LVL_WARN | DBL_LVL_ERR) */
 
-
 /* Maximum buffer size (per channel) */
+#if (TRACE_IF_TRACES_UART == 1U)
 #define DBG_IF_MAX_BUFFER_SIZE  (uint16_t)(256)
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* Exported types ------------------------------------------------------------*/
 
@@ -71,26 +72,14 @@ typedef enum
   DBG_CHAN_MAX_VALUE        /* keep last */
 } dbg_channels_t;
 
-
 /* Exported constants --------------------------------------------------------*/
 /* External variables --------------------------------------------------------*/
+#if (TRACE_IF_TRACES_UART == 1U)
 extern uint8_t dbgIF_buf[DBG_CHAN_MAX_VALUE][DBG_IF_MAX_BUFFER_SIZE];
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /* Exported functions ------------------------------------------------------- */
-/**
-  * @brief  Trace off - Set trace to disable
-  * @param  -
-  * @retval -
-  */
-void traceIF_trace_off(void);
-
-/**
-  * @brief  Trace on - Set trace to enable
-  * @param  -
-  * @retval -
-  */
-void traceIF_trace_on(void);
-
+#if (TRACE_IF_TRACES_UART == 1U)
 /**
   * @brief  Print a trace on UART
   * @param  chan - component channel
@@ -144,16 +133,12 @@ void traceIF_BufCharPrint(dbg_channels_t chan, dbg_levels_t level, const CRC_CHA
   */
 void traceIF_BufHexPrint(dbg_channels_t chan, dbg_levels_t level, const CRC_CHAR_t *buf, uint16_t size);
 
-#if (TRACE_IF_TRACES_UART == 1U)
 #define TRACE_PRINT(chan, lvl, format, args...) \
   (void)sprintf((CRC_CHAR_t *)dbgIF_buf[(chan)], format "", ## args);\
   traceIF_uartPrint( (uint8_t)(chan), (uint8_t)lvl, (uint8_t *)dbgIF_buf[(chan)],\
                      (uint16_t)crs_strlen(dbgIF_buf[(chan)]));
-#else
-#define TRACE_PRINT(...)      __NOP(); /* Nothing to do */
-#endif /* TRACE_IF_TRACES_UART == 1U */
 
-/* To force traces even if they are deactivated (used in Boot Menu for example) */
+/* To force traces even if they are deactivated */
 #define TRACE_PRINT_FORCE(chan, lvl, format, args...) \
   (void)sprintf((CRC_CHAR_t *)dbgIF_buf[(chan)], format "", ## args);\
   traceIF_uartPrintForce((uint8_t)(chan), (uint8_t *)dbgIF_buf[(chan)],\
@@ -167,6 +152,30 @@ void traceIF_BufHexPrint(dbg_channels_t chan, dbg_levels_t level, const CRC_CHAR
 #define TRACE_PRINT_BUF_CHAR(chan, lvl, pbuf, size) traceIF_BufCharPrint((chan), (lvl), (pbuf), (size))
 #define TRACE_PRINT_BUF_HEX(chan, lvl, pbuf, size)  traceIF_BufHexPrint((chan), (lvl), (pbuf), (size))
 
+#elif (USE_PRINTF == 1U)
+#define TRACE_PRINT_FORCE(chan, lvl, format, args...) (void)printf(format, ## args);
+#define TRACE_VALID(format, args...)                  (void)printf(format, ## args);
+#else /* (TRACE_IF_TRACES_UART != 1U) && (USE_PRINTF != 1U) - Specific solution */
+#define TRACE_PRINT_FORCE(chan, lvl, format, args...) __NOP(); /* default: no trace */
+#define TRACE_VALID(format, args...)                  __NOP(); /* default: no trace */
+#endif /* TRACE_IF_TRACES_UART == 1U */
+
+#if (TRACE_IF_TRACES_UART == 1U)
+/**
+  * @brief  Trace on - Set trace to enable
+  * @param  -
+  * @retval -
+  */
+void traceIF_trace_on(void);
+
+/**
+  * @brief  Trace off - Set trace to disable
+  * @param  -
+  * @retval -
+  */
+void traceIF_trace_off(void);
+
+#endif /* TRACE_IF_TRACES_UART == 1U */
 
 /*** Component Initialization/Start *******************************************/
 /*** Internal use only - Not an Application Interface *************************/

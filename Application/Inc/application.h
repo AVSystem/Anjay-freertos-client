@@ -20,4 +20,6 @@
 
 void application_init();
 
+int avs_time_stm32_sync_time(void);
+
 #endif // APPLICATION_H

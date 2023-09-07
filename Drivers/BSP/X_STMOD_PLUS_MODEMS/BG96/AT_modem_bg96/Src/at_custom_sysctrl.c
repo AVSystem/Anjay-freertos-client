@@ -23,6 +23,15 @@
 #include "ipc_common.h"
 #include "plf_config.h"
 
+#if !defined(USE_HAL_STUB)
+/* call HAL functions */
+#define GPIO_WRITE(gpio, pin, state) HAL_GPIO_WritePin(gpio, pin, state)
+#else
+/* call stub functions (for testing purposes) */
+#include "at_hw_abstraction.h"
+#define GPIO_WRITE(gpio, pin, state) AT_HwAbs_GPIO_WritePin(gpio, pin, state)
+#endif /* !defined(USE_HAL_STUB) */
+
 /** @addtogroup AT_CUSTOM AT_CUSTOM
   * @{
   */
@@ -222,26 +231,26 @@ sysctrl_status_t SysCtrl_BG96_power_on(sysctrl_device_type_t type)
    *  a manual reset).
    * Set PWR_EN to 0 at least 650ms
    */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
   SysCtrl_delay(700U);
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
   SysCtrl_delay(1000U);
 
   /* Power ON sequence */
   /* Set PWR_EN to 1 (initial state) */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
   SysCtrl_delay(50U);
 
   /* Set PWR_EN to 0 during at least 30ms as defined by Quectel */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
   SysCtrl_delay(30U);
 
   /* Set PWR_EN to 1 during at least 500ms */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
   SysCtrl_delay(510U);
 
   /* Set PWR_EN to 0 */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
 
   /* wait for Modem to complete its booting procedure */
   PRINT_INFO("Waiting %d millisec for modem running...", BG96_BOOT_TIME)
@@ -278,11 +287,11 @@ sysctrl_status_t SysCtrl_BG96_power_off(sysctrl_device_type_t type)
   */
 
   /* wait at least 650ms */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
   SysCtrl_delay(700U);
 
   /* wait at least 2s but, in practice, it can exceed 4s or 5s */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
   SysCtrl_delay(5000U);
 
   return (retval);
@@ -314,9 +323,9 @@ sysctrl_status_t SysCtrl_BG96_reset(sysctrl_device_type_t type)
   */
   PRINT_INFO("!!! Hardware Reset triggered !!!")
   /* set RST to 1 for a time between 150ms and 460ms (200) */
-  HAL_GPIO_WritePin(MODEM_RST_GPIO_PORT, MODEM_RST_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_RST_GPIO_PORT, MODEM_RST_PIN, GPIO_PIN_SET);
   SysCtrl_delay(200U);
-  HAL_GPIO_WritePin(MODEM_RST_GPIO_PORT, MODEM_RST_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_RST_GPIO_PORT, MODEM_RST_PIN, GPIO_PIN_RESET);
 
   /* wait for Modem to complete its restart procedure */
   PRINT_INFO("Waiting %d millisec for modem running...", BG96_BOOT_TIME)
@@ -340,20 +349,20 @@ sysctrl_status_t SysCtrl_BG96_sim_select(sysctrl_device_type_t type, sysctrl_sim
   switch (sim_slot)
   {
     case SC_MODEM_SIM_SOCKET_0:
-      HAL_GPIO_WritePin(MODEM_SIM_SELECT_0_GPIO_PORT, MODEM_SIM_SELECT_0_PIN, GPIO_PIN_RESET);
-      HAL_GPIO_WritePin(MODEM_SIM_SELECT_1_GPIO_PORT, MODEM_SIM_SELECT_1_PIN, GPIO_PIN_RESET);
+      GPIO_WRITE(MODEM_SIM_SELECT_0_GPIO_PORT, MODEM_SIM_SELECT_0_PIN, GPIO_PIN_RESET);
+      GPIO_WRITE(MODEM_SIM_SELECT_1_GPIO_PORT, MODEM_SIM_SELECT_1_PIN, GPIO_PIN_RESET);
       PRINT_INFO("MODEM SIM SOCKET SELECTED")
       break;
 
     case SC_MODEM_SIM_ESIM_1:
-      HAL_GPIO_WritePin(MODEM_SIM_SELECT_0_GPIO_PORT, MODEM_SIM_SELECT_0_PIN, GPIO_PIN_SET);
-      HAL_GPIO_WritePin(MODEM_SIM_SELECT_1_GPIO_PORT, MODEM_SIM_SELECT_1_PIN, GPIO_PIN_RESET);
+      GPIO_WRITE(MODEM_SIM_SELECT_0_GPIO_PORT, MODEM_SIM_SELECT_0_PIN, GPIO_PIN_SET);
+      GPIO_WRITE(MODEM_SIM_SELECT_1_GPIO_PORT, MODEM_SIM_SELECT_1_PIN, GPIO_PIN_RESET);
       PRINT_INFO("MODEM SIM ESIM SELECTED")
       break;
 
     case SC_STM32_SIM_2:
-      HAL_GPIO_WritePin(MODEM_SIM_SELECT_0_GPIO_PORT, MODEM_SIM_SELECT_0_PIN, GPIO_PIN_RESET);
-      HAL_GPIO_WritePin(MODEM_SIM_SELECT_1_GPIO_PORT, MODEM_SIM_SELECT_1_PIN, GPIO_PIN_SET);
+      GPIO_WRITE(MODEM_SIM_SELECT_0_GPIO_PORT, MODEM_SIM_SELECT_0_PIN, GPIO_PIN_RESET);
+      GPIO_WRITE(MODEM_SIM_SELECT_1_GPIO_PORT, MODEM_SIM_SELECT_1_PIN, GPIO_PIN_SET);
       PRINT_INFO("STM32 SIM SELECTED")
       break;
 
@@ -384,9 +393,9 @@ sysctrl_status_t SysCtrl_BG96_wakeup_from_PSM(uint32_t delay)
   */
 
   SysCtrl_delay(delay);
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_SET);
   SysCtrl_delay(200U);
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
 
   return (retval);
 }
@@ -414,9 +423,9 @@ static sysctrl_status_t SysCtrl_BG96_setup(void)
    *  RST initial state = 0 : used to reset the board
    *  DTR initial state = 0 ; not used
    */
-  HAL_GPIO_WritePin(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(MODEM_RST_GPIO_PORT, MODEM_RST_PIN, GPIO_PIN_RESET);
-  HAL_GPIO_WritePin(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_PWR_EN_GPIO_PORT, MODEM_PWR_EN_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_RST_GPIO_PORT, MODEM_RST_PIN, GPIO_PIN_RESET);
+  GPIO_WRITE(MODEM_DTR_GPIO_PORT, MODEM_DTR_PIN, GPIO_PIN_RESET);
 
   /* Init GPIOs - common parameters */
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;

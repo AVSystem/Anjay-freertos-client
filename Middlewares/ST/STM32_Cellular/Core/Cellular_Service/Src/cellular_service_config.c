@@ -303,5 +303,5 @@ CS_Status_t CST_config_init(void)
   /* In case on default setup (without menu) calls default configuration setting */
   CST_local_setup_handler();
 
-  return CELLULAR_OK;
+  return CS_OK;
 }

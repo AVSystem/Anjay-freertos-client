@@ -599,7 +599,8 @@
  * #endif
  * </code>
  */
-/* #undef AVS_COMMONS_WITH_EXTERNAL_LOG_LEVELS_HEADER */
+#define AVS_COMMONS_WITH_EXTERNAL_LOG_LEVELS_HEADER \
+    "avsystem/commons/avs_log_levels.h"
 
 /**
  * Disable log level check in runtime. Allows to save at least 1.3kB of memory.
@@ -608,7 +609,7 @@
  * will not be available.
  *
  */
-/* #undef AVS_COMMONS_WITHOUT_LOG_CHECK_IN_RUNTIME */
+#define AVS_COMMONS_WITHOUT_LOG_CHECK_IN_RUNTIME
 /**@}*/
 
 /**
@@ -725,6 +726,20 @@
  * with the <c>::ffff:0.0.0.0/32</c> mask to be used instead.
  */
 /* #undef AVS_COMMONS_NET_POSIX_AVS_SOCKET_HAVE_IN6_IS_ADDR_V4MAPPED */
+
+/**
+ * Should be defined if IPv4-mapped IPv6 addresses (<c>::ffff:0.0.0.0/32</c>)
+ * are <strong>NOT</strong> supported by the underlying platform.
+ *
+ * Enabling this flag will prevent avs_net from using IPv4-mapped IPv6 addresses
+ * and instead re-open and re-bind the socket if a connection to an IPv4 address
+ * is requested on a previously created IPv6 socket.
+ *
+ * This may result in otherwise redundant <c>socket()</c>, <c>bind()</c> and
+ * <c>close()</c> system calls to be performed, but may be necessary for
+ * interoperability with some platforms.
+ */
+/* #undef AVS_COMMONS_NET_POSIX_AVS_SOCKET_WITHOUT_IN6_V4MAPPED_SUPPORT */
 
 /**
  * Is the <c>inet_ntop()</c> function available?

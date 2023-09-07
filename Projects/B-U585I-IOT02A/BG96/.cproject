@@ -83,9 +83,10 @@
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/hts221"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/lps22hh"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/veml6030"/>
-									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/m24lr64"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/vl53l5cx/modules"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/vl53l5cx/porting"/>
+									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/mx25lm51245g"/>
+									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/aps6408"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.990316991" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -120,7 +121,7 @@
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/iis2mdc"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/ism330dhcx"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/lps22hh"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/m24lr64"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/mx25lm51245g"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/veml6030"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/vl53l5cx"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers/BSP/X_STMOD_PLUS_MODEMS/BG96"/>
@@ -214,9 +215,10 @@
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/hts221"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/lps22hh"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/veml6030"/>
-									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/m24lr64"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/vl53l5cx/modules"/>
 									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/vl53l5cx/porting"/>
+									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/mx25lm51245g"/>
+									<listOptionValue builtIn="false" value="../../../../Drivers/BSP/Components/aps6408"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.108297291" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -251,7 +253,7 @@
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/iis2mdc"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/ism330dhcx"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/lps22hh"/>
-						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/m24lr64"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/mx25lm51245g"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/veml6030"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/BSP/Components/vl53l5cx"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers/BSP/X_STMOD_PLUS_MODEMS/BG96"/>

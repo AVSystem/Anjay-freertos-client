@@ -149,6 +149,7 @@ typedef struct
   AT_CHAR_t hostIPaddr[MAX_SIZE_IPADDR]; /* = host_name parameter from CS_DnsReq_t */
 } ATCustom_TYPE1SC_dns_t;
 
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
 typedef enum
 {
   HOST_LP_STATE_IDLE,               /* state 0: */
@@ -167,13 +168,16 @@ typedef enum
   EVENT_LP_HOST_WAKEUP_REQ,       /* event 3 */
   EVENT_LP_MDM_RING,              /* event 4: used by modem to confirm sleep mode or to request wakeup */
 } ATCustom_T1SC_LP_event_t;
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
 typedef struct
 {
   uint16_t                      sim_status_retries;
   ATCustom_TYPE1SC_dns_t        DNSRSLV_dns_info;      /* memorize infos received for DNS in %DNSRSLV */
-  at_bool_t                     SocketCmd_Allocated_SocketID;
-  at_bool_t                     SocketCmd_Activated;
+  at_bool_t                     SocketCmd_Allocated_SocketID;     /* allocated socket ID received */
+  at_bool_t                     SocketCmd_Allocated_SocketID_OK;  /* allocated socket ID confirmed (OK) */
+  at_bool_t                     SocketCmd_Activated;              /* socket activated successfully */
+  at_bool_t                     SocketCmd_Delete_success;         /* socket deleted successfully */
   ATCustom_TYPE1SC_SETGETCFG_t  getcfg_function;
   ATCustom_TYPE1SC_SETGETCFG_t  setcfg_function;
   ATCustom_T1SC_SETGETSYSCFG_t  syscfg_function;      /* used for GETSYSCG and SETSYSCFG */
@@ -181,8 +185,11 @@ typedef struct
   bool                          modem_bootev_received;
   uint8_t                       notifyev_mode; /* define which NOTIFYEV are requested */
   bool                          modem_sim_same_as_selected;
+
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
   /* low-power variables */
   ATCustom_T1SC_Host_LP_state_t   host_lp_state;         /* to manage automaton Host Low Power state */
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
 } type1sc_shared_variables_t;
 
@@ -225,9 +232,12 @@ void ATC_TYPE1SC_modem_reset(atcustom_modem_context_t *p_modem_ctxt);
 void ATC_TYPE1SC_reset_variables(void);
 void ATC_TYPE1SC_reinitSyntaxAutomaton(void);
 void ATC_TYPE1SC_modem_init(atcustom_modem_context_t *p_modem_ctxt);
+
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
 at_bool_t ATC_TYPE1SC_init_low_power(atcustom_modem_context_t *p_modem_ctxt);
 at_bool_t ATC_TYPE1SC_set_low_power(atcustom_modem_context_t *p_modem_ctxt);
 void ATC_TYPE1SC_low_power_event(ATCustom_T1SC_LP_event_t event, bool called_under_it);
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
 /**
   * @}

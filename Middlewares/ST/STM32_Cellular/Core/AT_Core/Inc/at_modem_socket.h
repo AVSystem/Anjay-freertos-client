@@ -51,27 +51,15 @@ extern "C" {
   * @}
   */
 
-/** @defgroup AT_CORE_SOCKET_Exported_Types AT_CORE SOCKET Exported Types
-  * @{
-  */
-/* Socket service type parameter */
-typedef uint8_t atsocket_servicetype_t;
-#define ATSOCKET_SERVICETYPE_TCP_CLIENT  (atsocket_servicetype_t)(0x0U)
-#define ATSOCKET_SERVICETYPE_UDP_CLIENT  (atsocket_servicetype_t)(0x1U)
-#define ATSOCKET_SERVICETYPE_TCP_SERVER  (atsocket_servicetype_t)(0x2U)
-#define ATSOCKET_SERVICETYPE_UDP_SERVICE (atsocket_servicetype_t)(0x3U)
-/**
-  * @}
-  */
-
 /** @defgroup AT_CORE_SOCKET_Exported_Functions AT_CORE SOCKET Exported Functions
   * @{
   */
 at_status_t     atcm_socket_reserve_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle);
 at_status_t     atcm_socket_release_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle);
+at_status_t     atcm_socket_assign_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle,
+                                             uint32_t modemcid);
+at_status_t     atcm_socket_unassign_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle);
 uint32_t        atcm_socket_get_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle);
-at_status_t     atcm_socket_set_modem_cid(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle,
-                                          uint32_t modemcid);
 socket_handle_t atcm_socket_get_socket_handle(const atcustom_modem_context_t *p_modem_ctxt, uint32_t modemCID);
 at_status_t     atcm_socket_set_urc_data_pending(atcustom_modem_context_t *p_modem_ctxt, socket_handle_t sockHandle);
 at_status_t     atcm_socket_set_urc_closed_by_remote(atcustom_modem_context_t *p_modem_ctxt,

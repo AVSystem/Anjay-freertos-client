@@ -90,44 +90,48 @@ static cellular_power_status_callback_t urc_lp_status_callback = NULL;
 /* SIM event callback */
 static cellular_sim_event_callback_t urc_sim_event_callback = NULL;
 
+#if defined(USE_COM_MDM)
+static CS_comMdm_callback_t urc_commdm_event_callback = NULL;
+#endif /* defined(USE_COM_MDM) */
+
 /* Non-permanent variables */
 
 /* Context for URC subscriptions */
 static csint_urc_subscription_t cs_ctxt_urc_subscription =
 {
-  .eps_network_registration = CELLULAR_FALSE,
-  .gprs_network_registration = CELLULAR_FALSE,
-  .cs_network_registration = CELLULAR_FALSE,
-  .eps_location_info = CELLULAR_FALSE,
-  .gprs_location_info = CELLULAR_FALSE,
-  .cs_location_info = CELLULAR_FALSE,
-  .signal_quality = CELLULAR_FALSE,
-  .packet_domain_event = CELLULAR_FALSE,
-  .ping_rsp = CELLULAR_FALSE,
+  .eps_network_registration = CS_FALSE,
+  .gprs_network_registration = CS_FALSE,
+  .cs_network_registration = CS_FALSE,
+  .eps_location_info = CS_FALSE,
+  .gprs_location_info = CS_FALSE,
+  .cs_location_info = CS_FALSE,
+  .signal_quality = CS_FALSE,
+  .packet_domain_event = CS_FALSE,
+  .ping_rsp = CS_FALSE,
 };
 /* Context for EPS location information */
 static csint_location_info_t cs_ctxt_eps_location_info =
 {
   .ci = 0,
   .lac = 0,
-  .ci_updated = CELLULAR_FALSE,
-  .lac_updated = CELLULAR_FALSE,
+  .ci_updated = CS_FALSE,
+  .lac_updated = CS_FALSE,
 };
 /* Context for GPRS location information */
 static csint_location_info_t cs_ctxt_gprs_location_info =
 {
   .ci = 0,
   .lac = 0,
-  .ci_updated = CELLULAR_FALSE,
-  .lac_updated = CELLULAR_FALSE,
+  .ci_updated = CS_FALSE,
+  .lac_updated = CS_FALSE,
 };
 /* Context for CS location information */
 static csint_location_info_t cs_ctxt_cs_location_info =
 {
   .ci = 0,
   .lac = 0,
-  .ci_updated = CELLULAR_FALSE,
-  .lac_updated = CELLULAR_FALSE,
+  .ci_updated = CS_FALSE,
+  .lac_updated = CS_FALSE,
 };
 /* Context for EPS network registration state */
 static CS_NetworkRegState_t cs_ctxt_eps_network_reg_state = CS_NRS_UNKNOWN;
@@ -173,13 +177,13 @@ CS_Status_t CS_init(void)
   retval = CELLULAR_init();
 
   /* check error code before to leave */
-  if (retval == CELLULAR_OK)
+  if (retval == CS_OK)
   {
     /* request AT core to start */
     if (atcore_task_start(ATCORE_THREAD_STACK_PRIO, ATCORE_THREAD_STACK_SIZE) != ATSTATUS_OK)
     {
       /* at core start fails */
-      retval = CELLULAR_ERROR;
+      retval = CS_ERROR;
     }
   }
 
@@ -193,7 +197,7 @@ CS_Status_t CS_init(void)
   */
 CS_Status_t CS_power_on(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* 1st step: power on modem by triggering GPIOs */
   if (SysCtrl_power_on(DEVTYPE_MODEM_CELLULAR) == SCSTATUS_OK)
@@ -219,7 +223,7 @@ CS_Status_t CS_power_on(void)
           if (err == ATSTATUS_OK)
           {
             PRINT_DBG("Cellular started and ready")
-            retval = CELLULAR_OK;
+            retval = CS_OK;
           }
         }
       }
@@ -227,7 +231,7 @@ CS_Status_t CS_power_on(void)
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when power on process")
   }
@@ -241,7 +245,7 @@ CS_Status_t CS_power_on(void)
   */
 CS_Status_t CS_power_off(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* reset Cellular Service context */
   CELLULAR_reset_context();
@@ -271,12 +275,12 @@ CS_Status_t CS_power_off(void)
     if (SysCtrl_power_off(DEVTYPE_MODEM_CELLULAR) == SCSTATUS_OK)
     {
       /* Cellular_Service> Stopped */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error during power off process")
   }
@@ -291,7 +295,7 @@ CS_Status_t CS_power_off(void)
   */
 CS_Status_t CS_check_connection(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -306,12 +310,12 @@ CS_Status_t CS_check_connection(void)
     if (err == ATSTATUS_OK)
     {
       /* Cellular_Service> Modem connection OK */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error with modem connection")
   }
@@ -330,7 +334,7 @@ CS_Status_t CS_check_connection(void)
   */
 CS_Status_t CS_sim_select(CS_SimSlot_t simSelected)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -345,7 +349,7 @@ CS_Status_t CS_sim_select(CS_SimSlot_t simSelected)
     if (err == ATSTATUS_OK)
     {
       PRINT_DBG("<Cellular_Service> SIM %d selected", simSelected)
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
     else
     {
@@ -354,7 +358,7 @@ CS_Status_t CS_sim_select(CS_SimSlot_t simSelected)
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_INFO("<Cellular_Service> SIM selection need a modem restart to be applied")
   }
@@ -372,7 +376,7 @@ CS_Status_t CS_sim_select(CS_SimSlot_t simSelected)
 int32_t CS_sim_generic_access(CS_sim_generic_access_t *sim_generic_access)
 {
   int32_t returned_data_size;
-  CS_Status_t status = CELLULAR_ERROR;
+  CS_Status_t status = CS_ERROR;
 
   /* Initialize the local data structure used to create SID message */
   csint_sim_generic_access_t sim_generic_access_data;
@@ -384,15 +388,9 @@ int32_t CS_sim_generic_access(CS_sim_generic_access_t *sim_generic_access)
       && (sim_generic_access->cmd_str_size <= CONFIG_MODEM_MAX_SIM_GENERIC_ACCESS_CMD_SIZE)
       && (sim_generic_access->rsp_str_size >= CONFIG_MODEM_MIN_SIM_GENERIC_ACCESS_RSP_SIZE))
   {
-    /*
-    sim_generic_access_data.data->p_cmd_str    = sim_generic_access->p_cmd_str;
-    sim_generic_access_data.data->cmd_str_size = sim_generic_access->cmd_str_size;
-    sim_generic_access_data.data->p_rsp_str    = sim_generic_access->p_rsp_str;
-    sim_generic_access_data.data->rsp_str_size = sim_generic_access->rsp_str_size;
-    */
     sim_generic_access_data.data = sim_generic_access;
-    /* code commented to avoid Code Sonar error (variable already initialized with same value)
-     * sim_generic_access_data.bytes_received = 0U;
+    /* code commented to avoid Code Sonar error (variable already initialized with same value):
+     *  sim_generic_access_data.bytes_received = 0U
      */
 
     /* Prepare the SID message to send to ATCore  */
@@ -413,7 +411,7 @@ int32_t CS_sim_generic_access(CS_sim_generic_access_t *sim_generic_access)
                                 (uint16_t) sizeof(csint_sim_generic_access_t),
                                 &sim_generic_access_data) == DATAPACK_OK)
         {
-          status = CELLULAR_OK;
+          status = CS_OK;
         }
       }
     }
@@ -428,7 +426,7 @@ int32_t CS_sim_generic_access(CS_sim_generic_access_t *sim_generic_access)
   }
 
   /* check status returned from ATCore and set returned_data_size value */
-  if (status == CELLULAR_ERROR)
+  if (status == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when sending SIM generic access")
     returned_data_size = -1;
@@ -453,14 +451,14 @@ int32_t CS_sim_generic_access(CS_sim_generic_access_t *sim_generic_access)
   */
 CS_Status_t CS_init_modem(CS_ModemInit_t init, CS_Bool_t reset, const CS_CHAR_t *pin_code)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Initialize the local data structure used to create SID message */
   csint_modemInit_t modemInit_struct;
   (void) memset((void *)&modemInit_struct, 0, sizeof(modemInit_struct));
   modemInit_struct.init = init;
   modemInit_struct.reset = reset;
-  (void) memcpy((void *)&modemInit_struct.pincode.pincode[0],
+  (void) memcpy((CS_CHAR_t *)&modemInit_struct.pincode.pincode[0],
                 (const CS_CHAR_t *)pin_code,
                 strlen((const CRC_CHAR_t *)pin_code));
 
@@ -477,7 +475,7 @@ CS_Status_t CS_init_modem(CS_ModemInit_t init, CS_Bool_t reset, const CS_CHAR_t 
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> Init done successfully */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
     else
     {
@@ -486,7 +484,7 @@ CS_Status_t CS_init_modem(CS_ModemInit_t init, CS_Bool_t reset, const CS_CHAR_t 
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error during init")
   }
@@ -503,7 +501,7 @@ CS_Status_t CS_get_device_info(CS_DeviceInfo_t *p_devinfo)
   /* static structure used to send data to lower layer */
   static CS_DeviceInfo_t cs_ctxt_device_info = {0};
 
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* reset our local copy */
   (void) memset((void *)&cs_ctxt_device_info, 0, sizeof(cs_ctxt_device_info));
@@ -523,7 +521,7 @@ CS_Status_t CS_get_device_info(CS_DeviceInfo_t *p_devinfo)
       /* <Cellular_Service> Device infos received */
       /* send info to user */
       (void) memcpy((void *)p_devinfo, (void *)&cs_ctxt_device_info, sizeof(CS_DeviceInfo_t));
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
     else
     {
@@ -532,7 +530,7 @@ CS_Status_t CS_get_device_info(CS_DeviceInfo_t *p_devinfo)
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when getting device infos")
   }
@@ -545,13 +543,13 @@ CS_Status_t CS_get_device_info(CS_DeviceInfo_t *p_devinfo)
   *         network registration status.
   * @param  p_devinfo Handle on operator information structure.
   * @param  p_reg_status Handle on registration information structure.
-  *         This information is valid only if return code is CELLULAR_OK
+  *         This information is valid only if return code is CS_OK
   * @retval CS_Status_t
   */
 CS_Status_t CS_register_net(CS_OperatorSelector_t *p_operator,
                             CS_RegistrationStatus_t *p_reg_status)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Initialize the local data structure used to create SID message */
   static CS_OperatorSelector_t cs_ctxt_operator;
@@ -582,13 +580,13 @@ CS_Status_t CS_register_net(CS_OperatorSelector_t *p_operator,
                               p_reg_status) == DATAPACK_OK)
       {
         /* <Cellular_Service> Network registration done */
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error during network registration ")
   }
@@ -601,7 +599,7 @@ CS_Status_t CS_register_net(CS_OperatorSelector_t *p_operator,
   */
 CS_Status_t CS_deregister_net(CS_RegistrationStatus_t *p_reg_status)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* initialize static structure used to send data to lower layer.
    *  Request to deregister from network : mode is set to CS_NRM_DEREGISTER.
@@ -611,7 +609,7 @@ CS_Status_t CS_deregister_net(CS_RegistrationStatus_t *p_reg_status)
   {
     .mode = CS_NRM_DEREGISTER,
     .format = CS_ONF_NOT_PRESENT,
-    .AcT_present = CELLULAR_FALSE,
+    .AcT_present = CS_FALSE,
   };
 
   /* init returned fields */
@@ -639,13 +637,13 @@ CS_Status_t CS_deregister_net(CS_RegistrationStatus_t *p_reg_status)
                               p_reg_status) == DATAPACK_OK)
       {
         /* <Cellular_Service> Network deregistration done */
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error during network deregistration ")
   }
@@ -662,60 +660,60 @@ CS_Status_t CS_deregister_net(CS_RegistrationStatus_t *p_reg_status)
   */
 CS_Status_t CS_subscribe_net_event(CS_UrcEvent_t event, cellular_urc_callback_t urc_callback)
 {
-  CS_Status_t retval = CELLULAR_OK;
+  CS_Status_t retval = CS_OK;
 
   /* URC registration */
   if (event == CS_URCEVENT_EPS_NETWORK_REG_STAT)
   {
     /* subscribe EPS network registration callback */
     urc_eps_network_registration_callback = urc_callback;
-    cs_ctxt_urc_subscription.eps_network_registration = CELLULAR_TRUE;
+    cs_ctxt_urc_subscription.eps_network_registration = CS_TRUE;
   }
   else if (event == CS_URCEVENT_GPRS_NETWORK_REG_STAT)
   {
     /* subscribe GPRS network registration callback */
     urc_gprs_network_registration_callback = urc_callback;
-    cs_ctxt_urc_subscription.gprs_network_registration = CELLULAR_TRUE;
+    cs_ctxt_urc_subscription.gprs_network_registration = CS_TRUE;
   }
   else if (event == CS_URCEVENT_CS_NETWORK_REG_STAT)
   {
     /* subscribe CS network registration callback */
     urc_cs_network_registration_callback = urc_callback;
-    cs_ctxt_urc_subscription.cs_network_registration = CELLULAR_TRUE;
+    cs_ctxt_urc_subscription.cs_network_registration = CS_TRUE;
   }
   else if (event == CS_URCEVENT_EPS_LOCATION_INFO)
   {
     /* subscribe EPS location information callback */
     urc_eps_location_info_callback = urc_callback;
-    cs_ctxt_urc_subscription.eps_location_info = CELLULAR_TRUE;
+    cs_ctxt_urc_subscription.eps_location_info = CS_TRUE;
   }
   else if (event == CS_URCEVENT_GPRS_LOCATION_INFO)
   {
     /* subscribe GPRS location information callback */
     urc_gprs_location_info_callback = urc_callback;
-    cs_ctxt_urc_subscription.gprs_location_info = CELLULAR_TRUE;
+    cs_ctxt_urc_subscription.gprs_location_info = CS_TRUE;
   }
   else if (event == CS_URCEVENT_CS_LOCATION_INFO)
   {
     /* subscribe CS location information callback */
     urc_cs_location_info_callback = urc_callback;
-    cs_ctxt_urc_subscription.cs_location_info = CELLULAR_TRUE;
+    cs_ctxt_urc_subscription.cs_location_info = CS_TRUE;
   }
   else if (event == CS_URCEVENT_SIGNAL_QUALITY)
   {
     /* subscribe Signal quality callback */
     urc_signal_quality_callback = urc_callback;
-    cs_ctxt_urc_subscription.signal_quality = CELLULAR_TRUE;
+    cs_ctxt_urc_subscription.signal_quality = CS_TRUE;
   }
   else
   {
     /* invalid event */
     PRINT_ERR("<Cellular_Service> invalid event")
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
 
   /* check error code before to leave */
-  if (retval != CELLULAR_ERROR)
+  if (retval != CS_ERROR)
   {
     /* Prepare the SID message to send to ATCore  */
     if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -729,17 +727,17 @@ CS_Status_t CS_subscribe_net_event(CS_UrcEvent_t event, cellular_urc_callback_t 
       err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_SUSBCRIBE_NET_EVENT, getCmdBufPtr(), getRspBufPtr());
       if (err != ATSTATUS_OK)
       {
-        retval = CELLULAR_ERROR;
+        retval = CS_ERROR;
       }
     }
     else
     {
-      retval = CELLULAR_ERROR;
+      retval = CS_ERROR;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when subscribing event")
   }
@@ -754,59 +752,59 @@ CS_Status_t CS_subscribe_net_event(CS_UrcEvent_t event, cellular_urc_callback_t 
   */
 CS_Status_t CS_unsubscribe_net_event(CS_UrcEvent_t event)
 {
-  CS_Status_t retval = CELLULAR_OK;
+  CS_Status_t retval = CS_OK;
 
   if (event == CS_URCEVENT_EPS_NETWORK_REG_STAT)
   {
     /* unsubscribe EPS network registration callback */
     urc_eps_network_registration_callback = NULL;
-    cs_ctxt_urc_subscription.eps_network_registration = CELLULAR_FALSE;
+    cs_ctxt_urc_subscription.eps_network_registration = CS_FALSE;
   }
   else if (event == CS_URCEVENT_GPRS_NETWORK_REG_STAT)
   {
     /* unsubscribe GPRS network registration callback */
     urc_gprs_network_registration_callback = NULL;
-    cs_ctxt_urc_subscription.gprs_network_registration = CELLULAR_FALSE;
+    cs_ctxt_urc_subscription.gprs_network_registration = CS_FALSE;
   }
   else if (event == CS_URCEVENT_CS_NETWORK_REG_STAT)
   {
     /* unsubscribe CS network registration callback */
     urc_cs_network_registration_callback = NULL;
-    cs_ctxt_urc_subscription.cs_network_registration = CELLULAR_FALSE;
+    cs_ctxt_urc_subscription.cs_network_registration = CS_FALSE;
   }
   else if (event == CS_URCEVENT_EPS_LOCATION_INFO)
   {
     /* unsubscribe EPS location information callback */
     urc_eps_location_info_callback = NULL;
-    cs_ctxt_urc_subscription.eps_location_info = CELLULAR_FALSE;
+    cs_ctxt_urc_subscription.eps_location_info = CS_FALSE;
   }
   else if (event == CS_URCEVENT_GPRS_LOCATION_INFO)
   {
     /* unsubscribe GPRS location information callback */
     urc_gprs_location_info_callback = NULL;
-    cs_ctxt_urc_subscription.gprs_location_info = CELLULAR_FALSE;
+    cs_ctxt_urc_subscription.gprs_location_info = CS_FALSE;
   }
   else if (event == CS_URCEVENT_CS_LOCATION_INFO)
   {
     /* unsubscribe CS location information callback */
     urc_cs_location_info_callback = NULL;
-    cs_ctxt_urc_subscription.cs_location_info = CELLULAR_FALSE;
+    cs_ctxt_urc_subscription.cs_location_info = CS_FALSE;
   }
   else if (event == CS_URCEVENT_SIGNAL_QUALITY)
   {
     /* unsubscribe signal quality callback */
     urc_signal_quality_callback = NULL;
-    cs_ctxt_urc_subscription.signal_quality = CELLULAR_FALSE;
+    cs_ctxt_urc_subscription.signal_quality = CS_FALSE;
   }
   else
   {
     /* invalid event */
     PRINT_ERR("<Cellular_Service> invalid event")
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
 
   /* check error code before to leave */
-  if (retval != CELLULAR_ERROR)
+  if (retval != CS_ERROR)
   {
     /* Prepare the SID message to send to ATCore  */
     if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -820,17 +818,17 @@ CS_Status_t CS_unsubscribe_net_event(CS_UrcEvent_t event)
       err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_UNSUSBCRIBE_NET_EVENT, getCmdBufPtr(), getRspBufPtr());
       if (err != ATSTATUS_OK)
       {
-        retval = CELLULAR_ERROR;
+        retval = CS_ERROR;
       }
     }
     else
     {
-      retval = CELLULAR_ERROR;
+      retval = CS_ERROR;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when unsubscribing event")
   }
@@ -852,7 +850,7 @@ CS_Status_t CS_subscribe_sim_event(cellular_sim_event_callback_t sim_evt_callbac
    */
   urc_sim_event_callback = sim_evt_callback;
 
-  return (CELLULAR_OK);
+  return (CS_OK);
 }
 
 /**
@@ -862,7 +860,7 @@ CS_Status_t CS_subscribe_sim_event(cellular_sim_event_callback_t sim_evt_callbac
   */
 CS_Status_t CS_attach_PS_domain(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -877,12 +875,12 @@ CS_Status_t CS_attach_PS_domain(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> attach PS domain done */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when attaching PS domain")
   }
@@ -896,7 +894,7 @@ CS_Status_t CS_attach_PS_domain(void)
   */
 CS_Status_t CS_detach_PS_domain(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -911,12 +909,12 @@ CS_Status_t CS_detach_PS_domain(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> detach PS domain done */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when detaching PS domain")
   }
@@ -930,7 +928,7 @@ CS_Status_t CS_detach_PS_domain(void)
   */
 CS_Status_t CS_get_attach_status(CS_PSattach_t *p_attach)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -952,13 +950,13 @@ CS_Status_t CS_get_attach_status(CS_PSattach_t *p_attach)
       {
         /* Cellular_Service> Attachment status received */
         PRINT_DBG("<Cellular_Service> Attachment status received = %d", *p_attach)
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when getting attachment status")
   }
@@ -968,12 +966,12 @@ CS_Status_t CS_get_attach_status(CS_PSattach_t *p_attach)
 /**
   * @brief  Read the latest registration state to the Cellular Network.
   * @param  p_reg_status Handle to registration status structure.
-  *         This information is valid only if return code is CELLULAR_OK
+  *         This information is valid only if return code is CS_OK
   * @retval CS_Status_t
   */
 CS_Status_t CS_get_net_status(CS_RegistrationStatus_t *p_reg_status)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* init returned fields */
   p_reg_status->optional_fields_presence = CS_RSF_NONE;
@@ -1000,13 +998,13 @@ CS_Status_t CS_get_net_status(CS_RegistrationStatus_t *p_reg_status)
                               p_reg_status) == DATAPACK_OK)
       {
         /* <Cellular_Service> Net status received */
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when getting net status")
   }
@@ -1020,7 +1018,7 @@ CS_Status_t CS_get_net_status(CS_RegistrationStatus_t *p_reg_status)
   */
 CS_Status_t CS_get_signal_quality(CS_SignalQuality_t *p_sig_qual)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Initialize the local data structure used to create SID message */
   CS_SignalQuality_t local_sig_qual = {0};
@@ -1040,12 +1038,12 @@ CS_Status_t CS_get_signal_quality(CS_SignalQuality_t *p_sig_qual)
       /* <Cellular_Service> Signal quality information received */
       /* recopy info to user */
       (void) memcpy((void *)p_sig_qual, (void *)&local_sig_qual, sizeof(CS_SignalQuality_t));
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when getting signal quality")
   }
@@ -1065,7 +1063,7 @@ CS_Status_t CS_get_signal_quality(CS_SignalQuality_t *p_sig_qual)
   */
 CS_Status_t CS_activate_pdn(CS_PDN_conf_id_t cid)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -1081,12 +1079,12 @@ CS_Status_t CS_activate_pdn(CS_PDN_conf_id_t cid)
     {
       /* <Cellular_Service> PDN connected */
       PRINT_DBG("<Cellular_Service> PDN %d connected", cid)
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when PDN %d cid activation", cid)
   }
@@ -1102,7 +1100,7 @@ CS_Status_t CS_activate_pdn(CS_PDN_conf_id_t cid)
   */
 CS_Status_t CS_deactivate_pdn(CS_PDN_conf_id_t cid)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -1118,12 +1116,12 @@ CS_Status_t CS_deactivate_pdn(CS_PDN_conf_id_t cid)
     {
       /* <Cellular_Service> PDN deactivated */
       PRINT_DBG("<Cellular_Service> PDN %d deactivated", cid)
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when PDN %d cid deactivation", cid)
   }
@@ -1140,7 +1138,7 @@ CS_Status_t CS_deactivate_pdn(CS_PDN_conf_id_t cid)
   */
 CS_Status_t CS_define_pdn(CS_PDN_conf_id_t cid, const CS_CHAR_t *apn, CS_PDN_configuration_t *pdn_conf)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Initialize the local data structure used to create SID message */
   csint_pdn_infos_t pdn_infos;
@@ -1157,9 +1155,9 @@ CS_Status_t CS_define_pdn(CS_PDN_conf_id_t cid, const CS_CHAR_t *apn, CS_PDN_con
   else if (apn == NULL)
   {
     /* prepare and send PDN infos, without apn */
-    (void) memset((void *)&pdn_infos, 0, sizeof(csint_pdn_infos_t));
     pdn_infos.conf_id = cid;
-    pdn_infos.apn_present = CELLULAR_FALSE;
+    pdn_infos.apn_present = CS_FALSE;
+    (void) memset((void *)&pdn_infos.apn, 0, MAX_APN_SIZE);
     (void) memcpy((void *)&pdn_infos.pdn_conf, (void *)pdn_conf, sizeof(CS_PDN_configuration_t));
 
     /* Prepare the SID message to send to ATCore  */
@@ -1173,7 +1171,7 @@ CS_Status_t CS_define_pdn(CS_PDN_conf_id_t cid, const CS_CHAR_t *apn, CS_PDN_con
       err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_DEFINE_PDN, getCmdBufPtr(), getRspBufPtr());
       if (err == ATSTATUS_OK)
       {
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
@@ -1182,8 +1180,8 @@ CS_Status_t CS_define_pdn(CS_PDN_conf_id_t cid, const CS_CHAR_t *apn, CS_PDN_con
     /* prepare and send PDN infos, with apn */
     (void) memset((void *)&pdn_infos, 0, sizeof(csint_pdn_infos_t));
     pdn_infos.conf_id = cid;
-    pdn_infos.apn_present = CELLULAR_TRUE;
-    (void) memcpy((void *)&pdn_infos.apn[0],
+    pdn_infos.apn_present = CS_TRUE;
+    (void) memcpy((CS_CHAR_t *)&pdn_infos.apn[0],
                   (const CS_CHAR_t *)apn,
                   strlen((const CRC_CHAR_t *)apn));
     (void) memcpy((void *)&pdn_infos.pdn_conf, (void *)pdn_conf, sizeof(CS_PDN_configuration_t));
@@ -1199,13 +1197,13 @@ CS_Status_t CS_define_pdn(CS_PDN_conf_id_t cid, const CS_CHAR_t *apn, CS_PDN_con
       err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_DEFINE_PDN, getCmdBufPtr(), getRspBufPtr());
       if (err == ATSTATUS_OK)
       {
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when defining PDN %d", cid)
   }
@@ -1220,7 +1218,7 @@ CS_Status_t CS_define_pdn(CS_PDN_conf_id_t cid, const CS_CHAR_t *apn, CS_PDN_con
   */
 CS_Status_t CS_set_default_pdn(CS_PDN_conf_id_t cid)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -1236,12 +1234,12 @@ CS_Status_t CS_set_default_pdn(CS_PDN_conf_id_t cid)
     {
       /* <Cellular_Service> set default PDN */
       PRINT_DBG("<Cellular_Service> PDN %d set as default", cid)
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when setting default PDN %d", cid)
   }
@@ -1252,12 +1250,12 @@ CS_Status_t CS_set_default_pdn(CS_PDN_conf_id_t cid)
   * @brief  Get the IP address allocated to the device for a given PDN.
   * @param  cid Configuration identifier number.
   * @param  ip_addr_type IP address type and format.
-  * @param  p_ip_addr_value Specifies the IP address of the given PDN.
+  * @param  p_ip_addr_value Specifies the IP address of the given PDN (max size = MAX_SIZE_IPADDR), without quotes.
   * @retval CS_Status_t
   */
 CS_Status_t CS_get_dev_IP_address(CS_PDN_conf_id_t cid, CS_IPaddrType_t *ip_addr_type, CS_CHAR_t *p_ip_addr_value)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -1279,20 +1277,46 @@ CS_Status_t CS_get_dev_IP_address(CS_PDN_conf_id_t cid, CS_IPaddrType_t *ip_addr
                               &ip_addr_info) == DATAPACK_OK)
       {
         /* <Cellular_Service> IP address information received */
-        /* recopy info to user */
+        /* recopy info to user
+         * try to remove quotes, if any, around IP address
+         */
+        csint_ip_addr_info_t tmp_ip_addr_info;
+        uint16_t tmp_ip_addr_info_size;
+
+        tmp_ip_addr_info_size =
+          ATutil_extract_str_from_quotes(
+            (const uint8_t *)ip_addr_info.ip_addr_value,
+            (uint16_t) strlen((CRC_CHAR_t *)ip_addr_info.ip_addr_value),
+            tmp_ip_addr_info.ip_addr_value,
+            MAX_SIZE_IPADDR);
+
+        /* retrieve IP address value */
+        if (tmp_ip_addr_info_size != 0U)
+        {
+          /* quotes have been removed, recopy cleaned IP address */
+          (void) memcpy((void *)p_ip_addr_value,
+                        (const void *)&tmp_ip_addr_info.ip_addr_value,
+                        (size_t) tmp_ip_addr_info_size);
+        }
+        else
+        {
+          /* no quotes detected, recopy received field without any modification */
+          (void) memcpy((void *)p_ip_addr_value,
+                        (const void *)&ip_addr_info.ip_addr_value,
+                        (size_t) strlen((CRC_CHAR_t *)ip_addr_info.ip_addr_value));
+        }
+
         *ip_addr_type = ip_addr_info.ip_addr_type;
-        (void) memcpy((void *)p_ip_addr_value,
-                      (void *)&ip_addr_info.ip_addr_value,
-                      strlen((CRC_CHAR_t *)ip_addr_info.ip_addr_value));
+
         PRINT_DBG("<Cellular_Service> IP address = %s (type = %d)",
                   (CS_CHAR_t *)ip_addr_info.ip_addr_value, ip_addr_info.ip_addr_type)
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when getting IP address information")
   }
@@ -1309,7 +1333,7 @@ CS_Status_t CS_get_dev_IP_address(CS_PDN_conf_id_t cid, CS_IPaddrType_t *ip_addr
   */
 CS_Status_t CS_subscribe_modem_event(CS_ModemEvent_t events_mask, cellular_modem_event_callback_t modem_evt_cb)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -1325,12 +1349,12 @@ CS_Status_t CS_subscribe_modem_event(CS_ModemEvent_t events_mask, cellular_modem
     {
       urc_modem_event_callback = modem_evt_cb;
       /* <Cellular_Service> modem events subscribed */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when subscribing modem event")
   }
@@ -1348,7 +1372,7 @@ CS_Status_t CS_subscribe_modem_event(CS_ModemEvent_t events_mask, cellular_modem
   */
 CS_Status_t  CS_register_pdn_event(CS_PDN_conf_id_t cid, cellular_pdn_event_callback_t pdn_event_callback)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* check parameters validity */
   if (cid > CS_PDN_USER_CONFIG_5)
@@ -1372,14 +1396,14 @@ CS_Status_t  CS_register_pdn_event(CS_PDN_conf_id_t cid, cellular_pdn_event_call
         /* <Cellular_Service> PDN events registered successfully */
         /* register callback */
         urc_packet_domain_event_callback[cid] = pdn_event_callback;
-        cs_ctxt_urc_subscription.packet_domain_event = CELLULAR_TRUE;
-        retval = CELLULAR_OK;
+        cs_ctxt_urc_subscription.packet_domain_event = CS_TRUE;
+        retval = CS_OK;
       }
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service>error when registering PDN events")
   }
@@ -1393,7 +1417,7 @@ CS_Status_t  CS_register_pdn_event(CS_PDN_conf_id_t cid, cellular_pdn_event_call
   */
 CS_Status_t CS_deregister_pdn_event(CS_PDN_conf_id_t cid)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* check parameters validity */
   if (cid > CS_PDN_USER_CONFIG_5)
@@ -1404,7 +1428,7 @@ CS_Status_t CS_deregister_pdn_event(CS_PDN_conf_id_t cid)
   {
     /* register callback */
     urc_packet_domain_event_callback[cid] = NULL;
-    cs_ctxt_urc_subscription.packet_domain_event = CELLULAR_FALSE;
+    cs_ctxt_urc_subscription.packet_domain_event = CS_FALSE;
 
     /* Prepare the SID message to send to ATCore  */
     if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -1419,13 +1443,13 @@ CS_Status_t CS_deregister_pdn_event(CS_PDN_conf_id_t cid)
       if (err == ATSTATUS_OK)
       {
         /* <Cellular_Service> PDN events deregistered successfully */
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when deregistering PDN events")
   }
@@ -1439,7 +1463,7 @@ CS_Status_t CS_deregister_pdn_event(CS_PDN_conf_id_t cid)
   */
 CS_Status_t CS_suspend_data(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -1454,12 +1478,12 @@ CS_Status_t CS_suspend_data(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> DATA suspended */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when suspending DATA")
   }
@@ -1473,7 +1497,7 @@ CS_Status_t CS_suspend_data(void)
   */
 CS_Status_t CS_resume_data(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Prepare the SID message to send to ATCore  */
   if (DATAPACK_writeStruct(getCmdBufPtr(),
@@ -1488,12 +1512,12 @@ CS_Status_t CS_resume_data(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> DATA resumed */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when resuming DATA")
   }
@@ -1507,7 +1531,7 @@ CS_Status_t CS_resume_data(void)
   */
 CS_Status_t CS_reset(CS_Reset_t rst_type)
 {
-  CS_Status_t retval = CELLULAR_OK;
+  CS_Status_t retval = CS_OK;
 
   /* reset Cellular Service context */
   CELLULAR_reset_context();
@@ -1519,7 +1543,7 @@ CS_Status_t CS_reset(CS_Reset_t rst_type)
   if (AT_reset_context(get_Adapter_Handle()) != ATSTATUS_OK)
   {
     PRINT_ERR("<Cellular_Service> Reset context error")
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
 
   /* treament depends of reset type */
@@ -1527,43 +1551,43 @@ CS_Status_t CS_reset(CS_Reset_t rst_type)
   {
     case CS_RESET_HW:
       /* perform hardware reset */
-      if (perform_HW_reset() != CELLULAR_OK)
+      if (perform_HW_reset() != CS_OK)
       {
-        retval = CELLULAR_ERROR;
+        retval = CS_ERROR;
       }
       break;
 
     case CS_RESET_SW:
       /* perform software reset */
-      if (perform_SW_reset() != CELLULAR_OK)
+      if (perform_SW_reset() != CS_OK)
       {
-        retval = CELLULAR_ERROR;
+        retval = CS_ERROR;
       }
       break;
 
     case CS_RESET_AUTO:
       /* perform software reset first */
-      if (perform_SW_reset() != CELLULAR_OK)
+      if (perform_SW_reset() != CS_OK)
       {
         /* if software reset failed, perform hardware reset */
-        if (perform_HW_reset() != CELLULAR_OK)
+        if (perform_HW_reset() != CS_OK)
         {
-          retval = CELLULAR_ERROR;
+          retval = CS_ERROR;
         }
       }
       break;
 
     case CS_RESET_FACTORY_RESET:
       /* perform factory reset  */
-      if (perform_Factory_reset() != CELLULAR_OK)
+      if (perform_Factory_reset() != CS_OK)
       {
-        retval = CELLULAR_ERROR;
+        retval = CS_ERROR;
       }
       break;
 
     default:
       PRINT_ERR("Invalid reset type")
-      retval = CELLULAR_ERROR;
+      retval = CS_ERROR;
       break;
   }
 
@@ -1582,7 +1606,7 @@ CS_Status_t CS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx, cellular_direct_cmd
 {
   UNUSED(direct_cmd_callback); /* direct_cmd_callback not used for the moment */
 
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   if (direct_cmd_tx->cmd_size <= MAX_DIRECT_CMD_SIZE)
   {
@@ -1598,7 +1622,7 @@ CS_Status_t CS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx, cellular_direct_cmd
       if (err == ATSTATUS_OK)
       {
         /* <Cellular_Service> Direct command infos received */
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
       else
       {
@@ -1612,7 +1636,7 @@ CS_Status_t CS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx, cellular_direct_cmd
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when sending direct cmd")
   }
@@ -1631,7 +1655,7 @@ CS_Status_t CS_direct_cmd(CS_direct_cmd_tx_t *direct_cmd_tx, cellular_direct_cmd
 CS_Status_t CS_InitPowerConfig(CS_init_power_config_t *p_power_config,
                                cellular_power_status_callback_t lp_status_callback)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
   PRINT_INFO("CS_InitPowerConfig")
 
   /* save the callback */
@@ -1655,12 +1679,12 @@ CS_Status_t CS_InitPowerConfig(CS_init_power_config_t *p_power_config,
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> Power configuration set */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when setting power configuration")
   }
@@ -1676,7 +1700,7 @@ CS_Status_t CS_InitPowerConfig(CS_init_power_config_t *p_power_config,
   */
 CS_Status_t CS_SetPowerConfig(CS_set_power_config_t *p_power_config)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
   PRINT_INFO("CS_SetPowerConfig")
 
   /* Initialize the local data structure used to create SID message */
@@ -1697,12 +1721,12 @@ CS_Status_t CS_SetPowerConfig(CS_set_power_config_t *p_power_config)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> Power configuration set */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
   /* check error code before to leave */
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when setting power configuration")
   }
@@ -1718,7 +1742,7 @@ CS_Status_t CS_SetPowerConfig(CS_set_power_config_t *p_power_config)
   */
 CS_Status_t CS_SleepRequest(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
   PRINT_INFO("CS_SleepRequest")
 
   /* Prepare the SID message to send to ATCore  */
@@ -1734,7 +1758,7 @@ CS_Status_t CS_SleepRequest(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> Sleep Request done */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
@@ -1749,7 +1773,7 @@ CS_Status_t CS_SleepRequest(void)
   */
 CS_Status_t CS_SleepComplete(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
   PRINT_INFO("CS_SleepComplete")
 
   /* Prepare the SID message to send to ATCore  */
@@ -1765,7 +1789,7 @@ CS_Status_t CS_SleepComplete(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> Sleep Complete done */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
@@ -1781,7 +1805,7 @@ CS_Status_t CS_SleepComplete(void)
   */
 CS_Status_t CS_SleepCancel(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
   PRINT_INFO("CS_SleepCancel")
 
   /* Prepare the SID message to send to ATCore  */
@@ -1797,7 +1821,7 @@ CS_Status_t CS_SleepCancel(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> Sleep Cancel done */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
@@ -1812,7 +1836,7 @@ CS_Status_t CS_SleepCancel(void)
   */
 CS_Status_t CS_PowerWakeup(CS_wakeup_origin_t wakeup_origin)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
   PRINT_INFO("CS_PowerWakeup")
 
   /* Prepare the SID message to send to ATCore  */
@@ -1828,7 +1852,7 @@ CS_Status_t CS_PowerWakeup(CS_wakeup_origin_t wakeup_origin)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> Power WakeUp done */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
@@ -1850,7 +1874,7 @@ CS_Status_t CS_PowerWakeup(CS_wakeup_origin_t wakeup_origin)
   */
 static CS_Status_t perform_HW_reset(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Initialize the local data structure used to create SID message */
   CS_Reset_t rst_type = CS_RESET_HW;
@@ -1870,7 +1894,7 @@ static CS_Status_t perform_HW_reset(void)
       if (err == ATSTATUS_OK)
       {
         /* <Cellular_Service> HW device reset done */
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
@@ -1885,7 +1909,7 @@ static CS_Status_t perform_HW_reset(void)
   */
 static CS_Status_t perform_SW_reset(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Initialize the local data structure used to create SID message */
   CS_Reset_t rst_type = CS_RESET_SW;
@@ -1903,7 +1927,7 @@ static CS_Status_t perform_SW_reset(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> SW device reset done */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
@@ -1917,7 +1941,7 @@ static CS_Status_t perform_SW_reset(void)
   */
 static CS_Status_t perform_Factory_reset(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* Initialize the local data structure used to create SID message */
   CS_Reset_t rst_type = CS_RESET_FACTORY_RESET;
@@ -1935,7 +1959,7 @@ static CS_Status_t perform_Factory_reset(void)
     if (err == ATSTATUS_OK)
     {
       /* <Cellular_Service> Factory device reset done */
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
@@ -1950,33 +1974,33 @@ static CS_Status_t perform_Factory_reset(void)
 static void CELLULAR_reset_context(void)
 {
   /* init cs_ctxt_urc_subscription */
-  cs_ctxt_urc_subscription.eps_network_registration = CELLULAR_FALSE;
-  cs_ctxt_urc_subscription.gprs_network_registration = CELLULAR_FALSE;
-  cs_ctxt_urc_subscription.cs_network_registration = CELLULAR_FALSE;
-  cs_ctxt_urc_subscription.eps_location_info = CELLULAR_FALSE;
-  cs_ctxt_urc_subscription.gprs_location_info = CELLULAR_FALSE;
-  cs_ctxt_urc_subscription.cs_location_info = CELLULAR_FALSE;
-  cs_ctxt_urc_subscription.signal_quality = CELLULAR_FALSE;
-  cs_ctxt_urc_subscription.packet_domain_event = CELLULAR_FALSE;
-  cs_ctxt_urc_subscription.ping_rsp = CELLULAR_FALSE;
+  cs_ctxt_urc_subscription.eps_network_registration = CS_FALSE;
+  cs_ctxt_urc_subscription.gprs_network_registration = CS_FALSE;
+  cs_ctxt_urc_subscription.cs_network_registration = CS_FALSE;
+  cs_ctxt_urc_subscription.eps_location_info = CS_FALSE;
+  cs_ctxt_urc_subscription.gprs_location_info = CS_FALSE;
+  cs_ctxt_urc_subscription.cs_location_info = CS_FALSE;
+  cs_ctxt_urc_subscription.signal_quality = CS_FALSE;
+  cs_ctxt_urc_subscription.packet_domain_event = CS_FALSE;
+  cs_ctxt_urc_subscription.ping_rsp = CS_FALSE;
 
   /* init cs_ctxt_eps_location_info */
   cs_ctxt_eps_location_info.ci = 0U;
   cs_ctxt_eps_location_info.lac = 0U;
-  cs_ctxt_eps_location_info.ci_updated = CELLULAR_FALSE;
-  cs_ctxt_eps_location_info.lac_updated = CELLULAR_FALSE;
+  cs_ctxt_eps_location_info.ci_updated = CS_FALSE;
+  cs_ctxt_eps_location_info.lac_updated = CS_FALSE;
 
   /* init cs_ctxt_gprs_location_info */
   cs_ctxt_gprs_location_info.ci = 0U;
   cs_ctxt_gprs_location_info.lac = 0U;
-  cs_ctxt_gprs_location_info.ci_updated = CELLULAR_FALSE;
-  cs_ctxt_gprs_location_info.lac_updated = CELLULAR_FALSE;
+  cs_ctxt_gprs_location_info.ci_updated = CS_FALSE;
+  cs_ctxt_gprs_location_info.lac_updated = CS_FALSE;
 
   /* init cs_ctxt_cs_location_info */
   cs_ctxt_cs_location_info.ci = 0U;
   cs_ctxt_cs_location_info.lac = 0U;
-  cs_ctxt_cs_location_info.ci_updated = CELLULAR_FALSE;
-  cs_ctxt_cs_location_info.lac_updated = CELLULAR_FALSE;
+  cs_ctxt_cs_location_info.ci_updated = CS_FALSE;
+  cs_ctxt_cs_location_info.lac_updated = CS_FALSE;
 
   /* init network states */
   cs_ctxt_eps_network_reg_state = CS_NRS_UNKNOWN;
@@ -2006,7 +2030,7 @@ static void CELLULAR_reset_socket_context(void)
   */
 static CS_Status_t CELLULAR_init(void)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* static variables */
   static sysctrl_info_t modem_device_infos;  /* LTE Modem information */
@@ -2026,7 +2050,7 @@ static CS_Status_t CELLULAR_init(void)
       /* init socket context */
       CELLULAR_reset_socket_context();
 
-      retval = CELLULAR_OK;
+      retval = CS_OK;
     }
   }
 
@@ -2046,7 +2070,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
 
   /* --- EPS NETWORK REGISTRATION URC --- */
   if ((msgtype == (uint16_t) CSMT_URC_EPS_NETWORK_REGISTRATION_STATUS) &&
-      (cs_ctxt_urc_subscription.eps_network_registration == CELLULAR_TRUE))
+      (cs_ctxt_urc_subscription.eps_network_registration == CS_TRUE))
   {
     CS_NetworkRegState_t rx_state;
     /* Read response from ATCore  */
@@ -2072,7 +2096,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
   }
   /* --- GPRS NETWORK REGISTRATION URC --- */
   else if ((msgtype == (uint16_t) CSMT_URC_GPRS_NETWORK_REGISTRATION_STATUS) &&
-           (cs_ctxt_urc_subscription.gprs_network_registration == CELLULAR_TRUE))
+           (cs_ctxt_urc_subscription.gprs_network_registration == CS_TRUE))
   {
     CS_NetworkRegState_t rx_state;
     /* Read response from ATCore  */
@@ -2097,7 +2121,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
   }
   /* --- CS NETWORK REGISTRATION URC --- */
   else if ((msgtype == (uint16_t) CSMT_URC_CS_NETWORK_REGISTRATION_STATUS) &&
-           (cs_ctxt_urc_subscription.cs_network_registration == CELLULAR_TRUE))
+           (cs_ctxt_urc_subscription.cs_network_registration == CS_TRUE))
   {
     CS_NetworkRegState_t rx_state;
     /* Read response from ATCore  */
@@ -2122,9 +2146,9 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
   }
   /* --- EPS LOCATION INFORMATION URC --- */
   else if ((msgtype == (uint16_t) CSMT_URC_EPS_LOCATION_INFO) &&
-           (cs_ctxt_urc_subscription.eps_location_info == CELLULAR_TRUE))
+           (cs_ctxt_urc_subscription.eps_location_info == CS_TRUE))
   {
-    CS_Bool_t loc_update = CELLULAR_FALSE;
+    CS_Bool_t loc_update = CS_FALSE;
     csint_location_info_t rx_loc;
     /* Read response from ATCore  */
     if (DATAPACK_readStruct(p_urc_buf,
@@ -2133,43 +2157,43 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
                             (void *)&rx_loc) == DATAPACK_OK)
     {
       /* ci received and changed since last time ? */
-      if (rx_loc.ci_updated == CELLULAR_TRUE)
+      if (rx_loc.ci_updated == CS_TRUE)
       {
         if (rx_loc.ci != cs_ctxt_eps_location_info.ci)
         {
           /* ci has change */
-          loc_update = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
           cs_ctxt_eps_location_info.ci = rx_loc.ci;
         }
 
         /* if local ci info was not updated */
-        if (cs_ctxt_eps_location_info.ci_updated == CELLULAR_FALSE)
+        if (cs_ctxt_eps_location_info.ci_updated == CS_FALSE)
         {
-          loc_update = CELLULAR_TRUE;
-          cs_ctxt_eps_location_info.ci_updated = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
+          cs_ctxt_eps_location_info.ci_updated = CS_TRUE;
         }
       }
 
       /* lac received and changed since last time ? */
-      if (rx_loc.lac_updated == CELLULAR_TRUE)
+      if (rx_loc.lac_updated == CS_TRUE)
       {
         if (rx_loc.lac != cs_ctxt_eps_location_info.lac)
         {
           /* lac has change */
-          loc_update = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
           cs_ctxt_eps_location_info.lac = rx_loc.lac;
         }
 
         /* if local lac info was not updated */
-        if (cs_ctxt_eps_location_info.lac_updated == CELLULAR_FALSE)
+        if (cs_ctxt_eps_location_info.lac_updated == CS_FALSE)
         {
-          loc_update = CELLULAR_TRUE;
-          cs_ctxt_eps_location_info.lac_updated = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
+          cs_ctxt_eps_location_info.lac_updated = CS_TRUE;
         }
       }
 
       /* if location has changed, notify client */
-      if (loc_update == CELLULAR_TRUE)
+      if (loc_update == CS_TRUE)
       {
         /* if a valid callback is registered, call it */
         if (urc_eps_location_info_callback != NULL)
@@ -2182,9 +2206,9 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
   }
   /* --- GPRS LOCATION INFORMATION URC --- */
   else if ((msgtype == (uint16_t) CSMT_URC_GPRS_LOCATION_INFO) &&
-           (cs_ctxt_urc_subscription.gprs_location_info == CELLULAR_TRUE))
+           (cs_ctxt_urc_subscription.gprs_location_info == CS_TRUE))
   {
-    CS_Bool_t loc_update = CELLULAR_FALSE;
+    CS_Bool_t loc_update = CS_FALSE;
     csint_location_info_t rx_loc;
     /* Read response from ATCore  */
     if (DATAPACK_readStruct(p_urc_buf,
@@ -2193,43 +2217,43 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
                             (void *)&rx_loc) == DATAPACK_OK)
     {
       /* ci received and changed since last time ? */
-      if (rx_loc.ci_updated == CELLULAR_TRUE)
+      if (rx_loc.ci_updated == CS_TRUE)
       {
         if (rx_loc.ci != cs_ctxt_gprs_location_info.ci)
         {
           /* ci has change */
-          loc_update = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
           cs_ctxt_gprs_location_info.ci = rx_loc.ci;
         }
 
         /* if local ci info was not updated */
-        if (cs_ctxt_gprs_location_info.ci_updated == CELLULAR_FALSE)
+        if (cs_ctxt_gprs_location_info.ci_updated == CS_FALSE)
         {
-          loc_update = CELLULAR_TRUE;
-          cs_ctxt_gprs_location_info.ci_updated = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
+          cs_ctxt_gprs_location_info.ci_updated = CS_TRUE;
         }
       }
 
       /* lac received and changed since last time ? */
-      if (rx_loc.lac_updated == CELLULAR_TRUE)
+      if (rx_loc.lac_updated == CS_TRUE)
       {
         if (rx_loc.lac != cs_ctxt_gprs_location_info.lac)
         {
           /* lac has change */
-          loc_update = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
           cs_ctxt_gprs_location_info.lac = rx_loc.lac;
         }
 
         /* if local lac info was not updated */
-        if (cs_ctxt_gprs_location_info.lac_updated == CELLULAR_FALSE)
+        if (cs_ctxt_gprs_location_info.lac_updated == CS_FALSE)
         {
-          loc_update = CELLULAR_TRUE;
-          cs_ctxt_gprs_location_info.lac_updated = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
+          cs_ctxt_gprs_location_info.lac_updated = CS_TRUE;
         }
       }
 
       /* if location has changed, notify client */
-      if (loc_update == CELLULAR_TRUE)
+      if (loc_update == CS_TRUE)
       {
         /* if a valid callback is registered, call it */
         if (urc_gprs_location_info_callback != NULL)
@@ -2242,9 +2266,9 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
   }
   /* --- CS LOCATION INFORMATION URC --- */
   else if ((msgtype == (uint16_t) CSMT_URC_CS_LOCATION_INFO) &&
-           (cs_ctxt_urc_subscription.cs_location_info == CELLULAR_TRUE))
+           (cs_ctxt_urc_subscription.cs_location_info == CS_TRUE))
   {
-    CS_Bool_t loc_update = CELLULAR_FALSE;
+    CS_Bool_t loc_update = CS_FALSE;
     csint_location_info_t rx_loc;
     /* Read response from ATCore  */
     if (DATAPACK_readStruct(p_urc_buf,
@@ -2253,43 +2277,43 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
                             (void *)&rx_loc) == DATAPACK_OK)
     {
       /* ci received and changed since last time ? */
-      if (rx_loc.ci_updated == CELLULAR_TRUE)
+      if (rx_loc.ci_updated == CS_TRUE)
       {
         if (rx_loc.ci != cs_ctxt_cs_location_info.ci)
         {
           /* ci has change */
-          loc_update = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
           cs_ctxt_cs_location_info.ci = rx_loc.ci;
         }
 
         /* if local ci info was not updated */
-        if (cs_ctxt_cs_location_info.ci_updated == CELLULAR_FALSE)
+        if (cs_ctxt_cs_location_info.ci_updated == CS_FALSE)
         {
-          loc_update = CELLULAR_TRUE;
-          cs_ctxt_cs_location_info.ci_updated = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
+          cs_ctxt_cs_location_info.ci_updated = CS_TRUE;
         }
       }
 
       /* lac received and changed since last time ? */
-      if (rx_loc.lac_updated == CELLULAR_TRUE)
+      if (rx_loc.lac_updated == CS_TRUE)
       {
         if (rx_loc.lac != cs_ctxt_cs_location_info.lac)
         {
           /* lac has change */
-          loc_update = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
           cs_ctxt_cs_location_info.lac = rx_loc.lac;
         }
 
         /* if local lac info was not updated */
-        if (cs_ctxt_cs_location_info.lac_updated == CELLULAR_FALSE)
+        if (cs_ctxt_cs_location_info.lac_updated == CS_FALSE)
         {
-          loc_update = CELLULAR_TRUE;
-          cs_ctxt_cs_location_info.lac_updated = CELLULAR_TRUE;
+          loc_update = CS_TRUE;
+          cs_ctxt_cs_location_info.lac_updated = CS_TRUE;
         }
       }
 
       /* if location has changed, notify client */
-      if (loc_update == CELLULAR_TRUE)
+      if (loc_update == CS_TRUE)
       {
         /* if a valid callback is registered, call it */
         if (urc_cs_location_info_callback != NULL)
@@ -2302,7 +2326,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
   }
   /* --- SIGNAL QUALITY URC --- */
   else if ((msgtype == (uint16_t) CSMT_URC_SIGNAL_QUALITY) &&
-           (cs_ctxt_urc_subscription.signal_quality == CELLULAR_TRUE))
+           (cs_ctxt_urc_subscription.signal_quality == CS_TRUE))
   {
     CS_SignalQuality_t local_sig_qual;
     /* Read response from ATCore  */
@@ -2369,7 +2393,7 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
   }
   /* --- PACKET DOMAIN EVENT URC --- */
   else if ((msgtype == (uint16_t) CSMT_URC_PACKET_DOMAIN_EVENT) &&
-           (cs_ctxt_urc_subscription.packet_domain_event == CELLULAR_TRUE))
+           (cs_ctxt_urc_subscription.packet_domain_event == CS_TRUE))
   {
     /* unpack data received */
     csint_PDN_event_desc_t pdn_event;
@@ -2495,6 +2519,26 @@ static void CELLULAR_urc_notif(at_buf_t *p_urc_buf)
       }
     }
   }
+#if defined(USE_COM_MDM)
+  /* --- COMMDM EVENT URC --- */
+  else if (msgtype == (uint16_t) CSMT_URC_COMMDM_EVENT)
+  {
+    /* unpack data received */
+    CS_comMdm_status_t comMdmd_event_infos;
+    comMdmd_event_infos.param1 = 0U;
+    if (DATAPACK_readStruct(p_urc_buf,
+                            (uint16_t) CSMT_URC_COMMDM_EVENT,
+                            (uint16_t) sizeof(CS_comMdm_status_t),
+                            (void *)&comMdmd_event_infos) == DATAPACK_OK)
+    {
+      PRINT_INFO("COMMDM event received")
+      if (urc_commdm_event_callback != NULL)
+      {
+        (* urc_commdm_event_callback)(comMdmd_event_infos);
+      }
+    }
+  }
+#endif /* defined(USE_COM_MDM) */
   else
   {
     PRINT_DBG("ignore received URC (type=%d)", msgtype)
@@ -2514,7 +2558,7 @@ static CS_Status_t CELLULAR_analyze_error_report(at_buf_t *p_rsp_buf)
   msgtype = DATAPACK_readMsgType(p_rsp_buf);
 
   /* default return value */
-  retval = CELLULAR_ERROR;
+  retval = CS_ERROR;
 
   /* check if we have received an error report */
   if (msgtype == (uint16_t) CSMT_ERROR_REPORT)
@@ -2552,26 +2596,26 @@ static CS_Status_t convert_SIM_error(const csint_error_report_t *p_error_report)
   switch (p_error_report->sim_state)
   {
     case CS_SIMSTATE_SIM_NOT_INSERTED:
-      retval = CELLULAR_SIM_NOT_INSERTED;
+      retval = CS_SIM_NOT_INSERTED;
       break;
     case CS_SIMSTATE_SIM_BUSY:
-      retval = CELLULAR_SIM_BUSY;
+      retval = CS_SIM_BUSY;
       break;
     case CS_SIMSTATE_SIM_WRONG:
     case CS_SIMSTATE_SIM_FAILURE:
-      retval = CELLULAR_SIM_ERROR;
+      retval = CS_SIM_ERROR;
       break;
     case CS_SIMSTATE_SIM_PIN_REQUIRED:
     case CS_SIMSTATE_SIM_PIN2_REQUIRED:
     case CS_SIMSTATE_SIM_PUK_REQUIRED:
     case CS_SIMSTATE_SIM_PUK2_REQUIRED:
-      retval = CELLULAR_SIM_PIN_OR_PUK_LOCKED;
+      retval = CS_SIM_PIN_OR_PUK_LOCKED;
       break;
     case CS_SIMSTATE_INCORRECT_PASSWORD:
-      retval = CELLULAR_SIM_INCORRECT_PASSWORD;
+      retval = CS_SIM_INCORRECT_PASSWORD;
       break;
     default:
-      retval = CELLULAR_SIM_ERROR;
+      retval = CS_SIM_ERROR;
       break;
   }
   return (retval);
@@ -2650,16 +2694,218 @@ static CS_PDN_conf_id_t convert_index_to_PDN_conf(uint8_t index)
   return (PDNconf);
 }
 
+#if defined(USE_COM_MDM)
 /**
-  * @}
+  * @brief  register callback for mdm urc
+  * @note   register a function as callback for mdm urc receive from modem
+  * @param  commdm_urc_cb - The call back to be registered. May be NULL to unregister callback.
+  * @retval CS_Status_t
+  * @note   the provided call back function should execute a minimum of code.
+  *         Application should create an event or message to trigger a receive of a message to be treated later
   */
+CS_Status_t CS_ComMdm_subscribe_event(CS_comMdm_callback_t commdm_urc_cb)
+{
+  if (commdm_urc_cb == NULL)
+  {
+    /* unregister callback */
+    urc_commdm_event_callback = NULL;
+  }
+  else
+  {
+    /* register callback */
+    urc_commdm_event_callback = commdm_urc_cb;
+  }
+
+  return (CS_OK);
+}
 
 /**
-  * @}
+  * @brief  sends a MDM command to the Modem.
+  * @param[in]  txBuf Pointer to the transmitted buffer descriptor
+  * @param[out]  errorCode Pointer to the error code returned for the send operation.
+  * @retval CS_Status_t
   */
+CS_Status_t CS_ComMdm_send(CS_Tx_Buffer_t *txBuf, int32_t *errorCode)
+{
+  CS_Status_t retval = CS_ERROR;
+  PRINT_API("CS_ComMdm_send")
+
+  /* check buffer are not NULL and size is not 0 */
+  if (txBuf != NULL)
+  {
+    if ((txBuf->p_buffer != NULL)
+        && (txBuf->buffer_size != 0U))
+    {
+      csint_ComMdm_t com_mdm_data;
+
+      com_mdm_data.transaction_type = CS_COMMDM_SEND;
+      (void) memcpy((void *)&com_mdm_data.txBuffer, (void *)txBuf, sizeof(CS_Tx_Buffer_t));
+      (void) memset((void *)&com_mdm_data.rxBuffer, 0, sizeof(CS_Rx_Buffer_t));
+      com_mdm_data.errorCode = 0;
+
+      if (DATAPACK_writeStruct(getCmdBufPtr(),
+                               (uint16_t) CSMT_COM_MDM,
+                               (uint16_t) sizeof(csint_ComMdm_t),
+                               (void *)&com_mdm_data) == DATAPACK_OK)
+      {
+        at_status_t err;
+        err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_COM_MDM_TRANSACTION, getCmdBufPtr(), getRspBufPtr());
+        if (err == ATSTATUS_OK)
+        {
+          retval = CS_OK;
+          if (DATAPACK_readStruct(getRspBufPtr(),
+                                  (uint16_t) CSMT_COM_MDM,
+                                  (uint16_t) sizeof(csint_ComMdm_t),
+                                  &com_mdm_data) == DATAPACK_OK)
+          {
+            /* PRINT_INFO("returned value: error code=%d", com_mdm_data.errorCode) */
+
+            /* recopy  error code */
+            *errorCode = com_mdm_data.errorCode;
+            retval = CS_OK;
+          }
+        }
+      }
+    }
+  }
+
+  if (retval == CS_ERROR)
+  {
+    PRINT_ERR("<Cellular_Service> error during COM-MDM send")
+  }
+  return (retval);
+}
 
 /**
-  * @}
+  * @brief  initiate a full transaction (send + answer receive) for a MDM command to the Modem.
+  * @param[in]  txBuf Pointer to the transmitted buffer descriptor
+  * @param[in]  rxBuf Pointer to the received buffer descriptor
+  * @param[out]  errorCode Pointer to the error code returned for the transaction operation.
+  * @retval CS_Status_t
   */
+CS_Status_t CS_ComMdm_transaction(CS_Tx_Buffer_t *txBuf, CS_Rx_Buffer_t *rxBuf, int32_t *errorCode)
+{
+  CS_Status_t retval = CS_ERROR;
+  PRINT_API("CS_ComMdm_transaction")
 
+  /* check buffer are not NULL and size is not 0 */
+  if ((txBuf != NULL) && (rxBuf != NULL))
+  {
+    if ((txBuf->p_buffer != NULL)
+        && (txBuf->buffer_size != 0U)
+        && (rxBuf->p_buffer != NULL)
+        && (rxBuf->max_buffer_size != 0U))
+    {
+      csint_ComMdm_t com_mdm_data;
 
+      com_mdm_data.transaction_type = CS_COMMDM_TRANSACTION;
+      (void) memcpy((void *)&com_mdm_data.txBuffer, (void *)txBuf, sizeof(CS_Tx_Buffer_t));
+      (void) memcpy((void *)&com_mdm_data.rxBuffer, (void *)rxBuf, sizeof(CS_Rx_Buffer_t));
+      com_mdm_data.errorCode = 0;
+
+      if (DATAPACK_writeStruct(getCmdBufPtr(),
+                               (uint16_t) CSMT_COM_MDM,
+                               (uint16_t) sizeof(csint_ComMdm_t),
+                               (void *)&com_mdm_data) == DATAPACK_OK)
+      {
+        at_status_t err;
+        err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_COM_MDM_TRANSACTION, getCmdBufPtr(), getRspBufPtr());
+        if (err == ATSTATUS_OK)
+        {
+          retval = CS_OK;
+          if (DATAPACK_readStruct(getRspBufPtr(),
+                                  (uint16_t) CSMT_COM_MDM,
+                                  (uint16_t) sizeof(csint_ComMdm_t),
+                                  &com_mdm_data) == DATAPACK_OK)
+          {
+            /*
+            PRINT_INFO("returned value: TX ptr=%p size=%d", com_mdm_data.txBuffer.p_buffer,
+                                                            com_mdm_data.txBuffer.buffer_size)
+            PRINT_INFO("returned value: RX ptr=%p size=%d", com_mdm_data.rxBuffer.p_buffer,
+                                                            com_mdm_data.rxBuffer.buffer_size)
+            PRINT_INFO("returned value: RX = %s", com_mdm_data.rxBuffer.p_buffer)
+            PRINT_INFO("returned value: error code=%d", com_mdm_data.errorCode)
+            */
+
+            /* recopy size of received buffer + error code */
+            rxBuf->buffer_size = com_mdm_data.rxBuffer.buffer_size;
+            *errorCode = com_mdm_data.errorCode;
+            retval = CS_OK;
+          }
+        }
+      }
+    }
+  }
+
+  if (retval == CS_ERROR)
+  {
+    PRINT_ERR("<Cellular_Service> error during COM-MDM transaction")
+  }
+  return (retval);
+}
+
+/**
+  * @brief  read message from modem to the rsp buffer provided by the application.
+  * @param[in]  rxBuf Pointer to the received buffer descriptor
+  * @param[out]  errorCode Pointer to the error code returned for the receive operation.
+  * @retval CS_Status_t
+  */
+CS_Status_t CS_ComMdm_receive(CS_Rx_Buffer_t *rxBuf, int32_t *errorCode)
+{
+  CS_Status_t retval = CS_ERROR;
+  PRINT_API("CS_ComMdm_receive")
+
+  /* check buffer are not NULL and size is not 0 */
+  if (rxBuf != NULL)
+  {
+    if ((rxBuf->p_buffer != NULL)
+        && (rxBuf->max_buffer_size != 0U))
+    {
+      csint_ComMdm_t com_mdm_data;
+
+      com_mdm_data.transaction_type = CS_COMMDM_RECEIVE;
+      (void) memset((void *)&com_mdm_data.txBuffer, 0, sizeof(CS_Tx_Buffer_t));
+      (void) memcpy((void *)&com_mdm_data.rxBuffer, (void *)rxBuf, sizeof(CS_Rx_Buffer_t));
+      com_mdm_data.errorCode = 0;
+
+      if (DATAPACK_writeStruct(getCmdBufPtr(),
+                               (uint16_t) CSMT_COM_MDM,
+                               (uint16_t) sizeof(csint_ComMdm_t),
+                               (void *)&com_mdm_data) == DATAPACK_OK)
+      {
+        at_status_t err;
+        err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_COM_MDM_TRANSACTION, getCmdBufPtr(), getRspBufPtr());
+        if (err == ATSTATUS_OK)
+        {
+          retval = CS_OK;
+          if (DATAPACK_readStruct(getRspBufPtr(),
+                                  (uint16_t) CSMT_COM_MDM,
+                                  (uint16_t) sizeof(csint_ComMdm_t),
+                                  &com_mdm_data) == DATAPACK_OK)
+          {
+            /*
+            PRINT_INFO("returned value: TX ptr=%p size=%d", com_mdm_data.txBuffer.p_buffer,
+                                                            com_mdm_data.txBuffer.buffer_size)
+            PRINT_INFO("returned value: RX ptr=%p size=%d", com_mdm_data.rxBuffer.p_buffer,
+                                                            com_mdm_data.rxBuffer.buffer_size)
+            PRINT_INFO("returned value: RX = %s", com_mdm_data.rxBuffer.p_buffer)
+            PRINT_INFO("returned value: error code=%d", com_mdm_data.errorCode)
+            */
+
+            /* recopy size of received buffer + error code */
+            rxBuf->buffer_size = com_mdm_data.rxBuffer.buffer_size;
+            *errorCode = com_mdm_data.errorCode;
+            retval = CS_OK;
+          }
+        }
+      }
+    }
+  }
+
+  if (retval == CS_ERROR)
+  {
+    PRINT_ERR("<Cellular_Service> error during COM-MDM receive")
+  }
+  return (retval);
+}
+#endif /* defined(USE_COM_MDM) */

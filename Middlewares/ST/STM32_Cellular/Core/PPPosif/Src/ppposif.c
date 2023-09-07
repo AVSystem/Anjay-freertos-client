@@ -78,14 +78,17 @@ static void ppposif_err_none_mngt(ppp_pcb *pcb)
   ns = dns_getserver(0U);
   if (ns->addr == 0U)
   {
-    if ((crc_get_ip_addr(PLF_CELLULAR_DNS_SERVER_IP_ADDR, ip_addr, NULL) == 0U)
-        && (ip_addr[0] != 0U) && (ip_addr[1] != 0U) && (ip_addr[2] != 0U) && (ip_addr[3] != 0U))
+    if (crc_get_ip_addr(PLF_CELLULAR_DNS_SERVER_IP_ADDR, ip_addr, NULL) == 0U)
     {
-      IP_ADDR4(&dns_addr, ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
-      dns_setserver(0, &dns_addr);
+      if (((ip_addr[0] == 0U) && (ip_addr[1] == 0U) && (ip_addr[2] == 0U) && (ip_addr[3] == 0U))
+          == false)
+      {
+        IP_ADDR4(&dns_addr, ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
+        dns_setserver(0, &dns_addr);
 #if (USE_TRACE_PPPOSIF == 1) /* To avoid a warning because : */
-      ns = dns_getserver(0); /* update of value ns only used when trace activated */
+        ns = dns_getserver(0); /* update of value ns only used when trace activated */
 #endif /* USE_TRACE_PPPOSIF == 1 */
+      }
     }
   }
 #if (USE_TRACE_PPPOSIF == 1)
@@ -95,14 +98,17 @@ static void ppposif_err_none_mngt(ppp_pcb *pcb)
   if (ns->addr == 0U)
   {
 #if defined PLF_CELLULAR_DNS_SERVER_IP_ADDR_2
-    if ((crc_get_ip_addr(PLF_CELLULAR_DNS_SERVER_IP_ADDR_2, ip_addr, NULL) == 0U)
-        && (ip_addr[0] != 0U) && (ip_addr[1] != 0U) && (ip_addr[2] != 0U) && (ip_addr[3] != 0U))
+    if (crc_get_ip_addr(PLF_CELLULAR_DNS_SERVER_IP_ADDR_2, ip_addr, NULL) == 0U)
     {
-      IP_ADDR4(&dns_addr, ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
-      dns_setserver(1, &dns_addr);
+      if (((ip_addr[0] == 0U) && (ip_addr[1] == 0U) && (ip_addr[2] == 0U) && (ip_addr[3] == 0U))
+          == false)
+      {
+        IP_ADDR4(&dns_addr, ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
+        dns_setserver(1, &dns_addr);
 #if (USE_TRACE_PPPOSIF == 1) /* To avoid a warning because : */
-      ns = dns_getserver(1); /* update of value ns only used when trace activated */
+        ns = dns_getserver(1); /* update of value ns only used when trace activated */
 #endif /* USE_TRACE_PPPOSIF == 1 */
+      }
     }
 #else  /* !defined PLF_CELLULAR_DNS_SERVER_IP_ADDR_2 */
     __NOP(); /* No defined value to set */
@@ -128,7 +134,7 @@ static void ppposif_err_none_mngt(ppp_pcb *pcb)
   * @param  ctx        user context
   * @retval ppposif_status_cb    return status
   */
-void ppposif_status_cb(ppp_pcb *pcb, int32_t err_code, void *ctx)
+void ppposif_status_cb(ppp_pcb *pcb, INT_t err_code, void *ctx)
 {
   UNUSED(ctx);
   switch (err_code)
@@ -200,7 +206,7 @@ void ppposif_status_cb(ppp_pcb *pcb, int32_t err_code, void *ctx)
     }
     default:
     {
-      PRINT_PPPOSIF("status_cb: Unknown error code %ld\n\r", err_code)
+      PRINT_PPPOSIF("status_cb: Unknown error code %d\n\r", err_code)
       break;
     }
   }

@@ -111,6 +111,11 @@
 			<locationURI>PARENT-4-PROJECT_LOC/Middlewares/Third_Party/mbedtls/library/bignum.c</locationURI>
 		</link>
 		<link>
+			<name>Middlewares/Third_Party/mbedtls/bignum_core.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/Middlewares/Third_Party/mbedtls/library/bignum_core.c</locationURI>
+		</link>
+		<link>
 			<name>Middlewares/Third_Party/mbedtls/camellia.c</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/Middlewares/Third_Party/mbedtls/library/camellia.c</locationURI>
@@ -124,6 +129,11 @@
 			<name>Middlewares/Third_Party/mbedtls/cipher_wrap.c</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/Middlewares/Third_Party/mbedtls/library/cipher_wrap.c</locationURI>
+		</link>
+		<link>
+			<name>Middlewares/Third_Party/mbedtls/constant_time.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/Middlewares/Third_Party/mbedtls/library/constant_time.c</locationURI>
 		</link>
 		<link>
 			<name>Middlewares/Third_Party/mbedtls/ecdsa.c</name>

@@ -5,7 +5,7 @@
   * @brief   This file defines utilities functions for Cellular Service Task
   ******************************************************************************
   * @attention
-  *
+  *,
   * Copyright (c) 2020-2021 STMicroelectronics.
   * All rights reserved.
   *
@@ -328,8 +328,11 @@ static void CST_modem_event_callback(CS_ModemEvent_t event)
   /* event is a bitmask, we can have more than one evt reported at the same time */
   if (((uint16_t)event & (uint16_t)CS_MDMEVENT_BOOT) != 0U)
   {
-    /* reboot modem has occurred: sends a message to automaton */
-    CST_send_message(CST_MESSAGE_CS_EVENT, CST_REBOOT_MODEM_EVENT);
+    if (cst_context.current_state != CST_MODEM_INIT_STATE)
+    {
+      /* reboot modem has occurred: sends a message to automaton */
+      CST_send_message(CST_MESSAGE_CS_EVENT, CST_REBOOT_MODEM_EVENT);
+    }
   }
   if (((uint16_t)event & (uint16_t)CS_MDMEVENT_POWER_DOWN) != 0U)
   {
@@ -420,7 +423,7 @@ void  CST_modem_sim_init(void)
   /* When updating this array, do not forget to update the value of MCCMNC_APN_MAX */
   static mccmnc_apn_t mccmnc_apn_a[MCCMNC_APN_MAX] =
   {
-    /* { MCC/MNC, APN, username, password } */
+    /* { MCC/MNC, APN, username, password } parameters */
     /* Only MNC length of 2 digit is considered. 3 digit MNC are not managed */
     /* MCC/MNC string must have a length of 5 characters */
     {"00101", "default", "", ""},
@@ -433,15 +436,23 @@ void  CST_modem_sim_init(void)
   /* When updating this array, do not forget to update the value of ICCIDHEAD_APN_MAX */
   static iccidhead_apn_t iccidhead_apn_a[ICCIDHEAD_APN_MAX] =
   {
-    /* { ICCID head, APN, username, password } */
+    /* { ICCID head, APN, username, password } parameters */
     {"3324", "lp.swir", "", ""},
     {"4447", "iot.truphone.com", "", ""},
   };
 
   /* Local variables */
   CS_Status_t cs_status;
-  cs_status = CELLULAR_OK;
+  bool loop;
+
+  cs_status = CS_OK;
   PRINT_CELLULAR_SERVICE("CST: CST_modem_sim_init\n\r")
+
+  /* Read data from data cache */
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_sim_info, sizeof(cst_sim_info));
+  /* Read data from data cache */
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params));
+
   PRINT_FORCE("Modem Boot OK, sim slot nb %d\n\r", cst_sim_info.active_slot)
 
 #if (USE_LOW_POWER == 1)  /* Power init must be done before starting the Modem RF */
@@ -451,7 +462,7 @@ void  CST_modem_sim_init(void)
   PRINT_CELLULAR_SERVICE("CST: --> CS_sim_select sim slot nb %d\n\r", cst_sim_info.active_slot)
   /* sim slot select */
   PRINT_CELLULAR_SERVICE("CST: osCS_sim_select()\n\r")
-  if (osCS_sim_select(cst_convert_sim_socket_type(cst_sim_info.active_slot)) != CELLULAR_OK)
+  if (osCS_sim_select(cst_convert_sim_socket_type(cst_sim_info.active_slot)) != CS_OK)
   {
     /* an error occurred during SIM selection : asked sim slot is not the one actually in use by the modem */
     /* --> force modem reboot */
@@ -469,7 +480,7 @@ Reboot modem for modem to use the newly selected sim slot\n\r")
     {
       /* Modem Target state : SIM ONLY */
       PRINT_CELLULAR_SERVICE("CST: osCDS_init_modem()\n\r")
-      cs_status = osCDS_init_modem(CS_CMI_SIM_ONLY, CELLULAR_FALSE, PLF_CELLULAR_SIM_PINCODE);
+      cs_status = osCDS_init_modem(CS_CMI_SIM_ONLY, CS_FALSE, PLF_CELLULAR_SIM_PINCODE);
     }
     else if (cst_cellular_params.target_state == DC_TARGET_STATE_FULL)
     {
@@ -494,7 +505,7 @@ Reboot modem for modem to use the newly selected sim slot\n\r")
       /* first check SIM presence */
       CS_DeviceInfo_t cst_imsi_info;
       PRINT_CELLULAR_SERVICE("CST: osCDS_init_modem()\n\r")
-      cs_status = osCDS_init_modem(CS_CMI_SIM_ONLY, CELLULAR_FALSE, PLF_CELLULAR_SIM_PINCODE);
+      cs_status = osCDS_init_modem(CS_CMI_SIM_ONLY, CS_FALSE, PLF_CELLULAR_SIM_PINCODE);
       if ((cst_cellular_params.sim_slot[cst_context.sim_slot_index].apnSendToModem !=
            (cellular_apn_send_to_modem_t)CA_APN_SEND_TO_MODEM) &&
           (cst_cellular_params.sim_slot[cst_context.sim_slot_index].apnSendToModem !=
@@ -506,7 +517,7 @@ Reboot modem for modem to use the newly selected sim slot\n\r")
         /* write new information to datacache */
         (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params));
       }
-      if (cs_status == CELLULAR_OK)
+      if (cs_status == CS_OK)
       {
         /* if SIM Present then read IMSI */
         (void)memset((void *) & (cst_imsi_info.u), 0, sizeof(cst_imsi_info.u));
@@ -685,7 +696,7 @@ call CST_modem_define_pdn with APN not to be send to modem\n\r")
                                        --> no call to CST_modem_define_pdn, modem choose APN policy\n\r")
         }
         PRINT_CELLULAR_SERVICE("CST: osCDS_init_modem()\n\r")
-        cs_status = osCDS_init_modem(CS_CMI_FULL, CELLULAR_FALSE, PLF_CELLULAR_SIM_PINCODE);
+        cs_status = osCDS_init_modem(CS_CMI_FULL, CS_FALSE, PLF_CELLULAR_SIM_PINCODE);
       }
     }
     else
@@ -693,7 +704,7 @@ call CST_modem_define_pdn with APN not to be send to modem\n\r")
       __NOP(); /* Nothing to do */
     }
 
-    if (cs_status == CELLULAR_SIM_INCORRECT_PASSWORD)
+    if (cs_status == CS_SIM_INCORRECT_PASSWORD)
     {
       PRINT_FORCE("==================================\n\r")
       PRINT_FORCE(" WARNING: WRONG PIN CODE !!!\n\r")
@@ -706,7 +717,7 @@ call CST_modem_define_pdn with APN not to be send to modem\n\r")
         __NOP(); /* Nothing to do */
       }
     }
-    else if (cs_status == CELLULAR_SIM_PIN_OR_PUK_LOCKED)
+    else if (cs_status == CS_SIM_PIN_OR_PUK_LOCKED)
     {
       PRINT_FORCE("==================================\n\r")
       PRINT_FORCE(" WARNING: PIN OK PUK LOCKED !!!  \n\r")
@@ -723,25 +734,38 @@ call CST_modem_define_pdn with APN not to be send to modem\n\r")
       __NOP(); /* Nothing to do */
     }
 
-    if ((cs_status == CELLULAR_SIM_NOT_INSERTED) || (cs_status == CELLULAR_ERROR) || (cs_status == CELLULAR_SIM_ERROR))
+    if ((cs_status == CS_SIM_NOT_INSERTED) || (cs_status == CS_ERROR) || (cs_status == CS_SIM_ERROR))
     {
       /* SIM Error: FAIL */
-      PRINT_CELLULAR_SERVICE("CST: --> Can't find sim on current slot. Increment sim slot.\n\r")
+      PRINT_CELLULAR_SERVICE("CST: --> Can't find sim on current slot.\n\r")
       /* No sim found/responding on current sim slot. Increment sim slot to use, to try the next sim slot */
-      /* Read data from data cache */
-      (void)dc_com_read(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_sim_info, sizeof(cst_sim_info));
       /* Update data for Sim error */
       cst_sim_info.sim_status[cst_context.sim_slot_index] = CA_SIM_ERROR;
       /* Set data as valid */
       cst_sim_info.rt_state   = DC_SERVICE_ON;
-      /* In CST context, increment the data slot to use */
-      cst_context.sim_slot_index++;
 
-      if (cst_context.sim_slot_index  >= cst_cellular_params.sim_slot_nb)
+      loop = true;
+      /* if we have reach the last sim slot index */
+      if ((cst_context.sim_slot_index + 1U)  >= cst_cellular_params.sim_slot_nb)
       {
-        /* Last sim slot reach, retry from first slot */
-        cst_context.sim_slot_index = 0U;
-        PRINT_CELLULAR_SERVICE("CST: --> No more sim slot, no SIM found. Retry...\n\r")
+        /* if target state is not sim only, restart to the first slot and loop */
+        if (cst_cellular_params.target_state != DC_TARGET_STATE_SIM_ONLY)
+        {
+          /* Last sim slot reach, retry from first slot */
+          cst_context.sim_slot_index = 0U;
+          PRINT_CELLULAR_SERVICE("CST: --> No more sim slot, no SIM found. Retry...\n\r")
+        }
+        else
+        {
+          /* if target state is sim only, stop here, do not loop */
+          loop = false;
+        }
+      }
+      else
+      {
+        PRINT_CELLULAR_SERVICE("CST: --> Increment sim slot.\n\r")
+        /* In CST context, increment the data slot to use */
+        cst_context.sim_slot_index++;
       }
 
       /* store sim slot type in Data Cache */
@@ -751,13 +775,28 @@ call CST_modem_define_pdn with APN not to be send to modem\n\r")
       /* write data to Data Cache */
       (void)dc_com_write(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_sim_info, sizeof(cst_sim_info));
 
-      /* Reboot modem to retry with new set sim slot */
-      PRINT_CELLULAR_SERVICE("CST: --> Reboot modem.\n\r")
-      CST_config_fail(((uint8_t *)"CST_modem_sim_init"),
-                      CST_MODEM_SIM_FAIL,
-                      &cst_context.sim_reset_count,
-                      CST_SIM_RETRY_MAX);
+      if ((cst_cellular_params.target_state != DC_TARGET_STATE_SIM_ONLY) || (loop == true))
+      {
+        /* Reboot modem to retry with new set sim slot */
+        PRINT_CELLULAR_SERVICE("CST: --> Reboot modem.\n\r")
+        CST_config_fail(((uint8_t *)"CST_modem_sim_init"),
+                        CST_MODEM_SIM_FAIL,
+                        &cst_context.sim_reset_count,
+                        CST_SIM_RETRY_MAX);
+      }
+      if ((cst_cellular_params.target_state == DC_TARGET_STATE_SIM_ONLY) && (loop == false))
+      {
+        /* write data to Data Cache */
+        (void)dc_com_write(&dc_com_db, DC_CELLULAR_SIM_INFO, (void *)&cst_sim_info, sizeof(cst_sim_info));
+        /* Data Cache update with new modem state */
+        (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(dc_cellular_info_t));
+        cst_cellular_info.rt_state    = DC_SERVICE_ON;
+        cst_cellular_info.modem_state = CA_MODEM_STATE_SIM_CONNECTED;
+        (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(dc_cellular_info_t));
+        PRINT_CELLULAR_SERVICE("CST: modem state : CA_MODEM_STATE_SIM_CONNECTED\n\r")
 
+        CST_set_state(CST_MODEM_SIM_ONLY_STATE);
+      }
     }
     else
     {
@@ -821,6 +860,9 @@ static void CST_fill_nfmc_tempo(uint32_t imsi_high, uint32_t imsi_low)
 
   /* get existing data from Data Cache */
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_NFMC_INFO, (void *)&nfmc_info, sizeof(nfmc_info));
+  /* Read data from data cache */
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params));
+
 
   if (cst_cellular_params.nfmc_active != 0U)
   {
@@ -875,27 +917,25 @@ void  CST_data_cache_cellular_info_set(dc_service_rt_state_t dc_service_state, d
   /* update of DC_CELLULAR_INFO */
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
 
-  if (nifman_info.rt_state != dc_service_state)
-  {
-    nifman_info.rt_state   =  dc_service_state;
-    cellular_info.rt_state   =  dc_service_state;
+  nifman_info.rt_state   =  dc_service_state;
+  cellular_info.rt_state   =  dc_service_state;
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
-    nifman_info.network    =  DC_CELLULAR_SOCKETS_LWIP;
+  nifman_info.network    =  DC_CELLULAR_SOCKETS_LWIP;
 #else
-    nifman_info.network    =  DC_CELLULAR_SOCKET_MODEM;
+  nifman_info.network    =  DC_CELLULAR_SOCKET_MODEM;
 #endif /*  (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)*/
-    if (ip_addr != NULL)
-    {
-      (void)memcpy(&nifman_info.ip_addr, ip_addr, sizeof(dc_network_addr_t));
-      (void)memcpy(&cellular_info.ip_addr, ip_addr, sizeof(dc_network_addr_t));
-    }
-    else
-    {
-      nifman_info.ip_addr.addr = 0U;
-    }
-    (void)dc_com_write(&dc_com_db, DC_CELLULAR_NIFMAN_INFO, (void *)&nifman_info, sizeof(nifman_info));
-    (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
+  if (ip_addr != NULL)
+  {
+    (void)memcpy(&nifman_info.ip_addr, ip_addr, sizeof(dc_network_addr_t));
+    (void)memcpy(&cellular_info.ip_addr, ip_addr, sizeof(dc_network_addr_t));
   }
+  else
+  {
+    nifman_info.ip_addr.addr = 0U;
+    cellular_info.ip_addr.addr = 0U;
+  }
+  (void)dc_com_write(&dc_com_db, DC_CELLULAR_NIFMAN_INFO, (void *)&nifman_info, sizeof(nifman_info));
+  (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(cellular_info));
 
   /* DC_CELLULAR_DATA_INFO is used for call back matter on only some fields */
   /* but DC_CELLULAR_INFO has to be used to read data. So update of the two structures */
@@ -903,22 +943,19 @@ void  CST_data_cache_cellular_info_set(dc_service_rt_state_t dc_service_state, d
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_DATA_INFO, (void *)&cst_cellular_data_info,
                     sizeof(cst_cellular_data_info));
 
-  if (cst_cellular_data_info.rt_state != dc_service_state)
-  {
-    cst_cellular_data_info.rt_state   =  dc_service_state;
+  cst_cellular_data_info.rt_state   =  dc_service_state;
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
-    cst_cellular_data_info.network    =  DC_NETWORK_SOCKETS_LWIP;
+  cst_cellular_data_info.network    =  DC_NETWORK_SOCKETS_LWIP;
 #else
-    cst_cellular_data_info.network    =  DC_NETWORK_SOCKET_MODEM;
+  cst_cellular_data_info.network    =  DC_NETWORK_SOCKET_MODEM;
 #endif /*  (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)*/
-    if (ip_addr != NULL)
-    {
-      (void)memcpy(&cst_cellular_data_info.ip_addr, ip_addr, sizeof(dc_network_addr_t));
-    }
-
-    (void)dc_com_write(&dc_com_db, DC_CELLULAR_DATA_INFO, (void *)&cst_cellular_data_info,
-                       sizeof(cst_cellular_data_info));
+  if (ip_addr != NULL)
+  {
+    (void)memcpy(&cst_cellular_data_info.ip_addr, ip_addr, sizeof(dc_network_addr_t));
   }
+
+  (void)dc_com_write(&dc_com_db, DC_CELLULAR_DATA_INFO, (void *)&cst_cellular_data_info,
+                     sizeof(cst_cellular_data_info));
 }
 
 /**
@@ -947,7 +984,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
   /* gets IMEI */
   cst_device_info.field_requested = CS_DIF_IMEI_PRESENT;
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_device_info()\n\r")
-  if (osCDS_get_device_info(&cst_device_info) == CELLULAR_OK)
+  if (osCDS_get_device_info(&cst_device_info) == CS_OK)
   {
     (void)memcpy(cst_cellular_info.imei, cst_device_info.u.imei, CA_IMEI_SIZE_MAX - 1U);
     cst_cellular_info.imei[CA_IMEI_SIZE_MAX - 1U] = 0U;     /* to avoid a non null terminated string */
@@ -963,7 +1000,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
   /* gets Manufacturer Name  of modem*/
   cst_device_info.field_requested = CS_DIF_MANUF_NAME_PRESENT;
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_device_info()\n\r")
-  if (osCDS_get_device_info(&cst_device_info) == CELLULAR_OK)
+  if (osCDS_get_device_info(&cst_device_info) == CS_OK)
   {
     (void)memcpy((CRC_CHAR_t *)cst_cellular_info.manufacturer_name,
                  (CRC_CHAR_t *)cst_device_info.u.manufacturer_name,
@@ -981,7 +1018,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
   /* gets Model modem  */
   cst_device_info.field_requested = CS_DIF_MODEL_PRESENT;
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_device_info()\n\r")
-  if (osCDS_get_device_info(&cst_device_info) == CELLULAR_OK)
+  if (osCDS_get_device_info(&cst_device_info) == CS_OK)
   {
     (void)memcpy((CRC_CHAR_t *)cst_cellular_info.model,
                  (CRC_CHAR_t *)cst_device_info.u.model,
@@ -998,7 +1035,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
   /* gets revision of modem  */
   cst_device_info.field_requested = CS_DIF_REV_PRESENT;
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_device_info()\n\r")
-  if (osCDS_get_device_info(&cst_device_info) == CELLULAR_OK)
+  if (osCDS_get_device_info(&cst_device_info) == CS_OK)
   {
     (void)memcpy((CRC_CHAR_t *)cst_cellular_info.revision,
                  (CRC_CHAR_t *)cst_device_info.u.revision,
@@ -1015,7 +1052,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
   /* gets serial number of modem  */
   cst_device_info.field_requested = CS_DIF_SN_PRESENT;
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_device_info()\n\r")
-  if (osCDS_get_device_info(&cst_device_info) == CELLULAR_OK)
+  if (osCDS_get_device_info(&cst_device_info) == CS_OK)
   {
     (void)memcpy((CRC_CHAR_t *)cst_cellular_info.serial_number,
                  (CRC_CHAR_t *)cst_device_info.u.serial_number,
@@ -1032,7 +1069,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
   /* gets CCCID  */
   cst_device_info.field_requested = CS_DIF_ICCID_PRESENT;
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_device_info()\n\r")
-  if (osCDS_get_device_info(&cst_device_info) == CELLULAR_OK)
+  if (osCDS_get_device_info(&cst_device_info) == CS_OK)
   {
     (void)memcpy((CRC_CHAR_t *)cst_cellular_info.iccid,
                  (CRC_CHAR_t *)cst_device_info.u.iccid,
@@ -1050,7 +1087,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
   (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info));
 
   end_of_loop = true;
-  if (target_state == DC_TARGET_STATE_FULL)
+  if ((target_state == DC_TARGET_STATE_FULL) || (target_state == DC_TARGET_STATE_SIM_ONLY))
   {
     /* modem target state: FULL */
 
@@ -1067,7 +1104,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
       cst_device_info.field_requested = CS_DIF_IMSI_PRESENT;
       PRINT_CELLULAR_SERVICE("CST: osCDS_get_device_info()\n\r")
       cs_status = osCDS_get_device_info(&cst_device_info);
-      if (cs_status == CELLULAR_OK)
+      if (cs_status == CS_OK)
       {
         /* IMSI available => SIM is present on this slot */
 
@@ -1083,8 +1120,8 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
         cst_sim_info.sim_status[cst_context.sim_slot_index] = CA_SIM_READY;
         end_of_loop = false;
       }
-      else if ((cs_status == CELLULAR_SIM_BUSY)
-               || (cs_status == CELLULAR_SIM_ERROR))
+      else if ((cs_status == CS_SIM_BUSY)
+               || (cs_status == CS_SIM_ERROR))
       {
         /* SIM presently not available: poll it until available or polling time exceed */
         (void)rtosalDelay(100U);
@@ -1092,7 +1129,7 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
         if (sim_poll_count > CST_SIM_POLL_COUNT)
         {
           /* polling time exceed: SIM not available on this slot */
-          if (cs_status == CELLULAR_SIM_BUSY)
+          if (cs_status == CS_SIM_BUSY)
           {
             cst_sim_info.sim_status[cst_context.sim_slot_index] = CA_SIM_BUSY;
           }
@@ -1106,15 +1143,15 @@ static void CST_get_device_all_infos(dc_cs_target_state_t  target_state)
       else
       {
         /* error returned => SIM not available. Getting SIM error cause */
-        if (cs_status == CELLULAR_SIM_NOT_INSERTED)
+        if (cs_status == CS_SIM_NOT_INSERTED)
         {
           cst_sim_info.sim_status[cst_context.sim_slot_index] = CA_SIM_NOT_INSERTED;
         }
-        else if (cs_status == CELLULAR_SIM_PIN_OR_PUK_LOCKED)
+        else if (cs_status == CS_SIM_PIN_OR_PUK_LOCKED)
         {
           cst_sim_info.sim_status[cst_context.sim_slot_index] = CA_SIM_PIN_OR_PUK_LOCKED;
         }
-        else if (cs_status == CELLULAR_SIM_INCORRECT_PASSWORD)
+        else if (cs_status == CS_SIM_INCORRECT_PASSWORD)
         {
           cst_sim_info.sim_status[cst_context.sim_slot_index] = CA_SIM_INCORRECT_PIN;
         }
@@ -1140,6 +1177,9 @@ static void CST_modem_define_pdn(uint8_t *apn, uint8_t *username, uint8_t *passw
   CS_PDN_configuration_t pdn_conf;
   uint32_t size;
   CS_Status_t cs_status;
+
+  /* Read data from data cache */
+  (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params));
 
   /* common user name and password */
   (void)memset((void *)&pdn_conf, 0, sizeof(CS_PDN_configuration_t));
@@ -1167,7 +1207,7 @@ static void CST_modem_define_pdn(uint8_t *apn, uint8_t *username, uint8_t *passw
                                (const uint8_t *)apn,
                                &pdn_conf);
 
-  if (cs_status != CELLULAR_OK)
+  if (cs_status != CS_OK)
   {
     CST_config_fail(((uint8_t *)"CST_modem_define_pdn"),
                     CST_MODEM_PDP_DEFINE_FAIL,
@@ -1232,10 +1272,10 @@ CS_Status_t CST_set_signal_quality(void)
   CS_SignalQuality_t sig_quality;
   dc_signal_info_t signal_info;
 
-  cs_status = CELLULAR_OK;
+  cs_status = CS_OK;
   PRINT_CELLULAR_SERVICE("CST: CST_set_signal_quality\n\r")
   PRINT_CELLULAR_SERVICE("CST: osCS_get_signal_quality()\n\r")
-  if (osCS_get_signal_quality(&sig_quality) == CELLULAR_OK)
+  if (osCS_get_signal_quality(&sig_quality) == CS_OK)
   {
     /* signal quality service available */
     cst_context.csq_count_fail = 0U;
@@ -1250,14 +1290,14 @@ CS_Status_t CST_set_signal_quality(void)
       if (sig_quality.rssi == CST_BAD_SIG_RSSI)
       {
         /* Wrong signal quality : not attached to network */
-        cs_status = CELLULAR_ERROR;
+        cs_status = CS_ERROR;
         signal_info.cs_signal_level    = DC_NO_ATTACHED;
         signal_info.cs_signal_level_db = (int32_t)DC_NO_ATTACHED;
       }
       else
       {
         /* signal quality OK  */
-        cs_status = CELLULAR_OK;
+        cs_status = CS_OK;
         signal_info.cs_signal_level     = sig_quality.rssi;                         /* range 0..99 */
         signal_info.cs_signal_level_db  = (-113 + (2 * (int32_t)sig_quality.rssi)); /* dBm value   */
       }
@@ -1270,7 +1310,7 @@ CS_Status_t CST_set_signal_quality(void)
   else
   {
     /* signal quality service not available */
-    cs_status = CELLULAR_ERROR;
+    cs_status = CS_ERROR;
     cst_context.csq_count_fail++;
     PRINT_CELLULAR_SERVICE("CST: --> Modem signal quality error\n\r")
     if (cst_context.csq_count_fail >= CST_COUNT_FAIL_MAX)
@@ -1328,6 +1368,14 @@ cst_autom_event_t CST_get_autom_event(cst_message_t event)
   {
     /* Cellular Event */
     autom_event = (cst_autom_event_t)GET_AUTOMATON_MSG_ID(event);
+    if (autom_event == last_cs_autom_event)
+    {
+
+      (void)rtosalMutexAcquire(CellularQueueMutexHandle, RTOSAL_WAIT_FOREVER);
+      last_cs_autom_event_relevant = false;
+      (void)rtosalMutexRelease(CellularQueueMutexHandle);
+    }
+
   }
   else if (GET_AUTOMATON_MSG_TYPE(event) == CST_MESSAGE_CMD)
   {
@@ -1353,7 +1401,11 @@ cst_autom_event_t CST_get_autom_event(cst_message_t event)
       (void)dc_com_read(&dc_com_db, DC_CELLULAR_TARGET_STATE_CMD, (void *)&cst_target_state, sizeof(cst_target_state));
       if ((cst_target_state.rt_state == DC_SERVICE_ON) && (cst_target_state.callback == true))
       {
+        /* Read data from data cache */
+        (void)dc_com_read(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params));
         cst_cellular_params.target_state = cst_target_state.target_state;
+        /* Write data to data cache */
+        (void)dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, (void *)&cst_cellular_params, sizeof(cst_cellular_params));
         autom_event = CST_TARGET_STATE_CMD_EVENT;
       }
     }
@@ -1379,6 +1431,16 @@ cst_autom_event_t CST_get_autom_event(cst_message_t event)
                           &cst_context.ppp_fail_count,
                           CST_PPP_FAIL_MAX);
         }
+        /* rt_state_ppp change has been manage, reset it. */
+        /* Now, new modification to DC_CELLULAR_INFO won't act as a rt_state_ppp modification when */
+        /* not needed */
+        cst_cellular_info.rt_state_ppp = DC_SERVICE_UNAVAIL;
+        (void)dc_com_write(&dc_com_db, DC_CELLULAR_INFO, (void *)&cst_cellular_info, sizeof(cst_cellular_info));
+
+      }
+      else
+      {
+        PRINT_CELLULAR_SERVICE("CST: rt_state_ppp = DC_SERVICE_UNAVAIL. Nothing to do\r\n")
       }
     }
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
@@ -1410,7 +1472,7 @@ cst_network_status_t  CST_get_network_status(void)
   PRINT_CELLULAR_SERVICE("CST: CST_get_network_status\n\r")
   PRINT_CELLULAR_SERVICE("CST: osCDS_get_net_status()\n\r")
   cs_status = osCDS_get_net_status(&reg_status);
-  if (cs_status == CELLULAR_OK)
+  if (cs_status == CS_OK)
   {
     /* service available */
     cst_context.current_EPS_NetworkRegState  = reg_status.EPS_NetworkRegState;
@@ -1490,18 +1552,74 @@ static void CST_fail_setting(void)
 void CST_set_modem_state(dc_com_db_t *db, ca_modem_state_t state, const uint8_t *chr)
 {
   dc_cellular_info_t cellular_info;
+  dc_cellular_data_info_t cellular_data_info;
+  dc_nifman_info_t cellular_nifman_info;
+  dc_sim_info_t cellular_sim_info;
+  dc_signal_info_t cellular_signal_info;
+#if (USE_LOW_POWER == 1)
+  dc_cellular_power_status_t cellular_power_status;
+#endif /* (USE_LOW_POWER == 1) */
 
   (void)dc_com_read(db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(dc_cellular_info_t));
+  (void)dc_com_read(db, DC_CELLULAR_DATA_INFO, (void *)&cellular_data_info, sizeof(dc_cellular_data_info_t));
+  (void)dc_com_read(db, DC_CELLULAR_NIFMAN_INFO, (void *)&cellular_nifman_info, sizeof(dc_nifman_info_t));
+  (void)dc_com_read(db, DC_CELLULAR_SIM_INFO, (void *)&cellular_sim_info, sizeof(dc_sim_info_t));
+  (void)dc_com_read(db, DC_CELLULAR_SIGNAL_INFO, (void *)&cellular_signal_info, sizeof(dc_signal_info_t));
+#if (USE_LOW_POWER == 1)
+  (void)dc_com_read(db, DC_CELLULAR_POWER_STATUS, (void *)&cellular_power_status, sizeof(dc_cellular_power_status_t));
+#endif /* (USE_LOW_POWER == 1) */
+
+  if ((state == CA_MODEM_STATE_SIM_CONNECTED) ||
+      (state == CA_MODEM_STATE_POWERED_ON) ||
+      (state == CA_MODEM_POWER_OFF))
+  {
+    /* Data reset done for SIM connected, modem on and modem off states */
+    cellular_info.mno_name[0] = 0U;
+    cellular_info.ip_addr.addr = 0U;
+    cellular_data_info.ip_addr.addr = 0U;
+    cellular_nifman_info.ip_addr.addr = 0U;
+    cellular_signal_info.cs_signal_level = (uint8_t)0U;
+    cellular_signal_info.cs_signal_level_db = (int32_t)0;
+    cellular_signal_info.access_techno = CA_ACT_GSM;
+#if (USE_LOW_POWER == 1)
+    cellular_power_status.power_state = DC_POWER_LOWPOWER_INACTIVE;
+    cellular_power_status.nwk_periodic_TAU = 0U;
+    cellular_power_status.nwk_active_time = 0U;
+#endif /* (USE_LOW_POWER == 1) */
+
+    if ((state == CA_MODEM_STATE_POWERED_ON) ||
+        (state == CA_MODEM_POWER_OFF))
+    {
+      /* Data reset done for modem on and modem off states */
+      cellular_info.iccid[0] = 0U;
+      cellular_sim_info.imsi[0] = 0U;
+
+      if (state == CA_MODEM_POWER_OFF)
+      {
+        /* Data reset done for only modem off state */
+        __NOP();
+      }
+    }
+  }
+
   if (cellular_info.modem_state != state)
   {
     cellular_info.modem_state = state;
-    (void)dc_com_write(db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(dc_cellular_info_t));
 #if (USE_TRACE_CELLULAR_SERVICE == 1U)
     PRINT_CELLULAR_SERVICE("CST: modem state : %s\n\r", chr)
 #else
     UNUSED(chr);
 #endif /* (USE_TRACE_CELLULAR_SERVICE == 1U) */
   }
+
+  (void)dc_com_write(db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(dc_cellular_info_t));
+  (void)dc_com_write(db, DC_CELLULAR_DATA_INFO, (void *)&cellular_data_info, sizeof(dc_cellular_data_info_t));
+  (void)dc_com_write(db, DC_CELLULAR_NIFMAN_INFO, (void *)&cellular_nifman_info, sizeof(dc_nifman_info_t));
+  (void)dc_com_write(db, DC_CELLULAR_SIM_INFO, (void *)&cellular_sim_info, sizeof(dc_sim_info_t));
+  (void)dc_com_write(db, DC_CELLULAR_SIGNAL_INFO, (void *)&cellular_signal_info, sizeof(dc_signal_info_t));
+#if (USE_LOW_POWER == 1)
+  (void)dc_com_write(db, DC_CELLULAR_POWER_STATUS, (void *)&cellular_power_status, sizeof(dc_cellular_power_status_t));
+#endif /* (USE_LOW_POWER == 1) */
 }
 
 /**
@@ -1518,7 +1636,7 @@ CS_Status_t CST_modem_power_off(void)
 #endif /* (USE_LOW_POWER == 1) */
 
   PRINT_CELLULAR_SERVICE("CST_modem_power_off\n\r")
-  cs_status = CELLULAR_OK;
+  cs_status = CS_OK;
 
   (void)dc_com_read(&dc_com_db, DC_CELLULAR_INFO, (void *)&cellular_info, sizeof(dc_cellular_info_t));
   if ((cellular_info.modem_state == CA_MODEM_NETWORK_REGISTERED) ||
@@ -1537,7 +1655,7 @@ CS_Status_t CST_modem_power_off(void)
       PRINT_CELLULAR_SERVICE("CST: osCS_PowerWakeup()\n\r")
       cs_status = osCS_PowerWakeup(HOST_WAKEUP);
     }
-    if (cs_status == CELLULAR_OK)
+    if (cs_status == CS_OK)
 #endif /* (USE_LOW_POWER == 1) */
     {
       PRINT_CELLULAR_SERVICE("CST: Detach from network\n\r")
@@ -1548,10 +1666,12 @@ CS_Status_t CST_modem_power_off(void)
 #if (USE_LOW_POWER == 1)
   CSP_StopTimeout();
 #endif /* (USE_LOW_POWER == 1) */
-  if (cs_status == CELLULAR_OK)
+  if (cs_status == CS_OK)
   {
     PRINT_CELLULAR_SERVICE("CST: Power off modem\n\r")
     PRINT_CELLULAR_SERVICE("CST: osCDS_power_off()\n\r")
+    /* Modem no more registered to network : set data transfer service off */
+    CST_data_cache_cellular_info_set(DC_SERVICE_OFF, NULL);
     cs_status = osCDS_power_off();
   }
 

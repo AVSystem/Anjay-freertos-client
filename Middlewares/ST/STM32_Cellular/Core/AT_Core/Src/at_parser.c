@@ -108,11 +108,24 @@ static bool write_data2buffer(uint8_t *p_ATcmdBuf, const AT_CHAR_t *p_str, uint1
 /** @defgroup AT_CORE_PARSER_Exported_Functions AT_CORE PARSER Exported Functions
   * @{
   */
+
+/**
+  * @brief  Initialize modem parser functions for the selected device.
+  * @note   The command will be sent to the current active channel.
+  * @param  device_type Device to initialize.
+  * @retval at_status_t
+  */
 at_status_t ATParser_initParsers(sysctrl_device_type_t device_type)
 {
   return (atcc_initParsers(device_type));
 }
 
+/**
+  * @brief  Initialize modem parsers parameters and call device custom initialization.
+  * @note   The command will be sent to the current active channel.
+  * @param  device_type Device to initialize.
+  * @retval none
+  */
 void ATParser_init(at_context_t *p_at_ctxt, IPC_CheckEndOfMsgCallbackTypeDef *p_checkEndOfMsgCallback)
 {
   /* reset request context */
@@ -127,10 +140,16 @@ void ATParser_init(at_context_t *p_at_ctxt, IPC_CheckEndOfMsgCallbackTypeDef *p_
   (void) memset((AT_CHAR_t *)p_at_ctxt->parser.endstr, 0, AT_CMD_MAX_END_STR_SIZE);
   (void) sprintf((CRC_CHAR_t *)p_at_ctxt->parser.endstr, "\r");
 
-  /* call custom init */
+  /* call custom initialization of the device */
   atcc_init(p_at_ctxt);
 }
 
+/**
+  * @brief  Process a new request: initialization phase.
+  * @note   The command will be sent to the current active channel.
+  * @param  device_type Device to initialize.
+  * @retval none
+  */
 void  ATParser_process_request(at_context_t *p_at_ctxt,
                                at_msg_t msg_id, at_buf_t *p_cmd_buf)
 {
@@ -160,7 +179,7 @@ static bool write_data2buffer(uint8_t *p_ATcmdBuf, const AT_CHAR_t *p_str, uint1
 
   if ((str_size > 0U) && (str_size < *p_remaining_size))
   {
-    (void) memcpy((void *) &p_ATcmdBuf[*p_cmd_total_length],
+    (void) memcpy((AT_CHAR_t *) &p_ATcmdBuf[*p_cmd_total_length],
                   (const AT_CHAR_t *)p_str,
                   str_size);
     *p_cmd_total_length += str_size;
@@ -176,6 +195,15 @@ static bool write_data2buffer(uint8_t *p_ATcmdBuf, const AT_CHAR_t *p_str, uint1
   return (retval);
 }
 
+/**
+  * @brief  Get next command (if any) to send.
+  * @param  p_at_ctxt Pointer to AT context structure.
+  * @param  p_ATcmdBuf Pointer to the command buffer to build.
+  * @param  ATcmdBuf_maxSize Maximum size allowed to build command buffer.
+  * @param  p_ATcmdSize Pointer to size of the command that was built (output value).
+  * @param  p_ATcmdTimeout Pointer to timeout value of the command that was built (output value).
+  * @retval returns at_action_send_t
+  */
 at_action_send_t  ATParser_get_ATcmd(at_context_t *p_at_ctxt,
                                      uint8_t *p_ATcmdBuf,
                                      uint16_t ATcmdBuf_maxSize,
@@ -237,6 +265,13 @@ at_action_send_t  ATParser_get_ATcmd(at_context_t *p_at_ctxt,
   return (action);
 }
 
+/**
+  * @brief  Parse modem response: identify the received command, extract elements from the response buffer and
+  *         determine next step.
+  * @param  p_at_ctxt Pointer to AT context structure.
+  * @param  p_message Pointer to IPC message received from the modem.
+  * @retval returns at_action_rsp_t
+  */
 at_action_rsp_t ATParser_parse_rsp(at_context_t *p_at_ctxt, IPC_RxMessage_t *p_message)
 {
   at_action_rsp_t cmd_retval, param_retval, final_retval, clean_retval;
@@ -313,6 +348,12 @@ at_action_rsp_t ATParser_parse_rsp(at_context_t *p_at_ctxt, IPC_RxMessage_t *p_m
   return (cmd_retval);
 }
 
+/**
+  * @brief  Get modem response buffer to send to upper layers.
+  * @param  p_at_ctxt Pointer to AT context structure.
+  * @param  p_rsp_buf Pointer to the buffer to forward.
+  * @retval returns at_status_t
+  */
 at_status_t ATParser_get_rsp(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf)
 {
   at_status_t retval;
@@ -325,6 +366,12 @@ at_status_t ATParser_get_rsp(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf)
   return (retval);
 }
 
+/**
+  * @brief  Get modem URC buffer to send to upper layers.
+  * @param  p_at_ctxt Pointer to AT context structure.
+  * @param  p_rsp_buf Pointer to the buffer to forward.
+  * @retval returns at_status_t
+  */
 at_status_t ATParser_get_urc(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf)
 {
   at_status_t retval;
@@ -333,6 +380,12 @@ at_status_t ATParser_get_urc(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf)
   return (retval);
 }
 
+/**
+  * @brief  Get error report buffer to send to upper layers.
+  * @param  p_at_ctxt Pointer to AT context structure.
+  * @param  p_rsp_buf Pointer to the buffer to forward.
+  * @retval returns at_status_t
+  */
 at_status_t ATParser_get_error(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf)
 {
   at_status_t retval;
@@ -341,6 +394,11 @@ at_status_t ATParser_get_error(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf)
   return (retval);
 }
 
+/**
+  * @brief  Abort current request .
+  * @param  p_at_ctxt Pointer to AT context structure.
+  * @retval None
+  */
 void ATParser_abort_request(at_context_t *p_at_ctxt)
 {
   reset_parser_context(&p_at_ctxt->parser);
@@ -469,6 +527,11 @@ static uint16_t build_command(at_context_t *p_at_ctxt, uint8_t *p_ATcmdBuf, uint
   return (cmd_total_length);
 }
 
+/**
+  * @brief  Reset the AT parser context (reset at SID level).
+  * @param  p_atp_ctxt Pointer to AT parser context structure.
+  * @retval None.
+  */
 static void reset_parser_context(atparser_context_t *p_atp_ctxt)
 {
   p_atp_ctxt->current_SID = SID_INVALID;
@@ -483,6 +546,11 @@ static void reset_parser_context(atparser_context_t *p_atp_ctxt)
   p_atp_ctxt->p_cmd_input = NULL;
 }
 
+/**
+  * @brief  Reset the current command context (reset at SID level).
+  * @param  p_atp_ctxt Pointer to AT parser context structure.
+  * @retval None.
+  */
 static void reset_current_command(atparser_context_t *p_atp_ctxt)
 {
   p_atp_ctxt->current_atcmd.id = CMD_AT_INVALID;
@@ -492,10 +560,19 @@ static void reset_current_command(atparser_context_t *p_atp_ctxt)
   p_atp_ctxt->current_atcmd.raw_cmd_size = 0U;
 }
 
+/**
+  * @brief  Displays a buffer in a readable way.
+  * @param  p_at_ctxt Pointer to AT context structure.
+  * @param  p_buf Pointer to the buffer to display.
+  * @param  buf_size Size of the buffer to display.
+  * @param  is_TX_buf Indicates if it is a TX buffer.
+  * @retval None.
+  */
 static void display_buffer(const at_context_t *p_at_ctxt, const uint8_t *p_buf, uint16_t buf_size, uint8_t is_TX_buf)
 {
   uint8_t print_in_hexa = 0U; /* set default value (if 1, print in hexa otherwise, print in ascii) */
-#if (USE_TRACE_ATPARSER == 0U)
+
+#if ((USE_TRACE_ATPARSER == 0U) || ((USE_TRACE_ATPARSER == 1U) && (USE_PRINTF == 0U)))
   UNUSED(p_buf); /* for MISRA-2012 */
 #endif /* USE_TRACE_ATPARSER */
 

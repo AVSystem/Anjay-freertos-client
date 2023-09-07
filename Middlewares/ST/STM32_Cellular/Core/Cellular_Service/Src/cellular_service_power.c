@@ -504,7 +504,7 @@ static void CSP_cmd(uint8_t *cmd_line_p)
         /* 'csp wakeup' command */
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
         status = CSP_DataWakeup(HOST_WAKEUP);
-        if (status == CELLULAR_OK)
+        if (status == CS_OK)
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
         {
           PRINT_FORCE("Data wakeup OK\n\r")
@@ -603,7 +603,7 @@ static void CSP_cmd(uint8_t *cmd_line_p)
       {
         /* 'csp idle' command */
         status = CSP_DataIdle();
-        if (status == CELLULAR_OK)
+        if (status == CS_OK)
         {
           /* DataIdle return OK */
           PRINT_FORCE("Data idle OK\n\r")
@@ -727,8 +727,10 @@ void CSP_SleepRequest(uint32_t timeout)
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
   /* stop data mode (no data can be transmit un low power mode) */
   PRINT_CELLULAR_SERVICE("CST: osCDS_suspend_data()\n\r")
+  osCCS_get_wait_cs_resource();
   cs_status = osCDS_suspend_data();
-  if (cs_status == CELLULAR_OK)
+  osCCS_get_release_cs_resource();
+  if (cs_status == CS_OK)
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
   {
     /* arm timeout to protect from modem sleep request no response */
@@ -823,7 +825,7 @@ CS_Status_t CSP_DataIdle(void)
 
   PRINT_CELLULAR_SERVICE("CST: CSP_DataIdle\n\r")
   CS_Status_t status;
-  status = CELLULAR_OK;
+  status = CS_OK;
   /* update target state. It is not the actual state but, the target to reach */
   PRINT_CELLULAR_SERVICE("CST: target power state CSP_LOW_POWER_ACTIVE\n\r")
   CSP_Context.target_power_state = CSP_LOW_POWER_ACTIVE;
@@ -860,14 +862,14 @@ CS_Status_t CSP_DataIdle(void)
       else
       {
         /* A low power activation or low power is already active. Raise an error. This case should not occur */
-        status  = CELLULAR_ERROR;
+        status  = CS_ERROR;
       }
     }
   }
   else
   {
     /* Data in data cache is not relevant, raise an error. This case should never occur */
-    status  = CELLULAR_ERROR;
+    status  = CS_ERROR;
   }
 
   return status;
@@ -882,7 +884,7 @@ CS_Status_t CSP_CSIdle(void)
 {
   PRINT_CELLULAR_SERVICE("CST: CSP_CSIdle\n\r")
   CS_Status_t status;
-  status = CELLULAR_OK;
+  status = CS_OK;
 
   if (CSP_Context.target_power_state == CSP_LOW_POWER_ACTIVE)
   {
@@ -1002,9 +1004,11 @@ CS_Status_t CSP_DataWakeup(CS_wakeup_origin_t wakeup_origin)
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
   /* resume data mode */
   PRINT_CELLULAR_SERVICE("CST: osCDS_resume_data()\n\r")
+  osCCS_get_wait_cs_resource();
   status = osCDS_resume_data();
+  osCCS_get_release_cs_resource();
 #else
-  status = CELLULAR_OK;
+  status = CS_OK;
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP) */
 
   if ((CSP_Context.power_state == CSP_LOW_POWER_ACTIVE) ||
@@ -1040,7 +1044,7 @@ void CSP_SetPowerConfig(void)
       if (csp_dc_power_config.psm_present == true)
       {
         /* Copy PSM values */
-        cs_power_config.psm_present              = CELLULAR_TRUE;
+        cs_power_config.psm_present              = CS_TRUE;
         cs_power_config.psm.req_periodic_RAU     = csp_dc_power_config.psm.req_periodic_RAU;
         cs_power_config.psm.req_GPRS_READY_timer = csp_dc_power_config.psm.req_GPRS_READY_timer;
         cs_power_config.psm.req_periodic_TAU     = csp_dc_power_config.psm.req_periodic_TAU;
@@ -1049,20 +1053,20 @@ void CSP_SetPowerConfig(void)
       else
       {
         /* If PSM values are not present, inform the modem */
-        cs_power_config.psm_present = CELLULAR_FALSE;
+        cs_power_config.psm_present = CS_FALSE;
       }
 
       if (csp_dc_power_config.edrx_present == true)
       {
         /* copy eDRX values */
-        cs_power_config.edrx_present      = CELLULAR_TRUE;
+        cs_power_config.edrx_present      = CS_TRUE;
         cs_power_config.edrx.act_type     = (uint8_t)csp_dc_power_config.edrx.act_type;
         cs_power_config.edrx.req_value    = csp_dc_power_config.edrx.req_value;
       }
       else
       {
         /* If eDRX values are not preesent, inform the modem */
-        cs_power_config.edrx_present = CELLULAR_FALSE;
+        cs_power_config.edrx_present = CS_FALSE;
       }
 
       switch (csp_dc_power_config.power_mode)
@@ -1235,7 +1239,7 @@ void CSP_InitPowerConfig(void)
   else
   {
     /* PSM or eDRX is present, initialize data for the modem */
-    cs_power_config.low_power_enable         = CELLULAR_TRUE;
+    cs_power_config.low_power_enable         = CS_TRUE;
     cs_power_config.psm.req_periodic_RAU     = csp_dc_power_config.psm.req_periodic_RAU;
     cs_power_config.psm.req_GPRS_READY_timer = csp_dc_power_config.psm.req_GPRS_READY_timer;
     cs_power_config.psm.req_periodic_TAU     = csp_dc_power_config.psm.req_periodic_TAU;
@@ -1245,7 +1249,7 @@ void CSP_InitPowerConfig(void)
     /* Send init power config data to the modem */
     PRINT_CELLULAR_SERVICE("CST: osCS_InitPowerConfig()\n\r")
     status = osCS_InitPowerConfig(&cs_power_config, CST_cellular_power_status_callback);
-    if (status == CELLULAR_OK)
+    if (status == CS_OK)
     {
       /* reset context data*/
       CSP_Context.power_state = CSP_LOW_POWER_INACTIVE;

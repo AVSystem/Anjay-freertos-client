@@ -7,7 +7,7 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2022 STMicroelectronics.
+  * Copyright (c) 2023 STMicroelectronics.
   * All rights reserved.
   *
   * This software is licensed under terms that can be found in the LICENSE file
@@ -71,6 +71,7 @@ void Error_Handler(void);
 #define MODEM_PWR_EN_GPIO_Port GPIOB
 #define USER_Button_Pin GPIO_PIN_13
 #define USER_Button_GPIO_Port GPIOC
+#define USER_Button_EXTI_IRQn EXTI13_IRQn
 #define MODEM_RING_Pin GPIO_PIN_6
 #define MODEM_RING_GPIO_Port GPIOE
 #define MODEM_RING_EXTI_IRQn EXTI6_IRQn

@@ -47,13 +47,6 @@
 #include "at_custom_modem_socket.h"
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
-#if defined(USE_MODEM_TYPE1SC)
-#if defined(HWREF_MURATA_TYPE1SC_EVK)
-#else
-#error Hardware reference not specified
-#endif /* HWREF_MURATA_TYPE1SC_EVK */
-#endif /* USE_MODEM_TYPE1SC */
-
 /** @addtogroup AT_CUSTOM AT_CUSTOM
   * @{
   */
@@ -185,6 +178,7 @@ static at_status_t at_SID_CS_DNS_REQ(atcustom_modem_context_t *p_mdm_ctxt, at_co
                                      atparser_context_t *p_atp_ctxt, uint32_t *p_ATcmdTimeout);
 #endif /*(USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
 static at_status_t at_SID_CS_INIT_POWER_CONFIG(atcustom_modem_context_t *p_mdm_ctxt, at_context_t *p_at_ctxt,
                                                atparser_context_t *p_atp_ctxt, uint32_t *p_ATcmdTimeout);
 static at_status_t at_SID_CS_SET_POWER_CONFIG(atcustom_modem_context_t *p_mdm_ctxt, at_context_t *p_at_ctxt,
@@ -197,6 +191,7 @@ static at_status_t at_SID_CS_SLEEP_CANCEL(atcustom_modem_context_t *p_mdm_ctxt, 
                                           atparser_context_t *p_atp_ctxt, uint32_t *p_ATcmdTimeout);
 static at_status_t at_SID_CS_WAKEUP(atcustom_modem_context_t *p_mdm_ctxt, at_context_t *p_at_ctxt,
                                     atparser_context_t *p_atp_ctxt, uint32_t *p_ATcmdTimeout);
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 /**
   * @}
   */
@@ -288,6 +283,7 @@ static at_status_t execute_SID_Func(atcustom_modem_context_t *p_mdm_ctxt, at_con
     {SID_CS_DNS_REQ, at_SID_CS_DNS_REQ},
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
 
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
     /**
       * LOW POWER SIDs
       */
@@ -297,6 +293,8 @@ static at_status_t execute_SID_Func(atcustom_modem_context_t *p_mdm_ctxt, at_con
     {SID_CS_SLEEP_COMPLETE, at_SID_CS_SLEEP_COMPLETE},
     {SID_CS_SLEEP_CANCEL, at_SID_CS_SLEEP_CANCEL},
     {SID_CS_WAKEUP, at_SID_CS_WAKEUP},
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
+
   };
 #define SIZE_SID_TYPE1SC_LUT ((uint16_t) (sizeof (SID_TYPE1SC_LUT) / sizeof (sid_LUT_t)))
 
@@ -422,11 +420,10 @@ static at_status_t at_SID_CS_POWER_ON(atcustom_modem_context_t *p_mdm_ctxt, at_c
         ATC_TYPE1SC_modem_reset(p_mdm_ctxt);
       }
 
-      /* NOTE:
-        *   ALTAIR modem always boots without HW flow control activated.
-        *   Force the HwFlowControl to none until we use AT&K command to set the requested value.
-        */
+#if (CONFIG_MODEM_FW_RK_02 == 1U)
+      /* Specific case for modem FW RK_02_XXX as it is always booting with HwFlowControl deactivated. */
       (void) SysCtrl_TYPE1SC_reinit_channel(p_at_ctxt->ipc_handle, SYSCTRL_HW_FLOW_CONTROL_NONE);
+#endif /* (CONFIG_MODEM_FW_RK_02 == 1U) */
 
       atcm_program_SKIP_CMD(p_atp_ctxt);
     }
@@ -556,7 +553,7 @@ static at_status_t at_SID_CS_POWER_ON(atcustom_modem_context_t *p_mdm_ctxt, at_c
         *  we send AT+CPSMS=0 during power on (modem and Host are synchro).
         *  OPTIM: if modem FW evolves to starts without PSM by default, this command can be removed.
         */
-      p_mdm_ctxt->SID_ctxt.set_power_config.psm_present = CELLULAR_TRUE;
+      p_mdm_ctxt->SID_ctxt.set_power_config.psm_present = CS_TRUE;
       p_mdm_ctxt->SID_ctxt.set_power_config.psm_mode = PSM_MODE_DISABLE;
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CPSMS, INTERMEDIATE_CMD);
     }
@@ -576,6 +573,8 @@ static at_status_t at_SID_CS_POWER_ON(atcustom_modem_context_t *p_mdm_ctxt, at_c
     }
     else if CHECK_STEP((common_start_sequence_step + 12U))
     {
+      /* reconfig UART with proper settings */
+      (void) SysCtrl_TYPE1SC_reinit_channel(p_at_ctxt->ipc_handle, SYSCTRL_HW_FLOW_CONTROL_NONE);
       /* add a tempo */
       atcm_program_TEMPO(p_atp_ctxt, 3000U, INTERMEDIATE_CMD);
     }
@@ -602,6 +601,7 @@ static at_status_t at_SID_CS_POWER_ON(atcustom_modem_context_t *p_mdm_ctxt, at_c
     }
     else if CHECK_STEP((common_start_sequence_step + 12U))
     {
+      /* reconfig UART with proper settings */
       (void) SysCtrl_TYPE1SC_reinit_channel(p_at_ctxt->ipc_handle, SYSCTRL_HW_FLOW_CONTROL_RTS_CTS);
       /* add a tempo */
       atcm_program_TEMPO(p_atp_ctxt, 3000U, INTERMEDIATE_CMD);
@@ -693,8 +693,8 @@ static at_status_t at_SID_CS_POWER_OFF(atcustom_modem_context_t *p_mdm_ctxt, at_
   if CHECK_STEP((0U))
   {
     /* it's upper layer responsibility to manage proper detach before switch off
-      * p_mdm_ctxt->CMD_ctxt.cfun_value = 0U;
-      * atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CFUN, FINAL_CMD);
+      * p_mdm_ctxt->CMD_ctxt.cfun_value = 0U
+      * atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CFUN, FINAL_CMD)
       */
     atcm_program_NO_MORE_CMD(p_atp_ctxt);
   }
@@ -861,7 +861,8 @@ static at_status_t at_SID_CS_GET_DEVICE_INFO(atcustom_modem_context_t *p_mdm_ctx
           break;
 
         case CS_DIF_PHONE_NBR_PRESENT:
-          atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_EXECUTION_CMD, (CMD_ID_t) CMD_AT_CNUM, FINAL_CMD);
+          /* decoding of AT+CNUM not implemented yet */
+          retval = ATSTATUS_ERROR;
           break;
 
         case CS_DIF_ICCID_PRESENT:
@@ -965,15 +966,21 @@ static at_status_t at_SID_CS_REGISTER_NET(atcustom_modem_context_t *p_mdm_ctxt, 
 
   if CHECK_STEP((0U))
   {
-    /* read registration status */
+    /* read registration status
+     * This request is get current status before deciding to update or not.
+     */
     atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_COPS, INTERMEDIATE_CMD);
   }
   else if CHECK_STEP((1U))
   {
-    /* check if actual registration status is the expected one or if AcT is explicitly specified */
+    /* check if actual registration status is the expected one
+     * or if requested mode is MANUAL
+     * or if AcT is explicitly specified
+     */
     CS_OperatorSelector_t *operatorSelect = &(p_mdm_ctxt->SID_ctxt.write_operator_infos);
     if ((p_mdm_ctxt->SID_ctxt.read_operator_infos.mode != operatorSelect->mode) ||
-        (operatorSelect->AcT_present == CELLULAR_TRUE))
+        (operatorSelect->mode == CS_NRM_MANUAL) ||
+        (operatorSelect->AcT_present == CS_TRUE))
     {
       /* write registration status */
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_COPS, INTERMEDIATE_CMD);
@@ -989,7 +996,15 @@ static at_status_t at_SID_CS_REGISTER_NET(atcustom_modem_context_t *p_mdm_ctxt, 
   else if CHECK_STEP((2U))
   {
     /* read registration status */
-    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEREG, FINAL_CMD);
+    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_CEREG, INTERMEDIATE_CMD);
+  }
+  else if CHECK_STEP((3U))
+  {
+    /* read registration status
+     * This request is used to get updated mode (in case a new mode has been requested in previous steps and
+     * so, report correct value applied to upper layers).
+     */
+    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_READ_CMD, (CMD_ID_t) CMD_AT_COPS, FINAL_CMD);
   }
   else
   {
@@ -1117,7 +1132,7 @@ static at_status_t at_SID_CS_UNSUSBCRIBE_NET_EVENT(atcustom_modem_context_t *p_m
   {
     CS_UrcEvent_t urcEvent = p_mdm_ctxt->SID_ctxt.urcEvent;
 
-    /* is an event linked to CREG, CGREG or CEREG ? */
+    /* is an event linked to CREG or CEREG ? */
     if ((urcEvent == CS_URCEVENT_EPS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_EPS_LOCATION_INFO) ||
         (urcEvent == CS_URCEVENT_CS_NETWORK_REG_STAT) || (urcEvent == CS_URCEVENT_CS_LOCATION_INFO))
     {
@@ -1168,10 +1183,10 @@ static at_status_t at_SID_CS_REGISTER_PDN_EVENT(atcustom_modem_context_t *p_mdm_
 
   if CHECK_STEP((0U))
   {
-    if (p_mdm_ctxt->persist.urc_subscript_pdn_event == CELLULAR_FALSE)
+    if (p_mdm_ctxt->persist.urc_subscript_pdn_event == CS_FALSE)
     {
       /* set event as subscribed */
-      p_mdm_ctxt->persist.urc_subscript_pdn_event = CELLULAR_TRUE;
+      p_mdm_ctxt->persist.urc_subscript_pdn_event = CS_TRUE;
 
       /* request PDN events */
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGEREP, FINAL_CMD);
@@ -1209,10 +1224,10 @@ static at_status_t at_SID_CS_DEREGISTER_PDN_EVENT(atcustom_modem_context_t *p_md
 
   if CHECK_STEP((0U))
   {
-    if (p_mdm_ctxt->persist.urc_subscript_pdn_event == CELLULAR_TRUE)
+    if (p_mdm_ctxt->persist.urc_subscript_pdn_event == CS_TRUE)
     {
       /* set event as unsuscribed */
-      p_mdm_ctxt->persist.urc_subscript_pdn_event = CELLULAR_FALSE;
+      p_mdm_ctxt->persist.urc_subscript_pdn_event = CS_FALSE;
 
       /* request PDN events */
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_CGEREP, FINAL_CMD);
@@ -1473,7 +1488,13 @@ static at_status_t at_SID_CS_GET_IP_ADDRESS(atcustom_modem_context_t *p_mdm_ctxt
   }
   else if CHECK_STEP((1U))
   {
-    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_PDNRDP, FINAL_CMD);
+    /* Note:
+     * The IP address reported to upper layer is retrieved from AT+CGPADDR.
+     * AT%PDNRDP is only informative in current implementation (a lot of info are available like apn used...)
+     * so it is considered as optional.
+     */
+    atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD,
+                                        (CMD_ID_t) CMD_AT_PDNRDP, FINAL_CMD);
   }
   else
   {
@@ -1615,6 +1636,7 @@ static at_status_t at_SID_CS_DIRECT_CMD(atcustom_modem_context_t *p_mdm_ctxt, at
     if (p_mdm_ctxt->SID_ctxt.p_direct_cmd_tx != NULL)
     {
       atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_RAW_CMD, (CMD_ID_t) CMD_AT_DIRECT_CMD, FINAL_CMD);
+      /* overwrite default timeout by the timeout value given by the upper layer */
       atcm_program_CMD_TIMEOUT(p_mdm_ctxt, p_atp_ctxt, p_mdm_ctxt->SID_ctxt.p_direct_cmd_tx->cmd_timeout);
     }
     else
@@ -1672,7 +1694,9 @@ static at_status_t at_SID_CS_SIM_SELECT(atcustom_modem_context_t *p_mdm_ctxt, at
     if (type1sc_shared.modem_sim_same_as_selected == false)
     {
       atcm_set_error_report(CSERR_UNKNOWN, p_mdm_ctxt);
-      /* atcm_set_error_report(CSERR_MODEM_REBOOT_NEEDED, p_mdm_ctxt); */
+      /* CSERR_UNKNOWN or CSERR_MODEM_REBOOT_NEEDED ?
+       * no difference from upper layer in actual implementation.
+       */
       retval = ATSTATUS_ERROR;
     }
     else
@@ -1730,64 +1754,104 @@ static at_status_t at_SID_CS_DIAL_COMMAND(atcustom_modem_context_t *p_mdm_ctxt, 
 
   at_status_t retval = ATSTATUS_OK;
 
+  /* Note:
+   * Many ALLOCATE and ACTIVATE error cases may happen (timeouts, ERROR, before or after socket_ID allocation).
+   * All timeouts and ERRORS cases will be handled at the end of this function, so some tricks are needed:
+   *   1- Uses CMD_ANSWER_OPTIONAL to continue STEPS even if a timeout occurs (otherwise, timeout is an abort case in
+   *      AT-Core).
+   *   2- Errors for ALLOCATE and ACTIVATE are ignored in fRspAnalyze_Error_TYPE1SC().
+   *
+   *   example of successful allocate & activate:
+   *     AT%SOCKETCMD="ALLOCATE",1,"TCP","OPEN",...
+   *     SOCKETCMD:1
+   *     OK
+   *     AT%SOCKETCMD=\"ACTIVATE\",1\r" },
+   *     OK
+   *
+   *   SocketCmd_Allocated_SocketID indicates if a socked_Id has been allocated by the modem, ie SOCKETCMD:x has
+   *   been received.
+   *
+   *   SocketCmd_Allocated_SocketID_OK indicates the this allocate transaction has finished with OK (no error,
+   *   no timeout).
+   *
+   *   SocketCmd_Activated indicates that Activate transaction has finished with OK .
+   */
   if CHECK_STEP((0U))
   {
-    /* step 1 - allocate a socket and request a socket_id */
-    type1sc_shared.SocketCmd_Allocated_SocketID = AT_FALSE;
+    /* NORMAL CASE -  allocate a socket and request a socket_id */
+    type1sc_shared.SocketCmd_Allocated_SocketID = AT_FALSE; /* used to request delete if Id allocated by the modem */
+    type1sc_shared.SocketCmd_Allocated_SocketID_OK = AT_FALSE;
     type1sc_shared.SocketCmd_Activated = AT_FALSE;
-    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_ALLOCATE,
-                        INTERMEDIATE_CMD);
+    atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_ALLOCATE,
+                                        INTERMEDIATE_CMD);
   }
   else if CHECK_STEP((1U))
   {
-    /* step 2 - verify that a socket_id has been allocated then activate the socket.
-     *          If this is the case and if an error occurs during ACTIVATE phase, the socket_id has
-     *          to be freed with DELETE command.
-     *          2 types of error are possible: ERROR or Timeout
-     *          To avoid an automatic abort from AT-Core in case of timeout, the answer is considered as
-     *          optional to manage this case here.
+    /* verify that a socket_id has been allocated without error or timeout by the modem.
+     *   If this is the case, then activate the socket.
      */
-    if (type1sc_shared.SocketCmd_Allocated_SocketID == AT_TRUE)
+    if (type1sc_shared.SocketCmd_Allocated_SocketID_OK == AT_TRUE)
     {
+      /* NORMAL CASE */
       atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD,
                                           (CMD_ID_t) CMD_AT_SOCKETCMD_ACTIVATE, INTERMEDIATE_CMD);
     }
-    else
-    {
-      PRINT_ERR("No valid socket_id affected by the modem has been reecived")
-      retval = ATSTATUS_ERROR;
-    }
+    /* error cases will be managed at the end */
   }
   else if CHECK_STEP((2U))
   {
     if (type1sc_shared.SocketCmd_Activated == AT_TRUE)
     {
-      /* ACTIVATE phase has been successful */
+      /* NORMAL CASE: ACTIVATE phase has been successful */
       if (p_mdm_ctxt->socket_ctxt.p_socket_info != NULL)
       {
         /* socket is connected */
         (void) atcm_socket_set_connected(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
+
+        /* for normal case, we fall here, end of the SID. */
         atcm_program_NO_MORE_CMD(p_atp_ctxt);
       }
       else
       {
         PRINT_ERR("No socket context available")
+
+        /* end of the SID with error status */
         retval = ATSTATUS_ERROR;
       }
     }
     else
     {
-      /* an error occurred during ACTIVATE phase, delete the allocated socket_id */
-      atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_DELETE,
-                          INTERMEDIATE_CMD);
-      /* Note:
-       * use an INTERMEDIATE_CMD to force to go to next step and return an ERROR to upper layer
+      /* ERROR CASES
+       * Fall here if an error or timeout occurred during ALLOCATE or ACTIVATE phase.
        */
+      if (type1sc_shared.SocketCmd_Allocated_SocketID == AT_TRUE)
+      {
+        /* If the socket_id has been allocated by the modem, we try to release it.
+         * We ignore errors in case the modem has already released the socket_id by its own.
+         * use an INTERMEDIATE_CMD to force to go to next step and return an ERROR to upper layer.
+         */
+        atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD,
+                                            (CMD_ID_t) CMD_AT_SOCKETCMD_DELETE, INTERMEDIATE_CMD);
+      }
+      else
+      {
+        PRINT_ERR("an error occurred during ALLOCATE or ACTIVATE phase (no socket Id allocated)")
+
+        /* end of the SID with error status */
+        retval = ATSTATUS_ERROR;
+      }
     }
   }
   else
   {
-    /* an error occurred */
+    /* Fall here if CMD_AT_SOCKETCMD_DELETE has been sent (because SocketCmd_Allocated_SocketID was TRUE).
+     */
+    if (p_mdm_ctxt->socket_ctxt.p_socket_info != NULL)
+    {
+      /* unassign modem cid */
+      (void) atcm_socket_unassign_modem_cid(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
+    }
+    PRINT_ERR("an error occurred during ALLOCATE or ACTIVATE phase (socket Id allocated)")
     retval = ATSTATUS_ERROR;
   }
 
@@ -1903,14 +1967,40 @@ static at_status_t at_SID_CS_SOCKET_CLOSE(atcustom_modem_context_t *p_mdm_ctxt, 
 
   at_status_t retval = ATSTATUS_OK;
 
+  /* Note:
+   * Many DEACTIVATE and DELETE error cases may happen (timeouts, ERROR, before or after socket_ID allocation).
+   * Ignore all ERROR and timeout to force DEACTIVATE and DELETE.
+   * Socket is considered as closed if DELETE is successful.
+   */
   if CHECK_STEP((0U))
   {
-    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_DEACTIVATE,
-                        INTERMEDIATE_CMD);
+    type1sc_shared.SocketCmd_Delete_success = AT_FALSE;
+    atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD,
+                                        (CMD_ID_t) CMD_AT_SOCKETCMD_DEACTIVATE,
+                                        INTERMEDIATE_CMD);
   }
   else if CHECK_STEP((1U))
   {
-    atcm_program_AT_CMD(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD, (CMD_ID_t) CMD_AT_SOCKETCMD_DELETE, FINAL_CMD);
+    atcm_program_AT_CMD_ANSWER_OPTIONAL(p_mdm_ctxt, p_atp_ctxt, ATTYPE_WRITE_CMD,
+                                        (CMD_ID_t) CMD_AT_SOCKETCMD_DELETE,
+                                        INTERMEDIATE_CMD);
+  }
+  else if CHECK_STEP((2U))
+  {
+    /* check if delete is successful */
+    if (type1sc_shared.SocketCmd_Delete_success == AT_TRUE)
+    {
+      /* release the modem CID for this socket_handle */
+      (void) atcm_socket_unassign_modem_cid(p_mdm_ctxt, p_mdm_ctxt->socket_ctxt.p_socket_info->socket_handle);
+    }
+    else
+    {
+      /* an error or timeout occurred */
+      retval = ATSTATUS_ERROR;
+    }
+
+    /* end of the SID. */
+    atcm_program_NO_MORE_CMD(p_atp_ctxt);
   }
   else
   {
@@ -2009,6 +2099,7 @@ static at_status_t at_SID_CS_DNS_REQ(atcustom_modem_context_t *p_mdm_ctxt, at_co
 }
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
 
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
 /**
   * @brief  Manage Service ID (SID): SID_CS_INIT_POWER_CONFIG.
   * @param  p_mdm_ctxt Pointer to the structure of Modem context.
@@ -2274,6 +2365,7 @@ static at_status_t at_SID_CS_WAKEUP(atcustom_modem_context_t *p_mdm_ctxt, at_con
 
   return (retval);
 }
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
 /**
   * @}

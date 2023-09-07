@@ -77,12 +77,13 @@ static DataPack_Status_t check_structure_to_read(uint8_t *p_buf, uint16_t msgtyp
   * @{
   */
 /*
-*
+* DATA PACK BUFFER is composed of 2 parts: Header and Data payload
 * Header description:
 *  - byte0,byte1: message type (provided by user)
 *  - byte2,byte3: data size (header not included)
 *  - byte5: content type (is data a complete struct data or pointer on struct)
-* Data
+* Data payload
+*  - starting at byte6
 *
 */
 
@@ -121,8 +122,11 @@ DataPack_Status_t DATAPACK_writePtr(uint8_t *p_buf, uint16_t msgtype, void *p_da
     /* write header: content type (pointer of data) */
     p_buf[4] = DATASTRUCT_POINTER_TYPE;
 
-    /* write pointer on user data structure */
-    (void) memcpy((void *)&p_buf[DATAPACK_HEADER_BYTE_SIZE + 1U], (void *)&sptr, sizeof(datapack_structptr_t));
+    /* get address of the beginning of data payload */
+    uint8_t *p_data_struct = &p_buf[DATAPACK_HEADER_BYTE_SIZE + 1U];
+
+    /* write in data payload the address pointing to user data structure */
+    (void) memcpy((void *)p_data_struct, (void *)&sptr, sizeof(datapack_structptr_t));
 
     retvalue = DATAPACK_OK;
   }
@@ -171,8 +175,11 @@ DataPack_Status_t DATAPACK_writeStruct(uint8_t *p_buf, uint16_t msgtype, uint16_
     /* write header: content type (pointer of data) */
     p_buf[4] = DATASTRUCT_CONTENT_TYPE;
 
-    /* transmit structure content */
-    (void) memcpy((void *)&p_buf[DATAPACK_HEADER_BYTE_SIZE + 1U],
+    /* get address of the beginning of data payload */
+    uint8_t *p_data_struct = &p_buf[DATAPACK_HEADER_BYTE_SIZE + 1U];
+
+    /* write in data payload the content of user data structure */
+    (void) memcpy((void *)p_data_struct,
                   (void *)p_data,
                   (size_t) size);
 
@@ -211,9 +218,12 @@ DataPack_Status_t DATAPACK_readPtr(uint8_t *p_buf, uint16_t msgtype, void **p_da
     retval = check_structure_to_read(p_buf, msgtype, size, DATASTRUCT_POINTER_TYPE);
     if (retval == DATAPACK_OK)
     {
-      /* retrieve pointer value in the message */
+      /* get address of the beginning of data payload */
+      uint8_t *p_data_struct = &p_buf[DATAPACK_HEADER_BYTE_SIZE + 1U];
+
+      /* retrieve the address pointing to user data structure */
       (void) memcpy((void *)&sptr,
-                    (void *)&p_buf[DATAPACK_HEADER_BYTE_SIZE + 1U],
+                    (void *)p_data_struct,
                     (size_t) size);
 
       /* update user pointer to point on the data structure pointer received in the message */
@@ -249,9 +259,12 @@ DataPack_Status_t DATAPACK_readStruct(uint8_t *p_buf, uint16_t msgtype, uint16_t
     retval = check_structure_to_read(p_buf, msgtype, size, DATASTRUCT_CONTENT_TYPE);
     if (retval == DATAPACK_OK)
     {
-      /* retrieve data */
+      /* get address of the beginning of data payload */
+      uint8_t *p_data_struct = &p_buf[DATAPACK_HEADER_BYTE_SIZE + 1U];
+
+      /* retrieve the content of user data structure */
       (void) memcpy((void *)p_data,
-                    (void *)&p_buf[DATAPACK_HEADER_BYTE_SIZE + 1U],
+                    (void *)p_data_struct,
                     (size_t) size);
     }
   }

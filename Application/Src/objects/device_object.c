@@ -85,6 +85,16 @@
 #define RID_ERROR_CODE 11
 
 /**
+ * Current Time: RW, Single, Optional
+ * type: time, range: N/A, unit: N/A
+ * Current UNIX time of the LwM2M Client. The LwM2M Client should be
+ * responsible to increase this time value as every second elapses. The
+ * LwM2M Server is able to write this Resource to make the LwM2M Client
+ * synchronized with the LwM2M Server.
+ */
+#define RID_CURRENT_TIME 13
+
+/**
  * Supported Binding and Modes: R, Single, Mandatory
  * type: string, range: N/A, unit: N/A
  * Indicates which bindings and modes are supported in the LwM2M Client.
@@ -135,6 +145,8 @@ static int list_resources(anjay_t *anjay,
     anjay_dm_emit_res(ctx, RID_REBOOT, ANJAY_DM_RES_E, ANJAY_DM_RES_PRESENT);
     anjay_dm_emit_res(ctx, RID_ERROR_CODE, ANJAY_DM_RES_RM,
                       ANJAY_DM_RES_PRESENT);
+    anjay_dm_emit_res(ctx, RID_CURRENT_TIME, ANJAY_DM_RES_RW,
+                      ANJAY_DM_RES_PRESENT);
     anjay_dm_emit_res(ctx, RID_SUPPORTED_BINDING_AND_MODES, ANJAY_DM_RES_R,
                       ANJAY_DM_RES_PRESENT);
     anjay_dm_emit_res(ctx, RID_SOFTWARE_VERSION, ANJAY_DM_RES_R,
@@ -176,6 +188,10 @@ static int resource_read(anjay_t *anjay,
         assert(riid == 0);
         return anjay_ret_i32(ctx, 0);
 
+    case RID_CURRENT_TIME:
+        assert(riid == ANJAY_ID_INVALID);
+        return anjay_ret_i64(ctx, avs_time_real_now().since_real_epoch.seconds);
+
     case RID_SUPPORTED_BINDING_AND_MODES:
         assert(riid == ANJAY_ID_INVALID);
         return anjay_ret_string(ctx, "UQ");
@@ -184,6 +200,26 @@ static int resource_read(anjay_t *anjay,
         assert(riid == ANJAY_ID_INVALID);
         return anjay_ret_string(ctx, anjay_get_version());
 
+    default:
+        return ANJAY_ERR_METHOD_NOT_ALLOWED;
+    }
+}
+
+static int resource_write(anjay_t *anjay,
+                          const anjay_dm_object_def_t *const *obj_ptr,
+                          anjay_iid_t iid,
+                          anjay_rid_t rid,
+                          anjay_riid_t riid,
+                          anjay_input_ctx_t *ctx) {
+    (void) anjay;
+    (void) obj_ptr;
+
+    assert(iid == 0);
+
+    switch (rid) {
+    case RID_CURRENT_TIME: {
+        return ANJAY_ERR_NOT_IMPLEMENTED;
+    }
     default:
         return ANJAY_ERR_METHOD_NOT_ALLOWED;
     }
@@ -237,6 +273,7 @@ static const anjay_dm_object_def_t OBJ_DEF = {
 
         .list_resources = list_resources,
         .resource_read = resource_read,
+        .resource_write = resource_write,
         .resource_execute = resource_execute,
         .list_resource_instances = list_resource_instances
     }

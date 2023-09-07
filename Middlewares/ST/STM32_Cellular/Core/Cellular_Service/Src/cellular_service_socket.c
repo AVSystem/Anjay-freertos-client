@@ -73,6 +73,10 @@
 /* SOCKET API ----------------------------------------------------------------------------------------------- */
 /**
   * @brief  Allocate a socket among of the free sockets (maximum 6 sockets)
+  * @note   IMPORTANT ! If socket allocation is successful, a handle is allocated by CS layer.
+  *         To release this handle, it is mandatory to call CDS_socket_close().
+  *         For example, if CDS_socket_create=OK but CDS_socket_connect=FAILED, uppel layer has to call
+  *         the function CDS_socket_close.
   * @param  addr_type Specifies a communication domain.
   *         This parameter can be one of the following values:
   *         IPAT_IPV4 for IPV4 (default)
@@ -94,7 +98,7 @@ socket_handle_t CDS_socket_create(CS_IPaddrType_t addr_type,
   {
     PRINT_ERR("no free socket handle")
   }
-  else if (csint_socket_create(sockhandle, addr_type, protocol, /* default local_port = 0 */ 0U, cid) != CELLULAR_OK)
+  else if (csint_socket_create(sockhandle, addr_type, protocol, /* default local_port = 0 */ 0U, cid) != CS_OK)
   {
     /* socket creation error, deallocate handle */
     PRINT_ERR("socket creation failed")
@@ -127,16 +131,16 @@ CS_Status_t CDS_socket_bind(socket_handle_t sockHandle,
   if (cs_ctxt_sockets_info[sockHandle].state != SOCKETSTATE_CREATED)
   {
     PRINT_ERR("<Cellular_Service> socket bind allowed only after create/before connect %ld ", sockHandle)
-    res = CELLULAR_ERROR;
+    res = CS_ERROR;
   }
-  else if (csint_socket_bind(sockHandle, local_port) != CELLULAR_OK)
+  else if (csint_socket_bind(sockHandle, local_port) != CS_OK)
   {
     PRINT_ERR("Socket Bind error")
-    res = CELLULAR_ERROR;
+    res = CS_ERROR;
   }
   else
   {
-    res = CELLULAR_OK;
+    res = CS_OK;
   }
 
   return res;
@@ -162,25 +166,25 @@ CS_Status_t CDS_socket_set_callbacks(socket_handle_t sockHandle,
   if (cs_ctxt_sockets_info[sockHandle].state == SOCKETSTATE_NOT_ALLOC)
   {
     PRINT_ERR("<Cellular_Service> invalid socket handle %ld (set cb)", sockHandle)
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
   /*PRINT_DBG("DBG: socket data ready callback=%p", cs_ctxt_sockets_info[sockHandle].socket_data_ready_callback)*/
   else if (data_ready_cb == NULL)
   {
     PRINT_ERR("data_ready_cb is mandatory")
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
   /*PRINT_DBG("DBG: socket remote closed callback=%p", cs_ctxt_sockets_info[sockHandle].socket_remote_close_callback)*/
   else if (remote_close_cb == NULL)
   {
     PRINT_ERR("remote_close_cb is mandatory")
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
   else
   {
     cs_ctxt_sockets_info[sockHandle].socket_data_ready_callback = data_ready_cb;
     cs_ctxt_sockets_info[sockHandle].socket_remote_close_callback = remote_close_cb;
-    retval = CELLULAR_OK;
+    retval = CS_OK;
   }
 
   if (data_sent_cb != NULL)
@@ -192,6 +196,7 @@ CS_Status_t CDS_socket_set_callbacks(socket_handle_t sockHandle,
   return (retval);
 }
 
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 /**
   * @brief  Define configurable options for a created socket.
   * @note   This function is called to configure one parameter at a time.
@@ -229,6 +234,7 @@ CS_Status_t CDS_socket_set_option(socket_handle_t sockHandle,
   retval = csint_socket_configure(sockHandle, opt_level, opt_name, p_opt_val);
   return (retval);
 }
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
 /**
   * @brief  Connect to a remote server (for socket client mode).
@@ -252,7 +258,7 @@ CS_Status_t CDS_socket_connect(socket_handle_t sockHandle,
   CS_Status_t retval;
 
   retval = csint_socket_configure_remote(sockHandle, ip_addr_type, p_ip_addr_value, remote_port);
-  if (retval == CELLULAR_OK)
+  if (retval == CS_OK)
   {
     /* Send socket information to ATcustom
     * no need to test sockHandle validity, it has been tested in csint_socket_configure_remote()
@@ -262,32 +268,22 @@ CS_Status_t CDS_socket_connect(socket_handle_t sockHandle,
                           (uint16_t) CSMT_SOCKET_INFO,
                           (void *)socket_infos) == DATAPACK_OK)
     {
-      if (socket_infos->trp_connect_mode == CS_CM_COMMAND_MODE)
-      {
-        err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_DIAL_COMMAND, getCmdBufPtr(), getRspBufPtr());
-      }
-      else
-      {
-        /* NOT SUPPORTED YET */
-        err = ATSTATUS_ERROR;
-        /* err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_DIAL_ONLINE, getCmdBufPtr(), getRspBufPtr());*/
-      }
-
+      err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_DIAL_COMMAND, getCmdBufPtr(), getRspBufPtr());
       if (err == ATSTATUS_OK)
       {
         /* update socket state */
         cs_ctxt_sockets_info[sockHandle].state = SOCKETSTATE_CONNECTED;
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
       else
       {
         PRINT_ERR("<Cellular_Service> error when socket connection")
-        retval = CELLULAR_ERROR;
+        retval = CS_ERROR;
       }
     }
     else
     {
-      retval = CELLULAR_ERROR;
+      retval = CS_ERROR;
     }
   }
 
@@ -307,7 +303,7 @@ CS_Status_t CDS_socket_send(socket_handle_t sockHandle,
                             const CS_CHAR_t *p_buf,
                             uint32_t length)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* check that size does not exceed maximum buffers size */
   if (length > DEFAULT_IP_MAX_PACKET_SIZE)
@@ -330,14 +326,16 @@ CS_Status_t CDS_socket_send(socket_handle_t sockHandle,
     send_data_struct.socket_handle = sockHandle;
     send_data_struct.p_buffer_addr_send = p_buf;
     /* code sonar: useless assignment due to previous memset
-     * send_data_struct.p_buffer_addr_rcv = NULL; */
+     *   send_data_struct.p_buffer_addr_rcv = NULL
+     */
     send_data_struct.buffer_size = length;
     send_data_struct.max_buffer_size = length;
     /* following parameters are not used (only in sendto) */
     /* code sonar: useless assignment due to previous memset
-     * send_data_struct.ip_addr_type = CS_IPAT_INVALID; */
-    /* send_data_struct.ip_addr_value already reset */
-    /* send_data_struct.remote_port already reset */
+     *   send_data_struct.ip_addr_type = CS_IPAT_INVALID
+     *   send_data_struct.ip_addr_value already reset
+     *   send_data_struct.remote_port already reset
+      */
     if (DATAPACK_writeStruct(getCmdBufPtr(),
                              (uint16_t) CSMT_SOCKET_DATA_BUFFER,
                              (uint16_t) sizeof(csint_socket_data_buffer_t),
@@ -348,12 +346,12 @@ CS_Status_t CDS_socket_send(socket_handle_t sockHandle,
       if (err == ATSTATUS_OK)
       {
         /* <Cellular_Service> socket data sent */
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when sending data to socket")
   }
@@ -382,7 +380,7 @@ CS_Status_t CDS_socket_sendto(socket_handle_t sockHandle,
                               CS_CHAR_t *p_ip_addr_value,
                               uint16_t remote_port)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
   at_status_t err;
   size_t ip_addr_length;
 
@@ -420,12 +418,13 @@ CS_Status_t CDS_socket_sendto(socket_handle_t sockHandle,
       send_data_struct.socket_handle = sockHandle;
       send_data_struct.p_buffer_addr_send = p_buf;
       /* code sonar: useless assignment due to previous memset
-       * send_data_struct.p_buffer_addr_rcv = NULL; */
+       *   send_data_struct.p_buffer_addr_rcv = NULL
+       */
       send_data_struct.buffer_size = length;
       send_data_struct.max_buffer_size = length;
       /* sendto parameters specific */
       send_data_struct.ip_addr_type = ip_addr_type;
-      (void) memcpy((void *)send_data_struct.ip_addr_value,
+      (void) memcpy((CS_CHAR_t *)send_data_struct.ip_addr_value,
                     (const CS_CHAR_t *)p_ip_addr_value,
                     ip_addr_length);
       send_data_struct.remote_port = remote_port;
@@ -438,13 +437,13 @@ CS_Status_t CDS_socket_sendto(socket_handle_t sockHandle,
         if (err == ATSTATUS_OK)
         {
           /* <Cellular_Service> socket data sent (sendto) */
-          retval = CELLULAR_OK;
+          retval = CS_OK;
         }
       }
     }
   }
 
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when sending data to socket (sendto)")
   }
@@ -465,7 +464,7 @@ int32_t CDS_socket_receive(socket_handle_t sockHandle,
                            uint32_t max_buf_length)
 {
   int32_t returned_data_size;
-  CS_Status_t status = CELLULAR_ERROR;
+  CS_Status_t status = CS_ERROR;
   uint32_t bytes_received = 0U;
 
   /* check that size does not exceed maximum buffers size */
@@ -488,16 +487,19 @@ int32_t CDS_socket_receive(socket_handle_t sockHandle,
     (void) memset((void *)&receive_data_struct, 0, sizeof(csint_socket_data_buffer_t));
     receive_data_struct.socket_handle = sockHandle;
     /* code sonar: useless assignment due to previous memset
-     * receive_data_struct.p_buffer_addr_send = NULL; */
+     *   receive_data_struct.p_buffer_addr_send = NULL
+     */
     receive_data_struct.p_buffer_addr_rcv = p_buf;
     /* code sonar: useless assignment due to previous memset
-     * receive_data_struct.buffer_size = 0U; */
+     *   receive_data_struct.buffer_size = 0U
+     */
     receive_data_struct.max_buffer_size = max_buf_length;
     /* following parameters are not used (only in receivefrom) */
     /* code sonar: useless assignment due to previous memset
-     * receive_data_struct.ip_addr_type = CS_IPAT_INVALID; */
-    /* receive_data_struct.ip_addr_value already reset */
-    /* receive_data_struct.remote_port already reset */
+     *   receive_data_struct.ip_addr_type = CS_IPAT_INVALID
+     *   receive_data_struct.ip_addr_value already reset
+     *   receive_data_struct.remote_port already reset
+     */
     if (DATAPACK_writeStruct(getCmdBufPtr(),
                              (uint16_t) CSMT_SOCKET_DATA_BUFFER,
                              (uint16_t) sizeof(csint_socket_data_buffer_t),
@@ -512,13 +514,13 @@ int32_t CDS_socket_receive(socket_handle_t sockHandle,
                                 (uint16_t) sizeof(uint32_t),
                                 &bytes_received) == DATAPACK_OK)
         {
-          status = CELLULAR_OK;
+          status = CS_OK;
         }
       }
     }
   }
 
-  if (status == CELLULAR_ERROR)
+  if (status == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when receiving data from socket")
     returned_data_size = -1;
@@ -554,7 +556,7 @@ int32_t CDS_socket_receivefrom(socket_handle_t sockHandle,
                                uint16_t *p_remote_port)
 {
   int32_t returned_data_size;
-  CS_Status_t status = CELLULAR_ERROR;
+  CS_Status_t status = CS_ERROR;
   uint32_t bytes_received = 0U;
 
   /* check that size does not exceed maximum buffers size */
@@ -577,16 +579,19 @@ int32_t CDS_socket_receivefrom(socket_handle_t sockHandle,
     (void) memset((void *)&receive_data_struct, 0, sizeof(csint_socket_data_buffer_t));
     receive_data_struct.socket_handle = sockHandle;
     /* code sonar: useless assignment due to previous memset
-     * receive_data_struct.p_buffer_addr_send = NULL; */
+     *   receive_data_struct.p_buffer_addr_send = NULL
+     */
     receive_data_struct.p_buffer_addr_rcv = p_buf;
     /* code sonar: useless assignment due to previous memset
-     * receive_data_struct.buffer_size = 0U; */
+     *   receive_data_struct.buffer_size = 0U
+     */
     receive_data_struct.max_buffer_size = max_buf_length;
     /* following parameters are returned parameters */
     /* code sonar: useless assignment due to previous memset
-     * receive_data_struct.ip_addr_type = CS_IPAT_INVALID; */
-    /* receive_data_struct.ip_addr_value already reset */
-    /* receive_data_struct.remote_port already reset */
+     *   receive_data_struct.ip_addr_type = CS_IPAT_INVALID
+     *   receive_data_struct.ip_addr_value already reset
+     *   receive_data_struct.remote_port already reset
+     */
     if (DATAPACK_writeStruct(getCmdBufPtr(),
                              (uint16_t) CSMT_SOCKET_DATA_BUFFER,
                              (uint16_t) sizeof(csint_socket_data_buffer_t),
@@ -609,14 +614,14 @@ int32_t CDS_socket_receivefrom(socket_handle_t sockHandle,
                         (void *)&rx_data_from.ip_addr_value,
                         strlen((CRC_CHAR_t *)rx_data_from.ip_addr_value));
           *p_remote_port = rx_data_from.remote_port;
-          status = CELLULAR_OK;
+          status = CS_OK;
         }
       }
     }
 
   }
 
-  if (status == CELLULAR_ERROR)
+  if (status == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when receiving data from socket")
     returned_data_size = -1;
@@ -632,7 +637,8 @@ int32_t CDS_socket_receivefrom(socket_handle_t sockHandle,
 
 /**
   * @brief  Free a socket handle.
-  * @note   If a PDN is activated at socket creation, the socket will not be deactivated at socket closure.
+  * @note   For an opened socket, as long as the socket close returns an error value,
+  *         the socket must be considered as not closed and handled as not released.
   * @param  sockHandle Handle of the socket
   * @param  force Force to free the socket.
   * @retval CS_Status_t
@@ -640,7 +646,7 @@ int32_t CDS_socket_receivefrom(socket_handle_t sockHandle,
 CS_Status_t CDS_socket_close(socket_handle_t sockHandle, uint8_t force)
 {
   UNUSED(force);
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   if (cs_ctxt_sockets_info[sockHandle].state == SOCKETSTATE_CONNECTED)
   {
@@ -656,7 +662,7 @@ CS_Status_t CDS_socket_close(socket_handle_t sockHandle, uint8_t force)
       {
         /* deallocate socket handle and reinit socket parameters */
         csint_socket_deallocateHandle(sockHandle);
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
@@ -665,7 +671,7 @@ CS_Status_t CDS_socket_close(socket_handle_t sockHandle, uint8_t force)
     PRINT_INFO("<Cellular_Service> socket was not connected ")
     /* deallocate socket handle and reinit socket parameters */
     csint_socket_deallocateHandle(sockHandle);
-    retval = CELLULAR_OK;
+    retval = CS_OK;
   }
   else if (cs_ctxt_sockets_info[sockHandle].state == SOCKETSTATE_NOT_ALLOC)
   {
@@ -676,14 +682,14 @@ CS_Status_t CDS_socket_close(socket_handle_t sockHandle, uint8_t force)
     PRINT_INFO("<Cellular_Service> invalid socket state (after modem reboot) ")
     /* deallocate socket handle and reinit socket parameters */
     csint_socket_deallocateHandle(sockHandle);
-    retval = CELLULAR_OK;
+    retval = CS_OK;
   }
   else
   {
     PRINT_ERR("<Cellular_Service> invalid socket state %d (close)", cs_ctxt_sockets_info[sockHandle].state)
   }
 
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when closing socket")
   }
@@ -700,7 +706,7 @@ CS_Status_t CDS_socket_close(socket_handle_t sockHandle, uint8_t force)
 CS_Status_t CDS_socket_cnx_status(socket_handle_t sockHandle,
                                   CS_SocketCnxInfos_t *p_infos)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* check that socket has been allocated */
   if (cs_ctxt_sockets_info[sockHandle].state != SOCKETSTATE_CONNECTED)
@@ -725,12 +731,12 @@ CS_Status_t CDS_socket_cnx_status(socket_handle_t sockHandle,
       if (err == ATSTATUS_OK)
       {
         /* <Cellular_Service> socket cnx status received */
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error when requesting socket cnx status")
   }
@@ -749,13 +755,13 @@ CS_Status_t CDS_socket_cnx_status(socket_handle_t sockHandle,
 CS_Status_t CDS_ping(CS_PDN_conf_id_t cid, CS_Ping_params_t *ping_params,
                      cellular_ping_response_callback_t cs_ping_rsp_cb)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   /* build internal structure to send */
   csint_ping_params_t loc_ping_params;
   (void) memset((void *)&loc_ping_params, 0, sizeof(csint_ping_params_t));
   loc_ping_params.conf_id = cid;
-  (void) memcpy((void *)&loc_ping_params.ping_params, ping_params, sizeof(CS_Ping_params_t));
+  (void) memcpy((CS_Ping_params_t *)&loc_ping_params.ping_params, ping_params, sizeof(CS_Ping_params_t));
 
   /* save the callback */
   urc_ping_rsp_callback = cs_ping_rsp_cb;
@@ -794,12 +800,12 @@ CS_Status_t CDS_ping(CS_PDN_conf_id_t cid, CS_Ping_params_t *ping_params,
         {
           PRINT_INFO("<Cellular_Service> Waiting for ping reports")
         }
-        retval = CELLULAR_OK;
+        retval = CS_OK;
       }
     }
   }
 
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error during ping request")
   }
@@ -816,7 +822,7 @@ CS_Status_t CDS_ping(CS_PDN_conf_id_t cid, CS_Ping_params_t *ping_params,
   */
 CS_Status_t CDS_dns_request(CS_PDN_conf_id_t cid, CS_DnsReq_t *dns_req, CS_DnsResp_t *dns_resp)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
   uint32_t dns_ip_addr_length;
 
   /* build internal structure to send */
@@ -825,7 +831,7 @@ CS_Status_t CDS_dns_request(CS_PDN_conf_id_t cid, CS_DnsReq_t *dns_req, CS_DnsRe
   /* set CID */
   loc_dns_req.conf_id = cid;
   /* recopy dns_req */
-  (void) memcpy((void *)&loc_dns_req.dns_req, dns_req, sizeof(CS_DnsReq_t));
+  (void) memcpy((CS_DnsReq_t *)&loc_dns_req.dns_req, dns_req, sizeof(CS_DnsReq_t));
 
   /* set DNS primary address to use */
   dns_ip_addr_length = strlen((const CRC_CHAR_t *)PLF_CELLULAR_DNS_SERVER_IP_ADDR);
@@ -835,7 +841,7 @@ CS_Status_t CDS_dns_request(CS_PDN_conf_id_t cid, CS_DnsReq_t *dns_req, CS_DnsRe
   }
   else
   {
-    (void) memcpy((void *)&loc_dns_req.dns_conf.primary_dns_addr,
+    (void) memcpy((CS_CHAR_t *)&loc_dns_req.dns_conf.primary_dns_addr,
                   (const CS_CHAR_t *)PLF_CELLULAR_DNS_SERVER_IP_ADDR,
                   dns_ip_addr_length);
     if (DATAPACK_writePtr(getCmdBufPtr(),
@@ -846,19 +852,47 @@ CS_Status_t CDS_dns_request(CS_PDN_conf_id_t cid, CS_DnsReq_t *dns_req, CS_DnsRe
       err = AT_sendcmd(get_Adapter_Handle(), (at_msg_t) SID_CS_DNS_REQ, getCmdBufPtr(), getRspBufPtr());
       if (err == ATSTATUS_OK)
       {
+        CS_DnsResp_t dnsResponse;
+
         if (DATAPACK_readStruct(getRspBufPtr(),
                                 (uint16_t) CSMT_DNS_REQ,
-                                (uint16_t) sizeof(dns_resp->host_addr),
-                                dns_resp->host_addr) == DATAPACK_OK)
+                                (uint16_t) sizeof(dnsResponse.host_addr),
+                                dnsResponse.host_addr) == DATAPACK_OK)
         {
           /* <Cellular_Service> DNS configuration done */
-          retval = CELLULAR_OK;
+          CS_DnsResp_t tmp_dnsResponse;
+          uint16_t tmp_dnsResponse_size;
+
+          tmp_dnsResponse_size =
+            ATutil_extract_str_from_quotes(
+              (const uint8_t *)dnsResponse.host_addr,
+              (uint16_t) strlen((CRC_CHAR_t *)dnsResponse.host_addr),
+              tmp_dnsResponse.host_addr,
+              MAX_SIZE_IPADDR);
+
+          /* retrieve IP address value */
+          if (tmp_dnsResponse_size != 0U)
+          {
+            /* quotes have been removed, recopy cleaned IP address */
+            (void) memcpy((void *)dns_resp->host_addr,
+                          (const void *)tmp_dnsResponse.host_addr,
+                          (size_t) tmp_dnsResponse_size);
+          }
+          else
+          {
+            /* no quotes detected, recopy received field without any modification */
+            (void) memcpy((void *)dns_resp->host_addr,
+                          (const void *)dnsResponse.host_addr,
+                          (size_t) sizeof(dnsResponse.host_addr));
+          }
+
+          retval = CS_OK;
         }
       }
     }
   }
 
-  if (retval == CELLULAR_ERROR)
+  if (retval == CS_ERROR)
   {
     PRINT_ERR("<Cellular_Service> error during DNS request")
   }
@@ -876,9 +910,10 @@ CS_Status_t CDS_dns_config(CS_PDN_conf_id_t cid, CS_DnsConf_t *dns_conf)
 {
   UNUSED(cid);
   UNUSED(dns_conf);
-  return (CELLULAR_NOT_IMPLEMENTED);
+  return (CS_NOT_IMPLEMENTED);
 }
 
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 /**
   * @brief  Retrieve configurable options for a created socket.
   * @note   This function is called for one parameter at a time.
@@ -887,8 +922,9 @@ CS_Status_t CDS_dns_config(CS_PDN_conf_id_t cid, CS_DnsConf_t *dns_conf)
   */
 CS_Status_t CDS_socket_get_option(void)
 {
-  return (CELLULAR_NOT_IMPLEMENTED);
+  return (CS_NOT_IMPLEMENTED);
 }
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
 /**
   * @brief  Listen to clients (for socket server mode).
@@ -901,7 +937,7 @@ CS_Status_t CDS_socket_listen(socket_handle_t sockHandle)
   UNUSED(sockHandle);
 
   /* for socket server mode */
-  return (CELLULAR_NOT_IMPLEMENTED);
+  return (CS_NOT_IMPLEMENTED);
 }
 
 /**

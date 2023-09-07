@@ -47,13 +47,6 @@
 #include "at_custom_modem_socket.h"
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
-#if defined(USE_MODEM_TYPE1SC)
-#if defined(HWREF_MURATA_TYPE1SC_EVK)
-#else
-#error Hardware reference not specified
-#endif /* HWREF_MURATA_TYPE1SC_EVK */
-#endif /* USE_MODEM_TYPE1SC */
-
 /** @addtogroup AT_CUSTOM AT_CUSTOM
   * @{
   */
@@ -130,7 +123,9 @@ type1sc_shared_variables_t type1sc_shared =
   .modem_bootev_received = false,
   .notifyev_mode = 0U,
   .modem_sim_same_as_selected = true,
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
   .host_lp_state  = HOST_LP_STATE_IDLE,
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 };
 /**
   * @}
@@ -200,6 +195,9 @@ void ATCustom_TYPE1SC_init(atparser_context_t *p_atp_ctxt)
     {CMD_AT_AND_W,       "&W",           TYPE1SC_DEFAULT_TIMEOUT,  fCmdBuild_NoParams,   fRspAnalyze_None},
     {CMD_AT_AND_D,       "&D",           TYPE1SC_DEFAULT_TIMEOUT,  fCmdBuild_AT_AND_D,   fRspAnalyze_None},
     {CMD_AT_DIRECT_CMD,  "",             TYPE1SC_DEFAULT_TIMEOUT,  fCmdBuild_DIRECT_CMD, fRspAnalyze_DIRECT_CMD},
+    /* note: for CMD_AT_DIRECT_CMD, the default timeout value will be replaced by the timeout
+     *       value given by the upper layer.
+     */
     {CMD_AT_AND_K3,      "&K3",          TYPE1SC_ATK_TIMEOUT,     fCmdBuild_NoParams,   fRspAnalyze_None},
     {CMD_AT_AND_K0,      "&K0",          TYPE1SC_ATK_TIMEOUT,     fCmdBuild_NoParams,   fRspAnalyze_None},
     {CMD_AT_CPSMS,       "+CPSMS",       TYPE1SC_CPSMS_TIMEOUT,    fCmdBuild_CPSMS,      fRspAnalyze_CPSMS},
@@ -423,6 +421,8 @@ at_endmsg_t ATCustom_TYPE1SC_extractElement(atparser_context_t *p_atp_ctxt,
   UNUSED(p_atp_ctxt);
   at_endmsg_t retval_msg_end_detected = ATENDMSG_NO;
   bool exit_loop;
+  static bool first_colon_found = false;
+  static bool inside_quotes = false;
   uint16_t *p_parseIndex = &(element_infos->current_parse_idx);
 
   PRINT_API("enter ATCustom_TYPE1SC_extractElement()")
@@ -431,6 +431,7 @@ at_endmsg_t ATCustom_TYPE1SC_extractElement(atparser_context_t *p_atp_ctxt,
   /* if this is beginning of message, check that message header is correct and jump over it */
   if (*p_parseIndex == 0U)
   {
+    first_colon_found = false;
     /* ###########################  START CUSTOMIZATION PART  ########################### */
     /* MODEM RESPONSE SYNTAX:
       * <CR><LF><response><CR><LF>
@@ -461,17 +462,61 @@ at_endmsg_t ATCustom_TYPE1SC_extractElement(atparser_context_t *p_atp_ctxt,
     exit_loop = false;
     do
     {
+      bool ignore_quote = false;
+
       switch (p_msg_in->buffer[*p_parseIndex])
       {
         /* ###########################  START CUSTOMIZATION PART  ########################### */
-        /* ----- test separators ----- */
-        case ':':
-        case ',':
-          exit_loop = true;
+        /* ----- test separators -----
+        *  AT responses and URC format : +CMD: vvv,www,,xxx,"yyy",zzz
+        *  only first ':' is considered as a separator (':' can be part of a field for IPv6 address for example)
+        *  if a field is inside quotes (like ,"yyy", above), comma separtor should not be analyzed.
+        *  String inside a string is also considered : \"
+        */
+        case 0x3A: /* : = colon */
+          /* only first colon character found is considered as a separator. */
+          if (!first_colon_found)
+          {
+            first_colon_found = true;
+            exit_loop = true;
+          }
           break;
 
+        case 0x2C: /* , = comma */
+          /* usual fields separator.
+          * but ignore comma inside a string.
+          */
+          if (!inside_quotes)
+          {
+            exit_loop = true;
+          }
+          break;
+
+        case 0x22: /* " = double quote*/
+        {
+          /* check if this is a string inside a string */
+          if (*p_parseIndex > 0U)
+          {
+            /* do we have an anti-slash before the quote ? */
+            if (p_msg_in->buffer[(*p_parseIndex) - 1U] == 0x5CU) /* \ = anti-slash */
+            {
+              ignore_quote = true;
+            }
+          }
+          /* is it s a valid quote ? */
+          if (!ignore_quote)
+          {
+            inside_quotes = !inside_quotes;
+          }
+          break;
+        }
+
+        /* ==========================
+         *  Separators: special cases
+         * ==========================
+         */
         case '=':
-          /* special separator case for AT+ICF?
+          /* special separator case for AT+IFC?
           *  The read form of AT+IFC returns AT+IFC=x,x instead of AT+IFC:x,x
           *  Consider "=" as a separator only when this command is currently ongoing.
           */
@@ -488,12 +533,19 @@ at_endmsg_t ATCustom_TYPE1SC_extractElement(atparser_context_t *p_atp_ctxt,
           break;
 
         default:
-          /* increment end position */
-          element_infos->str_end_idx = *p_parseIndex;
-          element_infos->str_size++;
+          /* nothing special */
+          __NOP();
           break;
           /* ###########################  END CUSTOMIZATION PART  ########################### */
       }
+
+      if (!exit_loop)
+      {
+        /* increment end position (except if exit has been detected) */
+        element_infos->str_end_idx = *p_parseIndex;
+        element_infos->str_size++;
+      }
+
 
       /* increment index */
       (*p_parseIndex)++;
@@ -605,12 +657,30 @@ at_action_rsp_t ATCustom_TYPE1SC_analyzeCmd(at_context_t *p_at_ctxt,
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
         if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
         {
+          if (p_atp_ctxt->current_atcmd.id == (CMD_ID_t) CMD_AT_SOCKETCMD_ALLOCATE)
+          {
+            if (type1sc_shared.SocketCmd_Allocated_SocketID == AT_TRUE)
+            {
+              /* if socket Id has been allocated and OK is received, the socket Id is valid */
+              type1sc_shared.SocketCmd_Allocated_SocketID_OK = AT_TRUE;
+            }
+          }
           if (p_atp_ctxt->current_atcmd.id == (CMD_ID_t) CMD_AT_SOCKETCMD_ACTIVATE)
           {
             /* socket is activated */
             type1sc_shared.SocketCmd_Activated = AT_TRUE;
           }
         }
+
+        if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_SOCKET_CLOSE)
+        {
+          if (p_atp_ctxt->current_atcmd.id == (CMD_ID_t) CMD_AT_SOCKETCMD_DELETE)
+          {
+            /* socket has been deleted successfully */
+            type1sc_shared.SocketCmd_Delete_success = AT_TRUE;
+          }
+        }
+
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
         retval = ATACTION_RSP_FRC_END;
         break;
@@ -898,9 +968,9 @@ at_status_t ATCustom_TYPE1SC_get_rsp(atparser_context_t *p_atp_ctxt, at_buf_t *p
 
       /* prepare response */
       clear_ping_resp_struct(&TYPE1SC_ctxt);
-      TYPE1SC_ctxt.persist.ping_resp_urc.ping_status = CELLULAR_OK;
+      TYPE1SC_ctxt.persist.ping_resp_urc.ping_status = CS_OK;
       /* simulate final report data */
-      TYPE1SC_ctxt.persist.ping_resp_urc.is_final_report = CELLULAR_TRUE;
+      TYPE1SC_ctxt.persist.ping_resp_urc.is_final_report = CS_TRUE;
       /* index expected by COM  for final report = number of pings requested + 1 */
       TYPE1SC_ctxt.persist.ping_resp_urc.index = TYPE1SC_ctxt.persist.ping_infos.ping_params.pingnum + 1U;
       if (DATAPACK_writeStruct(p_rsp_buf,
@@ -988,11 +1058,12 @@ at_status_t ATCustom_TYPE1SC_hw_event(sysctrl_device_type_t deviceType, at_hw_ev
 {
   UNUSED(gstate);
   UNUSED(deviceType);
+
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
   at_status_t retval = ATSTATUS_ERROR;
   /* IMPORTANT: Do not add traces int this function of in functions called
    * (this function called under interrupt if GPIO event)
    */
-
   /* ###########################  START CUSTOMIZATION PART  ########################### */
   /* check that:
   *  - event RING from modem
@@ -1005,6 +1076,10 @@ at_status_t ATCustom_TYPE1SC_hw_event(sysctrl_device_type_t deviceType, at_hw_ev
     retval = ATSTATUS_OK;
   }
   /* ###########################  END CUSTOMIZATION PART  ########################### */
+#else
+  UNUSED(hwEvent);
+  at_status_t retval = ATSTATUS_OK;
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
   return (retval);
 }
@@ -1043,7 +1118,9 @@ void ATC_TYPE1SC_reset_variables(void)
   type1sc_shared.modem_bootev_received = false;
 
   /* other values */
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
   type1sc_shared.host_lp_state = HOST_LP_STATE_IDLE;
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 }
 
 /**
@@ -1078,6 +1155,7 @@ void ATC_TYPE1SC_modem_init(atcustom_modem_context_t *p_modem_ctxt)
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 }
 
+#if (ENABLE_T1SC_LOW_POWER_MODE != 0U)
 /**
   * @brief  Initialization of modem low power parameters.
   * @param  p_modem_ctxt Pointer to the structure of Modem context.
@@ -1087,7 +1165,7 @@ at_bool_t ATC_TYPE1SC_init_low_power(atcustom_modem_context_t *p_modem_ctxt)
 {
   at_bool_t lp_enabled;
 
-  if (p_modem_ctxt->SID_ctxt.init_power_config.low_power_enable == CELLULAR_TRUE)
+  if (p_modem_ctxt->SID_ctxt.init_power_config.low_power_enable == CS_TRUE)
   {
     /* this parameter is used in CGREG/CEREG to enable PSM (value = 4) */
     p_modem_ctxt->persist.psm_urc_requested = AT_TRUE;
@@ -1095,13 +1173,13 @@ at_bool_t ATC_TYPE1SC_init_low_power(atcustom_modem_context_t *p_modem_ctxt)
     /* send PSM and EDRX commands: need to populate SID_ctxt.set_power_config
      * Provide psm and edrx default parameters provided but disable them for the moment
      */
-    p_modem_ctxt->SID_ctxt.set_power_config.psm_present = CELLULAR_TRUE;
+    p_modem_ctxt->SID_ctxt.set_power_config.psm_present = CS_TRUE;
     p_modem_ctxt->SID_ctxt.set_power_config.psm_mode = PSM_MODE_ENABLE;
     (void) memcpy((void *) &p_modem_ctxt->SID_ctxt.set_power_config.psm,
                   (void *) &p_modem_ctxt->SID_ctxt.init_power_config.psm,
                   sizeof(CS_PSM_params_t));
 
-    p_modem_ctxt->SID_ctxt.set_power_config.edrx_present = CELLULAR_TRUE;
+    p_modem_ctxt->SID_ctxt.set_power_config.edrx_present = CS_TRUE;
     p_modem_ctxt->SID_ctxt.set_power_config.edrx_mode = EDRX_MODE_DISABLE;
     (void) memcpy((void *) &p_modem_ctxt->SID_ctxt.set_power_config.edrx,
                   (void *) &p_modem_ctxt->SID_ctxt.init_power_config.edrx,
@@ -1114,9 +1192,9 @@ at_bool_t ATC_TYPE1SC_init_low_power(atcustom_modem_context_t *p_modem_ctxt)
   {
     /* this parameter is used in CGREG/CEREG to not enable PSM (value = 2) */
     p_modem_ctxt->persist.psm_urc_requested = AT_FALSE;
-    p_modem_ctxt->SID_ctxt.set_power_config.psm_present = CELLULAR_FALSE;
+    p_modem_ctxt->SID_ctxt.set_power_config.psm_present = CS_FALSE;
     p_modem_ctxt->SID_ctxt.set_power_config.psm_mode = PSM_MODE_DISABLE;
-    p_modem_ctxt->SID_ctxt.set_power_config.edrx_present = CELLULAR_FALSE;
+    p_modem_ctxt->SID_ctxt.set_power_config.edrx_present = CS_FALSE;
     p_modem_ctxt->SID_ctxt.set_power_config.edrx_mode = EDRX_MODE_DISABLE;
 
     /* do not send PSM and EDRX commands */
@@ -1135,7 +1213,7 @@ at_bool_t ATC_TYPE1SC_set_low_power(atcustom_modem_context_t *p_modem_ctxt)
 {
   at_bool_t lp_set_and_enabled;
 
-  if (p_modem_ctxt->SID_ctxt.set_power_config.psm_present == CELLULAR_TRUE)
+  if (p_modem_ctxt->SID_ctxt.set_power_config.psm_present == CS_TRUE)
   {
     /* the modem info structure SID_ctxt.set_power_config has been already updated */
 
@@ -1311,6 +1389,7 @@ void ATC_TYPE1SC_low_power_event(ATCustom_T1SC_LP_event_t event, bool called_und
     }
   }
 }
+#endif /* (ENABLE_T1SC_LOW_POWER_MODE != 0U) */
 
 /**
   * @}

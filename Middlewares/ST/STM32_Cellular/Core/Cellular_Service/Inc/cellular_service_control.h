@@ -41,10 +41,10 @@ extern "C" {
   * @{
   */
 #define MAX_SIZE_IMEI            ((uint16_t) 64U)  /* MAX = 32 characters */
-#define MAX_SIZE_MANUFACT_NAME   ((uint16_t) 256U) /* theorical MAX = 2048 characters !!! */
-#define MAX_SIZE_MODEL           ((uint16_t) 256U) /* theorical MAX = 2048 characters !!! */
-#define MAX_SIZE_REV             ((uint16_t) 64U)  /* theorical MAX = 2048 characters !!! */
-#define MAX_SIZE_SN              ((uint16_t) 64U)  /* theorical MAX = 2048 characters !!! */
+#define MAX_SIZE_MANUFACT_NAME   ((uint16_t) 256U) /* theoretical MAX = 2048 characters !!! */
+#define MAX_SIZE_MODEL           ((uint16_t) 256U) /* theoretical MAX = 2048 characters !!! */
+#define MAX_SIZE_REV             ((uint16_t) 64U)  /* theoretical MAX = 2048 characters !!! */
+#define MAX_SIZE_SN              ((uint16_t) 64U)  /* theoretical MAX = 2048 characters !!! */
 #define MAX_SIZE_IMSI            ((uint16_t) 64U)  /* MAX = 32 characters */
 #define MAX_SIZE_PHONE_NBR       ((uint16_t) 64U)  /* MAX = 32 characters */
 #define MAX_SIZE_ICCID           ((uint16_t) 32U)  /* MAX = 32 characters */
@@ -106,21 +106,21 @@ typedef uint8_t CS_CHAR_t;
 
 /* To ensure backward compatibility */
 typedef bool CS_Bool_t;
-#define CELLULAR_FALSE false
-#define CELLULAR_TRUE  true
+#define CS_FALSE false
+#define CS_TRUE  true
 
 /* enum */
 typedef enum
 {
-  CELLULAR_OK = 0,                /* No error */
-  CELLULAR_ERROR,                 /* Generic error */
-  CELLULAR_NOT_IMPLEMENTED,       /* Function not implemented yet */
+  CS_OK = 0,                /* No error */
+  CS_ERROR,                 /* Generic error */
+  CS_NOT_IMPLEMENTED,       /* Function not implemented yet */
   /* - SIM errors - */
-  CELLULAR_SIM_BUSY,               /* SIM error: SIM is busy */
-  CELLULAR_SIM_NOT_INSERTED,       /* SIM error: SIM not inserted */
-  CELLULAR_SIM_PIN_OR_PUK_LOCKED,  /* SIM error: SIM locked due to PIN, PIN2, PUK or PUK2 */
-  CELLULAR_SIM_INCORRECT_PASSWORD, /* SIM error: SIM password is incorrect */
-  CELLULAR_SIM_ERROR               /* SIM error: SIM other error */
+  CS_SIM_BUSY,               /* SIM error: SIM is busy */
+  CS_SIM_NOT_INSERTED,       /* SIM error: SIM not inserted */
+  CS_SIM_PIN_OR_PUK_LOCKED,  /* SIM error: SIM locked due to PIN, PIN2, PUK or PUK2 */
+  CS_SIM_INCORRECT_PASSWORD, /* SIM error: SIM password is incorrect */
+  CS_SIM_ERROR               /* SIM error: SIM other error */
 } CS_Status_t;
 
 typedef enum
@@ -195,7 +195,6 @@ typedef enum
   CS_URCEVENT_CS_NETWORK_REG_STAT   = 5, /* Circuit-switched registration status (CREG) */
   CS_URCEVENT_CS_LOCATION_INFO      = 6, /* Circuit-switched status (CREG) */
   CS_URCEVENT_SIGNAL_QUALITY        = 7, /* signal quality registration (if supported) */
-  CS_URCEVENT_PING_RSP              = 8, /* Ping response */
 } CS_UrcEvent_t;
 
 typedef uint16_t CS_ModemEvent_t;
@@ -207,6 +206,7 @@ typedef uint16_t CS_ModemEvent_t;
 #define CS_MDMEVENT_LP_ENTER      (CS_ModemEvent_t)(0x0010) /* Modem Enter Low Power state */
 #define CS_MDMEVENT_LP_LEAVE      (CS_ModemEvent_t)(0x0020) /* Modem Leave Low Power state */
 #define CS_MDMEVENT_WAKEUP_REQ    (CS_ModemEvent_t)(0x0040) /* Modem WakeUp request during Low Power state */
+#define CS_MDMEVENT_CLOUD_READY   (CS_ModemEvent_t)(0x0080) /* Modem Cloud is ready */
 
 typedef enum
 {
@@ -375,10 +375,10 @@ typedef struct
 
 typedef struct
 {
-  const CS_CHAR_t  *p_cmd_str;          /* command buffer  */
-  CS_CHAR_t        *p_rsp_str;    /* response buffer */
-  uint32_t         cmd_str_size;
-  uint32_t         rsp_str_size;
+  const CS_CHAR_t  *p_cmd_str;    /* command buffer send to modem */
+  CS_CHAR_t        *p_rsp_str;    /* response buffer received from modem */
+  uint32_t         cmd_str_size;  /* size of the buffer pointed by p_cmd_str */
+  uint32_t         rsp_str_size;  /* size of the buffer pointed by rsp_str_size */
 } CS_sim_generic_access_t;
 
 /* callbacks */
@@ -556,6 +556,36 @@ CS_Status_t CS_PowerWakeup(CS_wakeup_origin_t wakeup_origin);
 /**
   * @}
   */
+
+#if defined(USE_COM_MDM)
+
+typedef struct
+{
+  CS_CHAR_t  *p_buffer;    /* Input buffer pointer */
+  uint32_t   buffer_size;  /* Input buffer size */
+} CS_Tx_Buffer_t;
+
+typedef struct
+{
+  uint32_t   max_buffer_size; /* maximum size allowed for Output buffer */
+  CS_CHAR_t  *p_buffer;       /* Output buffer pointer */
+  uint32_t   buffer_size;     /* Output buffer effective size */
+} CS_Rx_Buffer_t;
+
+typedef struct
+{
+  uint32_t  param1; /* this is an example, may evolve */
+} CS_comMdm_status_t;
+
+typedef void (* CS_comMdm_callback_t)(CS_comMdm_status_t comMdmd_event_infos);
+
+CS_Status_t CS_ComMdm_subscribe_event(CS_comMdm_callback_t commdm_urc_cb);
+CS_Status_t CS_ComMdm_send(CS_Tx_Buffer_t *txBuf, int32_t *errorCode);
+CS_Status_t CS_ComMdm_transaction(CS_Tx_Buffer_t *txBuf, CS_Rx_Buffer_t *rxBuf, int32_t *errorCode);
+CS_Status_t CS_ComMdm_receive(CS_Rx_Buffer_t *rxBuf, int32_t *errorCode);
+
+#endif /* defined(USE_COM_MDM) */
+
 
 #ifdef __cplusplus
 }

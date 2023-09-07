@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 #include <stdlib.h>
+#include <string.h>
 
 #include "FreeRTOS.h"
-#include "cmsis_os.h"
-#include "main.h"
-#include "task.h"
-
-#include "application.h"
 #include "cellular_control_api.h"
 #include "cellular_service_datacache.h"
+#include "cmsis_os.h"
+#include "main.h"
 #include "plf_config.h"
+#include "task.h"
+#include "trace_interface.h"
+
+#include <avsystem/commons/avs_log.h>
 
 #ifdef USE_AIBP
 #include "ai_bridge.h"
@@ -39,17 +41,11 @@
 #endif /* (USE_MODEM_VOUCHER == 1) */
 #endif /* (!USE_DEFAULT_SETUP == 1) */
 
-#include "lwm2m.h"
-
+#include "application.h"
 #include "board_buttons.h"
-
+#include "config_persistence.h"
+#include "lwm2m.h"
 #include "menu.h"
-
-#include <string.h>
-
-#include <avsystem/commons/avs_log.h>
-
-#include "trace_interface.h"
 
 static void configure_modem(void) {
     dc_cellular_params_t cellular_params;
@@ -60,9 +56,9 @@ static void configure_modem(void) {
     const uint8_t sim_slot_index = 0;
     const dc_sim_slot_t *sim_slot = &cellular_params.sim_slot[sim_slot_index];
 
-    strcpy((char *) sim_slot->apn, config_get_apn());
-    strcpy((char *) sim_slot->username, config_get_apn_username());
-    strcpy((char *) sim_slot->password, config_get_apn_password());
+    strcpy((char *) sim_slot->apn, g_config.apn);
+    strcpy((char *) sim_slot->username, g_config.apn_username);
+    strcpy((char *) sim_slot->password, g_config.apn_password);
 
     dc_com_write(&dc_com_db, DC_CELLULAR_CONFIG, &cellular_params,
                  sizeof(cellular_params));

@@ -37,8 +37,6 @@
 
 #include "cellular_service_os.h"
 
-#include "rng.h" /* Random functions used for icc handle */
-
 #include "dc_common.h"
 #include "cellular_control_api.h"
 #include "cellular_service_datacache.h"
@@ -142,21 +140,6 @@ static void com_icc_datacache_cb(dc_com_event_id_t dc_event_id, const void *p_pr
 
       if (dc_sim_rt_info.rt_state == DC_SERVICE_ON)
       {
-        /* Icc under test ? */
-        /*
-        if (dc_sim_rt_info.sim_status[dc_sim_rt_info.index_slot] == CA_SIM_CONNECTION_ONGOING)
-        {
-          sim_under_test = true;
-        }
-        else
-        {
-          sim_under_test = false;
-          if (dc_sim_rt_info.sim_status[dc_sim_rt_info.index_slot] == CA_SIM_READY)
-          {
-            sim_available = true;
-          }
-        }
-        */
         if (dc_sim_rt_info.sim_status[dc_sim_rt_info.index_slot] == CA_SIM_READY)
         {
           com_icc_is_available[0]   = true;
@@ -304,15 +287,18 @@ static com_icc_desc_t *com_icc_provide_icc_desc(uint8_t icc_index)
       random_ok = true;
 
       /* Set Icc descriptor handle to a random value */
-      if (HAL_OK != HAL_RNG_GenerateRandomNumber(&hrng, &random))
+#if defined(TFM_PSA_API)
+      /* Decision to not call psa/crypto.h service */
+      random = (uint32_t)rand();
+#elif defined(RNG_HANDLE)
+      if (HAL_RNG_GenerateRandomNumber(&RNG_HANDLE, &random) != HAL_OK)
       {
         random = (uint32_t)rand();
       }
-
+#else /* !defined(TFM_PSA_API) && !defined(RNG_HANDLE) */
+      random = (uint32_t)rand();
+#endif /* TFM_PSA_API */
       /* Handle must be >= 0 when allocation is ok */
-      /* Next code line raise a MISRA issue: explicit conversion */
-      /* icc_desc->handle = (int32_t)(random & 0x7FFFFFFFU); */
-      /* Next code lines don't raise a MISRA issue */
       random = random & 0x7FFFFFFFU;
 
       while ((i < COM_ICC_SESSION_MAX_NB) && (exit == false))
@@ -332,7 +318,6 @@ static com_icc_desc_t *com_icc_provide_icc_desc(uint8_t icc_index)
     } while (random_ok == false);
 
     icc_desc->handle = (int32_t)(random); /* no MISRA issue */
-
     icc_desc->state  = COM_ICC_CREATED;
   }
   else
@@ -493,7 +478,7 @@ static int32_t com_icc_generic_access_csim(const com_char_t *p_buf_cmd, int32_t 
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_LWIP)
     /* Return to Data mode only if Suspend done by Com was Ok */
-    if (ret_suspend == CELLULAR_OK)
+    if (ret_suspend == CS_OK)
     {
       PRINT_INFO("Resume data requested")
       (void)osCDS_resume_data();

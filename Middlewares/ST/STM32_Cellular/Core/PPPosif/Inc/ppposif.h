@@ -36,7 +36,7 @@ extern "C" {
 #include "netif/ppp/pppos.h"
 /*cstat +MISRAC2012-* */
 
-#include "ipc_uart.h"
+#include "ipc_common.h"
 
 #if (USE_TRACE_PPPOSIF == 1U)
 #if (USE_PRINTF == 0U)
@@ -55,6 +55,7 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 typedef uint16_t ppposif_status_t ;
+typedef int INT_t;
 
 #define  PPPOSIF_OK      (ppposif_status_t)(0)
 #define  PPPOSIF_ERROR   (ppposif_status_t)(1)
@@ -92,7 +93,7 @@ extern ppposif_status_t ppposif_close(ppp_pcb *ppp_pcb_struct);
   * @retval ppposif_status_cb    return status
   */
 
-extern void  ppposif_status_cb(ppp_pcb *pcb, int32_t err_code, void *ctx);
+extern void  ppposif_status_cb(ppp_pcb *pcb, INT_t err_code, void *ctx);
 
 /**
   * @brief  PPPoS serial output callback

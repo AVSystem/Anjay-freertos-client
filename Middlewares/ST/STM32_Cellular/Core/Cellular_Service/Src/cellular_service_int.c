@@ -144,13 +144,15 @@ void csint_socket_init(socket_handle_t index)
   /* global socket parameters */
   cs_ctxt_sockets_info[index].socket_handle = index;
   cs_ctxt_sockets_info[index].state = SOCKETSTATE_NOT_ALLOC;
-  cs_ctxt_sockets_info[index].config = CS_SON_NO_OPTION;
 
   /* socket creation parameters */
   cs_ctxt_sockets_info[index].addr_type = CS_IPAT_IPV4;
   cs_ctxt_sockets_info[index].protocol = CS_TCP_PROTOCOL;
   cs_ctxt_sockets_info[index].local_port = 0U;
   cs_ctxt_sockets_info[index].conf_id = CS_PDN_NOT_DEFINED;
+
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
+  cs_ctxt_sockets_info[index].config = CS_SON_NO_OPTION;
 
   /* socket configuration parameters */
   cs_ctxt_sockets_info[index].ip_max_packet_size = DEFAULT_IP_MAX_PACKET_SIZE;
@@ -160,6 +162,7 @@ void csint_socket_init(socket_handle_t index)
   cs_ctxt_sockets_info[index].trp_connect_mode = CS_CM_COMMAND_MODE;
   cs_ctxt_sockets_info[index].trp_suspend_timeout = DEFAULT_TRP_SUSPEND_TIMEOUT;
   cs_ctxt_sockets_info[index].trp_rx_timeout = DEFAULT_TRP_RX_TIMEOUT;
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
   /* socket callback functions pointers */
   cs_ctxt_sockets_info[index].socket_data_ready_callback = NULL;
@@ -223,12 +226,12 @@ CS_Status_t csint_socket_create(socket_handle_t sockhandle,
   {
     /* update socket state */
     cs_ctxt_sockets_info[sockhandle].state = SOCKETSTATE_CREATED;
-    retval = CELLULAR_OK;
+    retval = CS_OK;
   }
   else
   {
     PRINT_ERR("<Cellular_Service> socket handle %ld not available", sockhandle)
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
 
   return (retval);
@@ -250,18 +253,19 @@ CS_Status_t csint_socket_bind(socket_handle_t sockhandle,
   if (cs_ctxt_sockets_info[sockhandle].state == SOCKETSTATE_NOT_ALLOC)
   {
     PRINT_ERR("<Cellular_Service> invalid socket handle %ld (bind)", sockhandle)
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
   else
   {
     /* set the local port */
     cs_ctxt_sockets_info[sockhandle].local_port = local_port;
-    retval = CELLULAR_OK;
+    retval = CS_OK;
   }
 
   return (retval);
 }
 
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 /**
   * @brief  csint_socket_configure
   * @note   Configure a socket
@@ -276,23 +280,23 @@ CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
                                    CS_SocketOptionName_t opt_name,
                                    void *p_opt_val)
 {
-  CS_Status_t retval = CELLULAR_OK;
+  CS_Status_t retval = CS_OK;
 
   /* check that socket has been allocated */
   if (cs_ctxt_sockets_info[sockhandle].state == SOCKETSTATE_NOT_ALLOC)
   {
     PRINT_ERR("<Cellular_Service> invalid socket handle %ld (cfg)", sockhandle)
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
 
   /* check that the parameter to update is valid */
   if (p_opt_val == NULL)
   {
     PRINT_ERR("<Cellular_Service> NULL ptr")
-    retval = CELLULAR_ERROR;
+    retval = CS_ERROR;
   }
 
-  if (retval == CELLULAR_OK)
+  if (retval == CS_OK)
   {
     uint16_t *p_uint16;
     p_uint16 = (uint16_t *)p_opt_val;
@@ -320,13 +324,13 @@ CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
           else
           {
             PRINT_ERR("<Cellular_Service> max_packet_size value out of range ")
-            retval = CELLULAR_ERROR;
+            retval = CS_ERROR;
           }
           break;
 
         default:
           PRINT_ERR("<Cellular_Service> invalid option name for IP")
-          retval = CELLULAR_ERROR;
+          retval = CS_ERROR;
           break;
       }
     }
@@ -355,7 +359,7 @@ CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
           else
           {
             PRINT_ERR("<Cellular_Service> parameter value out of range ")
-            retval = CELLULAR_ERROR;
+            retval = CS_ERROR;
           }
           break;
         }
@@ -371,7 +375,7 @@ CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
           else
           {
             PRINT_ERR("<Cellular_Service> parameter value out of range ")
-            retval = CELLULAR_ERROR;
+            retval = CS_ERROR;
           }
           break;
         }
@@ -387,7 +391,7 @@ CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
           else
           {
             PRINT_ERR("<Cellular_Service> Connection mode not supported")
-            retval = CELLULAR_ERROR;
+            retval = CS_ERROR;
           }
           break;
         }
@@ -403,7 +407,7 @@ CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
           else
           {
             PRINT_ERR("<Cellular_Service> parameter value out of range ")
-            retval = CELLULAR_ERROR;
+            retval = CS_ERROR;
           }
           break;
         }
@@ -419,25 +423,25 @@ CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
           else
           {
             PRINT_ERR("<Cellular_Service> parameter value out of range ")
-            retval = CELLULAR_ERROR;
+            retval = CS_ERROR;
           }
           break;
         }
 
         default:
           PRINT_ERR("<Cellular_Service> invalid option name for TRANSPORT")
-          retval = CELLULAR_ERROR;
+          retval = CS_ERROR;
           break;
       }
     }
     else
     {
       PRINT_ERR("<Cellular_Service> invalid socket option level ")
-      retval = CELLULAR_ERROR;
+      retval = CS_ERROR;
     }
   }
 
-  if (retval == CELLULAR_OK)
+  if (retval == CS_OK)
   {
     /* set a flag to indicate that this parameter has been set */
     cs_ctxt_sockets_info[sockhandle].config |= opt_name;
@@ -445,6 +449,7 @@ CS_Status_t csint_socket_configure(socket_handle_t sockhandle,
 
   return (retval);
 }
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
 /**
   * @brief  csint_socket_configure_remote
@@ -460,7 +465,7 @@ CS_Status_t csint_socket_configure_remote(socket_handle_t sockhandle,
                                           CS_CHAR_t *p_ip_addr_value,
                                           uint16_t remote_port)
 {
-  CS_Status_t retval = CELLULAR_ERROR;
+  CS_Status_t retval = CS_ERROR;
 
   size_t ip_addr_length;
 
@@ -489,7 +494,7 @@ CS_Status_t csint_socket_configure_remote(socket_handle_t sockhandle,
       (void) memset((void *) &cs_ctxt_sockets_info[sockhandle].ip_addr_value, 0, MAX_IP_ADDR_SIZE);
       (void) memcpy((void *) &cs_ctxt_sockets_info[sockhandle].ip_addr_value, (void *)p_ip_addr_value,
                     ip_addr_length);
-      retval = CELLULAR_OK;
+      retval = CS_OK;
 
       PRINT_DBG("DBG: remote_port=%d", cs_ctxt_sockets_info[sockhandle].remote_port)
       PRINT_DBG("DBG: ip_addr_type=%d", cs_ctxt_sockets_info[sockhandle].ip_addr_type)

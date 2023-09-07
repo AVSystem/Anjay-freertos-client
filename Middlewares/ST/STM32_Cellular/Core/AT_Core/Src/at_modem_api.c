@@ -269,13 +269,21 @@ at_status_t atcc_get_error(at_context_t *p_at_ctxt, at_buf_t *p_rsp_buf)
   */
 void atcc_hw_event(sysctrl_device_type_t deviceType, at_hw_event_t hwEvent, GPIO_PinState gstate)
 {
-  /* Do not add traces (called under interrupt if GPIO event)
-   * device type = modem
+  /* Note: do not add traces in this function !!! (called under interrupt if GPIO event)
+   * Verify that:
+   *  - device type = modem
+   *  - atcma_init_at_func_ptrs() has been called so that f_hw_event ptr is set
    */
-  if (deviceType == DEVTYPE_MODEM_CELLULAR)
+  if ((deviceType == DEVTYPE_MODEM_CELLULAR) && (at_custom_func[DEVTYPE_MODEM_CELLULAR].initialized == 1U))
   {
     (void)(*at_custom_func[DEVTYPE_MODEM_CELLULAR].f_hw_event)(deviceType, hwEvent, gstate);
   }
+  else
+  {
+    /* ignore event */
+    __NOP();
+  }
+
 }
 
 /**

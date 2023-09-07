@@ -1,5 +1,28 @@
 # Changelog
 
+## 23.09 (Sep 7th, 2023)
+
+### Features
+- (commercial feature) Added support Anjay Core Persistence
+- (commercial feature) Added support for SIM Bootstrap for STM32L496G-DISCOVERY with BG96 project
+- Added persistence support of Security object, Server object and Attribute
+  Storage, controllable through shell
+- B-U585I-IOT02A and B-L462E-CELL1 targets now use external flash as storage for
+  runtime configuration instead of EEPROM
+- MONARCH project removed due to suspended X-Cube-Cellular support
+- Added TCP support, both for management connection and CoAP+TCP FOTA downloads
+- Added the Current Time resource in the Device object, and implemented real time synchronization using the cellular modem features
+
+### Improvements
+- Updated X-Cube-Cellular to version 7.1.0
+- Updated Mbed TLS to version 3.4.1 and enabled DTLS Connection ID support
+- Enabled LwM2M 1.1 by default
+- Introduced various flash footprint optimizations
+- Added support for the User Button on B-U585I-IOT02A
+
+### Bugfixes
+- Fixed B-U585I-IOT02A + BG96 demo app freezing in Release mode
+
 ## 23.02 (Feb 21st, 2023)
 
 ### Features

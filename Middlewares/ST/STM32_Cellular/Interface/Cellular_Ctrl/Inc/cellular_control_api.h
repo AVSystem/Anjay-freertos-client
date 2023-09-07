@@ -58,7 +58,7 @@ extern "C" {
 /** @brief Cellular firmware major version values */
 #define CELLULAR_VERSION_MAJOR   7U
 /** @brief Cellular firmware minor version values */
-#define CELLULAR_VERSION_MINOR   0U
+#define CELLULAR_VERSION_MINOR   1U
 /** @brief Cellular firmware patch version values */
 #define CELLULAR_VERSION_PATCH   0U
 /** @brief Cellular firmware stage version Dev (1) or Release (0) */
@@ -480,6 +480,8 @@ typedef struct
     *        - CA_APN_NOT_SEND_TO_MODEM : let modem manage APN using its own policy.
     */
   cellular_apn_send_to_modem_t    apn_send_to_modem;
+  bool                            apn_present;        /*!< apn_present specifies if APN defined in this structure
+                                                           is used by Xcube cellular or not                       */
   uint8_t                         cid;                /*!< CID Context IDentifier - Possible values [1-9].
                                                            Specifies a particular PDP context definition          */
   cellular_apn_t                  apn;                /*!< APN                                                    */
@@ -698,6 +700,7 @@ typedef void (* cellular_power_info_cb_t)(ca_event_type_t event, const cellular_
 
 /**
   * @brief  Initialize cellular software.
+  *         To be called only once. Has to be called before to make a call to cellular_start()
   * @param  -
   * @retval -
   */
@@ -714,23 +717,34 @@ void cellular_init(void);
 cellular_result_t cellular_deinit(void);
 
 /**
-  * @brief  Start cellular software with boot modem
-  *         (and network registration if PLF_CELLULAR_TARGET_STATE = 2U see plf_cellular_config.h).
+  * @brief  Start cellular software and starts modem with the mode defined by PLF_CELLULAR_TARGET_STATE
+  *         (see plf_cellular_config.h).
+  *         Has to be called only once and always after a call to cellular_init()
   * @param  -
   * @retval -
   */
 void cellular_start(void);
 
 /**
-  * @brief  Start cellular with boot modem only (NO network registration).\n
+  * @brief  Starts, switch on the modem, allowing to modify modem parameters.\n
+  *         A cellular_init() must be called prior to call cellular_modem_start()
+  *         May be called between A cellular_init() and cellular_modem_start()
+  *         Example of allowed sequences :
+  *         - cellular_init() => cellular_modem_start() => cellular_start()
+  *         - cellular_init() => cellular_modem_start() => cellular_modem_off() => cellular_start()
+  *         The second example will allow to restart the modem for new modem configuration to be taken in account.
+  *         May also be called after cellular_start(), but in that case, a cellular_stop() has to be called before.
+  *         If called after a cellular_start(), cellular_modem_start() will have no effect if cellular_stop() is not
+  *         called before, and modem state not equal to CA_MODEM_POWER_OFF
   *         Usage: Used to configure modem
+
   * @param  -
   * @retval -
   */
 void cellular_modem_start(void);
 
 /**
-  * @brief  Stop the modem (stop data mode, and detach from the network).
+  * @brief  Stop, switch off the modem (stop data mode, and detach from the network).
   * @param  -
   * @retval cellular_result_t         The code indicating if the operation is successful otherwise an error code
   *                                   indicating the cause of the error.\n
@@ -750,8 +764,8 @@ cellular_result_t cellular_modem_stop(void);
 cellular_result_t cellular_connect(void);
 
 /**
-  * @brief  Modem disconnect, instruct the modem to perform network unregistration.\n
-  *         Modem stays on and sim is still accessible.
+  * @brief  Modem disconnect, instruct the modem to perform network deregistration.\n
+  *         Modem stays on and sim is accessible.
   * @param  -
   * @retval cellular_result_t        The code indicating if the operation is successful otherwise an error code
   *                                  indicating the cause of the error.\n
@@ -840,6 +854,14 @@ cellular_result_t cellular_set_pdn(ca_sim_slot_type_t sim_slot_type, const cellu
   *            CELLULAR_ERR_INTERNAL     Error while executing X-Cube-Cellular internal function.
   */
 cellular_result_t cellular_set_sim_slot_order(uint8_t sim_slot_nb, const ca_sim_slot_type_t *const p_sim_slot_type);
+
+/**
+  * @brief         Get Operator parameters to be applied at next modem restart.
+  *
+  * @param[in,out] p_operator_selection - The operator configuration structure to contain the response.
+  * @retval -
+  */
+void cellular_get_operator(cellular_operator_selection_t *const p_operator_selection);
 
 /**
   * @brief     Set Operator parameters.

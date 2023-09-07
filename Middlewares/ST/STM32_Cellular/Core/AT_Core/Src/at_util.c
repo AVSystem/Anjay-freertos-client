@@ -36,6 +36,7 @@
 #define MAX_32BITS_STRING_SIZE (8U)  /* = max string size for a 32bits value (FFFF.FFFF) */
 #define MAX_64BITS_STRING_SIZE (16U) /* = max string size for a 64bits value (FFFF.FFFF.FFFF.FFFF) */
 #define MAX_PARAM_SIZE ((uint16_t)32U) /* max size of string */
+#define ASCII_VALUE_X_LOWERCASE (120U) /* ASCII value of x=120 */
 /**
   * @}
   */
@@ -68,7 +69,7 @@ uint32_t ATutil_convertStringToInt(const uint8_t *p_string, uint16_t size)
   uint32_t conv_nbr = 0U;
 
   /* auto-detect if this is an hexa value (format: 0x....) */
-  if ((size > 2U) && (p_string[1] == 120U)) /* ASCII value 120 = 'x' */
+  if ((size > 2U) && (p_string[1] == ASCII_VALUE_X_LOWERCASE))
   {
     conv_nbr = ATutil_convertHexaStringToInt32(p_string, size);
   }
@@ -115,7 +116,7 @@ uint32_t ATutil_convertHexaStringToInt32(const uint8_t *p_string, uint16_t size)
    */
 
   /* auto-detect if 0x is present */
-  if ((size > 2U) && (p_string[1] == 120U)) /* ASCII value 120 = 'x' */
+  if ((size > 2U) && (p_string[1] == ASCII_VALUE_X_LOWERCASE))
   {
     /* 0x is present */
     nb_digit_ignored = 2U;
@@ -188,7 +189,7 @@ uint8_t ATutil_convertHexaStringToInt64(const uint8_t *p_string, uint16_t size, 
   *low_part_value = 0U;
 
   /* auto-detect if 0x is present */
-  if ((size > 2U) && (p_string[1] == 120U)) /* ASCII value 120 = 'x' */
+  if ((size > 2U) && (p_string[1] == ASCII_VALUE_X_LOWERCASE))
   {
     /* 0x is present */
     nb_digit_ignored = 2U;

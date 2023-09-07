@@ -46,6 +46,20 @@ extern "C" {
   * @{
   */
 
+/** @defgroup AT_CUSTOM_ALTAIR_T1SC_SOCKET_Exported_Types AT_CUSTOM ALTAIR_T1SC SOCKET Exported Types
+  * @{
+  */
+/* Socket service type parameter */
+typedef uint8_t atsocket_servicetype_t;
+#define ATSOCKET_SERVICETYPE_TCP_CLIENT  (atsocket_servicetype_t)(0x0U)
+#define ATSOCKET_SERVICETYPE_UDP_CLIENT  (atsocket_servicetype_t)(0x1U)
+#define ATSOCKET_SERVICETYPE_TCP_SERVER  (atsocket_servicetype_t)(0x2U)
+#define ATSOCKET_SERVICETYPE_UDP_SERVICE (atsocket_servicetype_t)(0x3U)
+
+/**
+  * @}
+  */
+
 /** @defgroup AT_CUSTOM_ALTAIR_T1SC_SOCKET_Exported_Functions AT_CUSTOM ALTAIR_T1SC SOCKET Exported Functions
   * @{
   */

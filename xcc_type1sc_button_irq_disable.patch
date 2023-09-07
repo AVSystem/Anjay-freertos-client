@@ -1,0 +1,20 @@
+# Following patch was applied to X-Cube-Cellular 7.1.0 so the button IRQ won't
+# be disabled.
+
+diff --git a/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Src/at_custom_sysctrl.c b/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Src/at_custom_sysctrl.c
+index a2b64c5..8fd8c58 100644
+--- a/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Src/at_custom_sysctrl.c
++++ b/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Src/at_custom_sysctrl.c
+@@ -797,7 +797,11 @@ static void disable_RING(void)
+   GPIO_InitStruct.Pull = GPIO_NOPULL;
+   HAL_GPIO_Init(MODEM_RING_GPIO_PORT, &GPIO_InitStruct);
+ 
+-  HAL_NVIC_DisableIRQ(MODEM_RING_IRQN);
++  /*
++   * AVSystem changes: Remove disabling IRQ for Modem Ring as it also affects
++   * the User Button.
++   */
++  // HAL_NVIC_DisableIRQ(MODEM_RING_IRQN);
+ }
+ 
+ #if (ENABLE_T1SC_LOW_POWER_MODE != 0U)

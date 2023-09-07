@@ -45,6 +45,15 @@ extern "C" {
 #define CELLULAR_MAX_SOCKETS     (6U)
 #define CS_INVALID_SOCKET_HANDLE ((socket_handle_t)-1)
 
+/* about CSAPI_OPTIONAL_FUNCTIONS flag:
+ * this flag should not be set unless strictly necessary.
+ * It defines deprecated CS-API functions which are not used by X-Cube-Cellular middleware.
+ * Most of the options defined in these functions can be implemented on a case-by-case basis in modem drivers if
+ * required.
+ * Not setting this flag saves RAM and ROM.
+ * #define CSAPI_OPTIONAL_FUNCTIONS
+ */
+
 /**
   * @}
   */
@@ -67,7 +76,7 @@ typedef uint16_t CS_ConnectionMode_t; /* uint16_t is used to keep API consistent
                                                                      * transfer over socket is closed */
 #define CS_CM_ONLINE_AUTOMATIC_SUSPEND  (CS_ConnectionMode_t)(0x2U) /* NOT SUPPORTED - remains in online mode until
                                                                      * a suspend timeout expires */
-
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 typedef enum
 {
   CS_SOL_IP        = 0,
@@ -83,10 +92,10 @@ typedef uint16_t CS_SocketOptionName_t;
 #define  CS_SON_TRP_CONNECT_MODE          (CS_SocketOptionName_t)(0x10)  /**/
 #define  CS_SON_TRP_SUSPEND_TIMEOUT       (CS_SocketOptionName_t)(0x20)  /* 0 to 2000, in ms , 0 means infinite */
 #define  CS_SON_TRP_RX_TIMEOUT            (CS_SocketOptionName_t)(0x40)  /* 0 to 255, in ms, 0 means infinite */
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
 typedef struct
 {
-  /* CS_SocketState_t    state; */ /* to add ? */
   CS_CHAR_t           loc_ip_addr_value[MAX_SIZE_IPADDR];
   uint16_t            loc_port;
   CS_CHAR_t           rem_ip_addr_value[MAX_SIZE_IPADDR];
@@ -157,10 +166,12 @@ CS_Status_t CDS_socket_set_callbacks(socket_handle_t sockHandle,
                                      cellular_socket_data_ready_callback_t data_ready_cb,
                                      cellular_socket_data_sent_callback_t data_sent_cb,
                                      cellular_socket_closed_callback_t remote_close_cb);
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 CS_Status_t CDS_socket_set_option(socket_handle_t sockHandle,
                                   CS_SocketOptionLevel_t opt_level,
                                   CS_SocketOptionName_t opt_name,
                                   void *p_opt_val);
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 CS_Status_t CDS_socket_connect(socket_handle_t sockHandle,
                                CS_IPaddrType_t ip_addr_type,
                                CS_CHAR_t *p_ip_addr_value,
@@ -192,7 +203,9 @@ CS_Status_t CDS_ping(CS_PDN_conf_id_t cid, CS_Ping_params_t *ping_params,
 CS_Status_t CDS_dns_config(CS_PDN_conf_id_t cid, CS_DnsConf_t *dns_conf); /* not implemented yet  */
 CS_Status_t CDS_dns_request(CS_PDN_conf_id_t cid, CS_DnsReq_t *dns_req, CS_DnsResp_t *dns_resp);
 
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 CS_Status_t CDS_socket_get_option(void); /* not implemented yet  */
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 CS_Status_t CDS_socket_listen(socket_handle_t sockHandle); /* not implemented yet,
                                                             * for socket server mode, parameters to clarify */
 

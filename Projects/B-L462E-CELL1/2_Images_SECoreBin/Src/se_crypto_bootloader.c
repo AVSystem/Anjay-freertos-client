@@ -302,16 +302,16 @@ static int32_t SE_CRYPTO_SHA256_HASH_DigestCompute(const uint8_t *InputMessage, 
   mbedtls_sha256_context ctx;
   mbedtls_sha256_init(&ctx);
 
-  ret = mbedtls_sha256_starts_ret(&ctx, 0);   /* 0 for sha256 */
+  ret = mbedtls_sha256_starts(&ctx, 0);   /* 0 for sha256 */
 
   if (0 == ret)
   {
-    ret = mbedtls_sha256_update_ret(&ctx, InputMessage, (size_t)InputMessageLength); /* casting is fine because size_t
-                                                                                        is unsigned int in ARM C */
+    ret = mbedtls_sha256_update(&ctx, InputMessage, (size_t)InputMessageLength); /* casting is fine because size_t
+                                                                                    is unsigned int in ARM C */
 
     if (0 == ret)
     {
-      ret = mbedtls_sha256_finish_ret(&ctx, MessageDigest);
+      ret = mbedtls_sha256_finish(&ctx, MessageDigest);
 
       if (0 == ret)
       {
@@ -881,7 +881,7 @@ SE_ErrorStatus SE_CRYPTO_AuthenticateFW_Init(SE_FwRawHeaderTypeDef *pxSE_Metadat
 
   mbedtls_sha256_init(&m_SHA256ctx);
 
-  ret = mbedtls_sha256_starts_ret(&m_SHA256ctx, 0); /* is224:0 for sha256 */
+  ret = mbedtls_sha256_starts(&m_SHA256ctx, 0); /* is224:0 for sha256 */
 
   if (0 == ret)
   {
@@ -931,7 +931,7 @@ SE_ErrorStatus SE_CRYPTO_AuthenticateFW_Append(const uint8_t *pInputBuffer, int3
   }
   /* else the cast to size_t is valid */
 
-  ret = mbedtls_sha256_update_ret(&m_SHA256ctx, pInputBuffer, (size_t)InputSize);
+  ret = mbedtls_sha256_update(&m_SHA256ctx, pInputBuffer, (size_t)InputSize);
 
   if (0 == ret)
   {
@@ -962,7 +962,7 @@ SE_ErrorStatus SE_CRYPTO_AuthenticateFW_Finish(uint8_t *pOutputBuffer, int32_t *
 #if (SECBOOT_CRYPTO_SCHEME == SECBOOT_AES128_GCM_AES128_GCM_AES128_GCM)
   e_ret_status = SE_CRYPTO_Encrypt_Finish(pOutputBuffer, pOutputSize);
 #elif ( (SECBOOT_CRYPTO_SCHEME == SECBOOT_ECCDSA_WITH_AES128_CBC_SHA256) || (SECBOOT_CRYPTO_SCHEME == SECBOOT_ECCDSA_WITHOUT_ENCRYPT_SHA256) )
-  int32_t ret = mbedtls_sha256_finish_ret(&m_SHA256ctx, pOutputBuffer);
+  int32_t ret = mbedtls_sha256_finish(&m_SHA256ctx, pOutputBuffer);
 
   if (0 == ret)
   {

@@ -446,10 +446,10 @@ at_status_t fCmdBuild_SOCKETDATA_SEND(atparser_context_t *p_atp_ctxt, atcustom_m
         uint8_t ms;
         uint8_t ls;
         convertCharToHEX(onechar, &ms, &ls);
-        (void) memcpy((void *) &p_atp_ctxt->current_atcmd.params[cmd_params_size + (2U * idx)],
+        (void) memcpy((CS_CHAR_t *) &p_atp_ctxt->current_atcmd.params[cmd_params_size + (2U * idx)],
                       (const CS_CHAR_t *)&ms,
                       1);
-        (void) memcpy((void *) &p_atp_ctxt->current_atcmd.params[cmd_params_size + (1U + (2U * idx))],
+        (void) memcpy((CS_CHAR_t *) &p_atp_ctxt->current_atcmd.params[cmd_params_size + (1U + (2U * idx))],
                       (const CS_CHAR_t *)&ls,
                       1);
       }
@@ -472,7 +472,7 @@ at_status_t fCmdBuild_SOCKETDATA_SEND(atparser_context_t *p_atp_ctxt, atcustom_m
       else
       {
         /* or just finally close the data string with " */
-        (void) memcpy((void *) &p_atp_ctxt->current_atcmd.params[cmd_params_size],
+        (void) memcpy((CS_CHAR_t *) &p_atp_ctxt->current_atcmd.params[cmd_params_size],
                       (const CS_CHAR_t *)"\"",
                       (size_t) 1);
       }
@@ -645,8 +645,8 @@ at_action_rsp_t fRspAnalyze_SOCKETCMD(at_context_t *p_at_ctxt, atcustom_modem_co
         PRINT_INFO("<affected socket_id> = %ld", affected_socket_ID)
         type1sc_shared.SocketCmd_Allocated_SocketID = AT_TRUE;
         /* save this socket ID received from the modem */
-        (void) atcm_socket_set_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle,
-                                         affected_socket_ID);
+        (void) atcm_socket_assign_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle,
+                                            affected_socket_ID);
       }
       else
       {
@@ -879,7 +879,7 @@ at_action_rsp_t fRspAnalyze_SOCKETDATA(at_context_t *p_at_ctxt, atcustom_modem_c
       /* <rdata> */
 
       /* check that rlength announced matches size of received data */
-      uint16_t data_size = (element_infos->str_size - 2U) >> 1; /* remove first and last quote (-2) then divide by 2 */
+      uint16_t data_size = (element_infos->str_size - 2U) / 2U; /* remove first and last quote (-2) then divide by 2 */
       if (rlength != data_size)
       {
         PRINT_ERR("Buffer size received (%d) does not match expected size (%ld)", data_size, rlength)
@@ -1091,21 +1091,34 @@ at_action_rsp_t fRspAnalyze_DNSRSLV(at_context_t *p_at_ctxt, atcustom_modem_cont
     if (ip_type == 0U)
     {
       csint_ip_addr_info_t  ip_addr_info;
+      uint16_t ip_addr_info_size;
       (void) memset((void *)&ip_addr_info, 0, sizeof(csint_ip_addr_info_t));
-      /* retrieve IP address value */
-      (void) memcpy((void *) & (ip_addr_info.ip_addr_value),
-                    (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
-                    (size_t) element_infos->str_size);
 
-      /* check that address format is valid */
-      if (atcm_get_ip_address_type((AT_CHAR_t *)&ip_addr_info.ip_addr_value) == CS_IPAT_IPV4)
+      /* try to remove quotes, if any, around IP address */
+      ip_addr_info_size = ATutil_extract_str_from_quotes(
+                            (const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx],
+                            element_infos->str_size,
+                            ip_addr_info.ip_addr_value,
+                            MAX_SIZE_IPADDR);
+
+      /* recopy address to user */
+      if (ip_addr_info_size != 0u)
       {
-        /* recopy address to user */
+        /* quotes have been removed, recopy cleaned IP address */
         (void) memcpy((void *)type1sc_shared.DNSRSLV_dns_info.hostIPaddr,
-                      (const void *) & (p_msg_in->buffer[element_infos->str_start_idx]),
-                      (size_t) element_infos->str_size);
+                      (const void *) & (ip_addr_info.ip_addr_value),
+                      (size_t) ip_addr_info_size);
       }
       else
+      {
+        /* no quotes detected, recopy received field without any modification */
+        (void) memcpy((void *)type1sc_shared.DNSRSLV_dns_info.hostIPaddr,
+                      (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
+                      (size_t) element_infos->str_size);
+      }
+
+      /* check that address format is valid */
+      if (atcm_get_ip_address_type((AT_CHAR_t *)type1sc_shared.DNSRSLV_dns_info.hostIPaddr) != CS_IPAT_IPV4)
       {
         PRINT_ERR("error, invalid IPv4 address format")
       }
@@ -1157,7 +1170,7 @@ at_action_rsp_t fRspAnalyze_PINGCMD(at_context_t *p_at_ctxt, atcustom_modem_cont
   {
     /* new ping response: clear ping response structure */
     clear_ping_resp_struct(p_modem_ctxt);
-    p_modem_ctxt->persist.ping_resp_urc.ping_status = CELLULAR_ERROR; /* will be updated if all params are correct */
+    p_modem_ctxt->persist.ping_resp_urc.ping_status = CS_ERROR; /* will be updated if all params are correct */
 
     /* <id> */
     uint32_t ping_id = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
@@ -1168,7 +1181,7 @@ at_action_rsp_t fRspAnalyze_PINGCMD(at_context_t *p_at_ctxt, atcustom_modem_cont
 #endif /* (TYPE1SC_ACTIVATE_PING_REPORT == 1) */
     p_modem_ctxt->persist.ping_resp_urc.index = (uint8_t)ping_id;
     PRINT_DBG("intermediate ping report")
-    p_modem_ctxt->persist.ping_resp_urc.is_final_report = CELLULAR_FALSE;
+    p_modem_ctxt->persist.ping_resp_urc.is_final_report = CS_FALSE;
     /* Type1SC modem does not provide length, it's an input parameter */
     p_modem_ctxt->persist.ping_resp_urc.ping_size = TYPE1SC_PING_LENGTH;
   }
@@ -1196,7 +1209,7 @@ at_action_rsp_t fRspAnalyze_PINGCMD(at_context_t *p_at_ctxt, atcustom_modem_cont
     p_modem_ctxt->persist.ping_resp_urc.ttl = (uint8_t)ttl;
 
     /* finally, after having received all parameters, set the final status for this ping */
-    p_modem_ctxt->persist.ping_resp_urc.ping_status = CELLULAR_OK;
+    p_modem_ctxt->persist.ping_resp_urc.ping_status = CS_OK;
   }
   else
   {
@@ -1217,8 +1230,8 @@ at_action_rsp_t fRspAnalyze_PINGCMD(at_context_t *p_at_ctxt, atcustom_modem_cont
 void clear_ping_resp_struct(atcustom_modem_context_t *p_modem_ctxt)
 {
   /* clear CS_Ping_response_t structure parameters EXCEPT ping_resp_urc.index */
-  p_modem_ctxt->persist.ping_resp_urc.ping_status = CELLULAR_ERROR;
-  p_modem_ctxt->persist.ping_resp_urc.is_final_report = CELLULAR_FALSE;
+  p_modem_ctxt->persist.ping_resp_urc.ping_status = CS_ERROR;
+  p_modem_ctxt->persist.ping_resp_urc.is_final_report = CS_FALSE;
   (void) memset((void *)&p_modem_ctxt->persist.ping_resp_urc.ping_addr[0], 0, MAX_SIZE_IPADDR);
   p_modem_ctxt->persist.ping_resp_urc.ping_size = 0U;
   p_modem_ctxt->persist.ping_resp_urc.time = 0U;

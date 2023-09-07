@@ -158,7 +158,6 @@ at_status_t fCmdBuild_ATD_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_co
 
     (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "*99***%d#", modem_cid);
 
-    /* (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params , "*99#" ); */
   }
   return (retval);
 }
@@ -258,7 +257,7 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
       switch (bg96_shared.QCFG_command_param)
       {
         case QCFG_gprsattach:
-          /* cmd_nb_params = 1U; */
+          /* cmd_nb_params = 1U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_nwscanseq:
@@ -284,7 +283,7 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
           (void) sprintf((CRC_CHAR_t *)&cmd_param2, "%d", 1);  /* 1 means take effect immediately */
           break;
         case QCFG_roamservice:
-          /* cmd_nb_params = 2U; */
+          /* cmd_nb_params = 2U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_band:
@@ -299,15 +298,15 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
           (void) sprintf((CRC_CHAR_t *)&cmd_param4, "%d", 1);  /* 1 means take effect immediately */
           break;
         case QCFG_servicedomain:
-          /* cmd_nb_params = 2U; */
+          /* cmd_nb_params = 2U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_sgsn:
-          /* cmd_nb_params = 1U; */
+          /* cmd_nb_params = 1U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_msc:
-          /* cmd_nb_params = 1U; */
+          /* cmd_nb_params = 1U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_PDP_DuplicateChk:
@@ -320,19 +319,19 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
           /* NOT IMPLEMENTED */
           break;
         case QCFG_urc_ri_smsincoming:
-          /* cmd_nb_params = 2U; */
+          /* cmd_nb_params = 2U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_urc_ri_other:
-          /* cmd_nb_params = 2U; */
+          /* cmd_nb_params = 2U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_signaltype:
-          /* cmd_nb_params = 1U; */
+          /* cmd_nb_params = 1U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_urc_delay:
-          /* cmd_nb_params = 1U; */
+          /* cmd_nb_params = 1U */
           /* NOT IMPLEMENTED */
           break;
         case QCFG_urc_psm:
@@ -360,11 +359,11 @@ at_status_t fCmdBuild_QCFG_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
     }
     /* this case never happen until now
     * else if (cmd_nb_params == 3U)
-    * {
+    * { --
     *   command has 3 parameters (this is a WRITE command)
     *   (void) sprintf((CRC_CHAR_t *)p_atp_ctxt->current_atcmd.params, "\"%s\",%s,%s,%s",
-    *                  BG96_QCFG_LUT[bg96_shared.QCFG_command_param], cmd_param1, cmd_param2, cmd_param3);
-    * }
+    *                  BG96_QCFG_LUT[bg96_shared.QCFG_command_param], cmd_param1, cmd_param2, cmd_param3) --
+    * } --
     */
     else if (cmd_nb_params == 2U)
     {
@@ -575,13 +574,13 @@ at_status_t fCmdBuild_COPS_BG96(atparser_context_t *p_atp_ctxt, atcustom_modem_c
    */
 
   CS_OperatorSelector_t *operatorSelect = &(p_modem_ctxt->SID_ctxt.write_operator_infos);
-  if (operatorSelect->AcT_present == CELLULAR_TRUE)
+  if (operatorSelect->AcT_present == CS_TRUE)
   {
     if (operatorSelect->AcT == CS_ACT_E_UTRAN)
     {
       /* BG96 AcT = 8 means cat.M1
       *  3GPP AcT = 8 means CS_ACT_EC_GSM_IOT, cat.M1 value is 9
-      *  convert 9 to 8 for BG96
+      *  => convert CS_ACT_E_UTRAN to CS_ACT_EC_GSM_IOT) for BG96
       */
       operatorSelect->AcT = CS_ACT_EC_GSM_IOT;
     }
@@ -608,23 +607,6 @@ at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
   at_action_rsp_t retval = ATACTION_RSP_ERROR;
   PRINT_API("enter fRspAnalyze_Error_BG96()")
 
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
-  if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
-  {
-    /* in case of error during socket connection,
-    * release the modem CID for this socket_handle
-    */
-    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
-    {
-      (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
-    }
-    else
-    {
-      PRINT_ERR("No socket info context to release cid")
-    }
-  }
-#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
-
   /* analyze Error for BG96 */
   switch (p_atp_ctxt->current_atcmd.id)
   {
@@ -639,6 +621,7 @@ at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
     case CMD_AT_QPSMCFG:
     case CMD_AT_QPSMEXTCFG:
     case CMD_AT_CEDRXS:
+    case CMD_AT_QCSQ:
     case CMD_AT_QNWINFO:
     case CMD_AT_QENG:
       /* error is ignored */
@@ -675,6 +658,30 @@ at_action_rsp_t fRspAnalyze_Error_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
         retval = fRspAnalyze_Error(p_at_ctxt, p_modem_ctxt, p_msg_in, element_infos);
       }
       break;
+
+#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+    case CMD_AT_QIOPEN:
+      /* specific error case:
+       *  when socket creation fails, the error management will be done in at_SID_CS_DIAL_COMMAND.
+       */
+      retval = ATACTION_RSP_FRC_CONTINUE;
+      break;
+
+    case CMD_AT_QICLOSE:
+      if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
+      {
+        /* specific error case:
+         *  when QICLOSE requested during SID_CS_DIAL_COMMAND fails, errors will be managed in SID_CS_DIAL_COMMAND.
+         */
+        retval = ATACTION_RSP_FRC_CONTINUE;
+      }
+      else
+      {
+        retval = fRspAnalyze_Error(p_at_ctxt, p_modem_ctxt, p_msg_in, element_infos);
+      }
+      break;
+
+#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
     default:
       retval = fRspAnalyze_Error(p_at_ctxt, p_modem_ctxt, p_msg_in, element_infos);
@@ -1106,7 +1113,8 @@ at_action_rsp_t fRspAnalyze_QCFG_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
 at_action_rsp_t fRspAnalyze_QCCID_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                        const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
-  /*UNUSED(p_at_ctxt);*/
+  UNUSED(p_at_ctxt);
+
   at_action_rsp_t retval = ATACTION_RSP_INTERMEDIATE; /* received a valid intermediate answer */
   PRINT_API("enter fRspAnalyze_QCCID_BG96()")
 
@@ -1157,7 +1165,8 @@ at_action_rsp_t fRspAnalyze_QCCID_BG96(at_context_t *p_at_ctxt, atcustom_modem_c
 at_action_rsp_t fRspAnalyze_QINISTAT_BG96(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                           const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
-  /*UNUSED(p_at_ctxt);*/
+  UNUSED(p_at_ctxt);
+
   at_action_rsp_t retval = ATACTION_RSP_INTERMEDIATE; /* received a valid intermediate answer */
   PRINT_API("enter fRspAnalyze_QINISTAT_BG96()")
 
@@ -1487,7 +1496,7 @@ at_action_rsp_t fRspAnalyze_COPS_BG96(at_context_t *p_at_ctxt, atcustom_modem_co
       {
         /* BG96 AcT = 8 means cat.M1
         *  3GPP AcT = 8 means CS_ACT_EC_GSM_IOT, cat.M1 value if 9
-        *  convert 8 to 9 for upper layers
+        *  => convert CS_ACT_EC_GSM_IOT to CS_ACT_E_UTRAN for upper layers
         */
         p_modem_ctxt->SID_ctxt.read_operator_infos.AcT = CS_ACT_E_UTRAN;
       }

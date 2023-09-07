@@ -78,6 +78,7 @@ CS_Status_t osCDS_socket_set_callbacks(socket_handle_t sockHandle,
                                        cellular_socket_data_sent_callback_t data_sent_cb,
                                        cellular_socket_closed_callback_t remote_close_cb);
 
+#if defined(CSAPI_OPTIONAL_FUNCTIONS)
 /**
   * @brief  Define configurable options for a created socket.
   * @note   This function is called to configure one parameter at a time.
@@ -100,6 +101,7 @@ CS_Status_t osCDS_socket_set_option(socket_handle_t sockHandle,
   * @retval CS_Status_t
   */
 CS_Status_t osCDS_socket_get_option(void);
+#endif /* defined(CSAPI_OPTIONAL_FUNCTIONS) */
 
 /**
   * @brief  Bind the socket to a local port.
@@ -492,6 +494,51 @@ CS_Status_t osCS_PowerWakeup(CS_wakeup_origin_t wakeup_origin);
 CS_Status_t osCS_SetPowerConfig(CS_set_power_config_t *p_power_config);
 #endif  /* (USE_LOW_POWER == 1) */
 
+/* =========================================================
+   ===========   Com MDM Functions BEGIN       =============
+   ========================================================= */
+#if defined(USE_COM_MDM)
+
+/**
+  * @brief  Register a callback for MDM URC messages from modem
+  * @note
+  * @param  commdm_urc_cb Pointer to the call backfunction
+  * @retval CS_Status_t
+  */CS_Status_t osCS_ComMdm_subscribe_event(CS_comMdm_callback_t commdm_urc_cb);
+
+/**
+  * @brief  Send a command to the modem and wait for the network response
+  * @note
+  * @param  txBuf Pointer to the structure describing data to transmit
+  * @param  rxBuf Pointer to the structure describing received response data
+  * @param  errorCode Pointer to an integer representing the error status associated with the response data
+  * @retval CS_Status_t
+  */
+CS_Status_t osCS_ComMdm_transaction(CS_Tx_Buffer_t *txBuf, CS_Rx_Buffer_t *rxBuf, int32_t *errorCode);
+
+/**
+  * @brief  Send a command to the modem without waiting any response
+  * @note
+  * @param  txBuf Pointer to the structure describing data to transmit
+  * @param  errorCode Pointer to an integer representing the error status
+  * @retval CS_Status_t
+  */
+CS_Status_t osCS_ComMdm_send(CS_Tx_Buffer_t *txBuf, int32_t *errorCode);
+
+/**
+  * @brief  Read data previously received by the modem
+  * @note
+  * @param  rxBuf Pointer to the structure describing received data
+  * @param  errorCode Pointer to an integer representing the error status associated with the received data
+  * @retval CS_Status_t
+  */
+CS_Status_t osCS_ComMdm_receive(CS_Rx_Buffer_t *rxBuf, int32_t *errorCode);
+
+/* =========================================================
+   ===========   Com MDM Functions end       ===============
+   ========================================================= */
+
+#endif /* defined(USE_COM_MDM) */
 
 #ifdef __cplusplus
 }

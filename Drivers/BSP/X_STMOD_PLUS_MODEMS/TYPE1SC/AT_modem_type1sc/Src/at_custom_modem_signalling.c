@@ -409,7 +409,7 @@ at_status_t fCmdBuild_PDNSET_TYPE1SC(atparser_context_t *p_atp_ctxt, atcustom_mo
     PRINT_INFO("user cid = %d, modem cid = %d", (uint8_t)current_conf_id, modem_cid)
 
     /* build command */
-    if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CELLULAR_TRUE)
+    if (p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn_present == CS_TRUE)
     {
       /* use the APN explicitly providedby user */
       p_apn = (CS_CHAR_t *) &p_modem_ctxt->persist.pdp_ctxt_infos[current_conf_id].apn;
@@ -545,23 +545,6 @@ at_action_rsp_t fRspAnalyze_Error_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mode
   at_action_rsp_t retval;
   PRINT_API("enter fRspAnalyze_Error_TYPE1SC()")
 
-#if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
-  if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
-  {
-    /* in case of error during socket connection,
-    * release the modem CID for this socket_handle
-    */
-    if (p_modem_ctxt->socket_ctxt.p_socket_info != NULL)
-    {
-      (void) atcm_socket_release_modem_cid(p_modem_ctxt, p_modem_ctxt->socket_ctxt.p_socket_info->socket_handle);
-    }
-    else
-    {
-      PRINT_ERR("No socket context to release cid")
-    }
-  }
-#endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
-
   /* analyze Error for TYPE1SC */
   switch (p_atp_ctxt->current_atcmd.id)
   {
@@ -585,6 +568,7 @@ at_action_rsp_t fRspAnalyze_Error_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mode
     case CMD_AT_GETACFG:
     case CMD_AT_SETBDELAY:
     case CMD_AT_NOTIFYEV:
+    case CMD_AT_PDNRDP:
       /* modem specific commands, error is ignored */
       retval = ATACTION_RSP_FRC_END;
       break;
@@ -606,12 +590,50 @@ at_action_rsp_t fRspAnalyze_Error_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mode
       break;
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+    case CMD_AT_SOCKETCMD_ALLOCATE:
     case CMD_AT_SOCKETCMD_ACTIVATE:
       /* specific error case:
-       *  when socket activation fails whereas allocation was successful, we need
+       *  when socket allocation fails or activation fails whereas allocation was successful, we need
        *  to send command to release socket_id which was allocated by the modem.
        */
       retval = ATACTION_RSP_FRC_CONTINUE;
+      break;
+
+    case CMD_AT_SOCKETCMD_DELETE:
+      if (p_atp_ctxt->current_SID == (at_msg_t) SID_CS_DIAL_COMMAND)
+      {
+        /* specific error case:
+         *  when socket activation or allocation fails and a socket Id was allocated by the modem,
+         *  we request to delete it. But, depending on error, it may have been already released by the modem.
+         *  Ignore error in this case.
+         */
+        retval = ATACTION_RSP_FRC_CONTINUE;
+      }
+      else if (p_atp_ctxt->current_SID == (at_msg_t)SID_CS_SOCKET_CLOSE)
+      {
+        /* specific error case:
+         *  Ignore error in this case.
+         */
+        retval = ATACTION_RSP_FRC_CONTINUE;
+      }
+      else
+      {
+        retval = fRspAnalyze_Error(p_at_ctxt, p_modem_ctxt, p_msg_in, element_infos);
+      }
+      break;
+
+    case CMD_AT_SOCKETCMD_DEACTIVATE:
+      if (p_atp_ctxt->current_SID == (at_msg_t)SID_CS_SOCKET_CLOSE)
+      {
+        /* specific error case:
+         *  Ignore error in this case.
+         */
+        retval = ATACTION_RSP_FRC_CONTINUE;
+      }
+      else
+      {
+        retval = fRspAnalyze_Error(p_at_ctxt, p_modem_ctxt, p_msg_in, element_infos);
+      }
       break;
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM) */
 
@@ -780,6 +802,7 @@ at_action_rsp_t fRspAnalyze_GETCFG_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mod
 at_action_rsp_t fRspAnalyze_PDNRDP_TYPE1SC(at_context_t *p_at_ctxt, atcustom_modem_context_t *p_modem_ctxt,
                                            const IPC_RxMessage_t *p_msg_in, at_element_info_t *element_infos)
 {
+  UNUSED(p_modem_ctxt);
   atparser_context_t *p_atp_ctxt = &(p_at_ctxt->parser);
   at_action_rsp_t retval = ATACTION_RSP_INTERMEDIATE;
   PRINT_API("enter fCRspAnalyze_PDNRDP_TYPE1SC()")
@@ -797,14 +820,31 @@ at_action_rsp_t fRspAnalyze_PDNRDP_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mod
     *    [<CR><LF>%PDNRDP: . . .]]
     */
 
+    /* Note:
+     * The IP address reported to upper layer is retrieved from AT+CGPADDR.
+     * AT%PDNRDP is only informative in current implementation (a lot of info are available like apn used...).
+     * The IP address is also decoded here but it is not copied in database (ie atcm_put_IP_address_infos() is
+     * not called) because AT+CGPADDR is easiest to decode.
+     */
     START_PARAM_LOOP()
     PRINT_DBG("%%PDNRDP param_rank = %d", element_infos->param_rank)
     if (element_infos->param_rank == 2U)
     {
-      uint32_t modem_cid = ATutil_convertStringToInt(&p_msg_in->buffer[element_infos->str_start_idx],
-                                                     element_infos->str_size);
-      PRINT_DBG("%%PDNRDP cid=%ld", modem_cid)
-      p_modem_ctxt->CMD_ctxt.modem_cid = modem_cid;
+      /* <ext_sessionID> */
+      PRINT_DBG("%%PDNRDP cid")
+      PRINT_BUF((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size)
+    }
+    else if (element_infos->param_rank == 3U)
+    {
+      /* <bearer_id> */
+      PRINT_DBG("%%PDNRDP bearer_id")
+      PRINT_BUF((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size)
+    }
+    else if (element_infos->param_rank == 4U)
+    {
+      /* <apn> */
+      PRINT_DBG("%%PDNRDP apn")
+      PRINT_BUF((const uint8_t *)&p_msg_in->buffer[element_infos->str_start_idx], element_infos->str_size)
     }
     else if (element_infos->param_rank == 5U)
     {
@@ -833,7 +873,7 @@ at_action_rsp_t fRspAnalyze_PDNRDP_TYPE1SC(at_context_t *p_at_ctxt, atcustom_mod
                       (const void *)&p_msg_in->buffer[element_infos->str_start_idx],
                       (size_t) ip_addr_size);
 
-        PRINT_INFO("%%PDNRDP addr=%s (size=%d)", (AT_CHAR_t *)&ip_addr_info.ip_addr_value, ip_addr_size)
+        PRINT_DBG("%%PDNRDP addr=%s (size=%d)", (AT_CHAR_t *)&ip_addr_info.ip_addr_value, ip_addr_size)
       }
     }
     else
