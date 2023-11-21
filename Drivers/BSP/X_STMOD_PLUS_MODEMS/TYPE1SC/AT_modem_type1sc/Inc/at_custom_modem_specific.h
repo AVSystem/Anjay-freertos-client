@@ -71,6 +71,7 @@ extern "C" {
 #define TYPE1SC_SIMREADY_TIMEOUT      ((uint32_t)3000U)
 
 #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
+#define TYPE1SC_DNSRSLV_TIMEOUT       ((uint32_t)60000)  /* 60 sec */
 #define TYPE1SC_PING_TIMEOUT          ((uint32_t)15000)  /* 15 sec */
 #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
 

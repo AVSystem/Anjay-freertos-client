@@ -256,7 +256,7 @@ void ATCustom_TYPE1SC_init(atparser_context_t *p_atp_ctxt)
       fCmdBuild_SOCKETDATA_RECEIVE,   fRspAnalyze_SOCKETDATA
     },
     {
-      CMD_AT_DNSRSLV,                "%DNSRSLV",     TYPE1SC_DEFAULT_TIMEOUT,
+      CMD_AT_DNSRSLV,                "%DNSRSLV",     TYPE1SC_DNSRSLV_TIMEOUT,
       fCmdBuild_DNSRSLV,              fRspAnalyze_DNSRSLV
     },
     {

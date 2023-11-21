@@ -46,13 +46,16 @@ static int get_pressure(float *out_pressure) {
         LOG(ERROR, "IKS01A2 barometer not initialized");
         return -1;
     }
-    float pressure;
-    if (BSP_PRESSURE_Get_Press(g_sensor_barometer, &pressure)) {
+    if (BSP_PRESSURE_Get_Press(g_sensor_barometer, out_pressure)) {
         LOG(ERROR, "error getting current pressure");
         return -1;
     }
+    if (!*out_pressure) {
+        // Disregard 0 reading
+        return -1;
+    }
     // convert hPa to Pa
-    *out_pressure = 100.0f * pressure;
+    *out_pressure = 100.0f * *out_pressure;
     return 0;
 }
 

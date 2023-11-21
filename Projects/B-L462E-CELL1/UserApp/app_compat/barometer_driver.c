@@ -39,6 +39,10 @@ static int get_pressure(float *out_pressure) {
         LOG(ERROR, "Error getting current pressure");
         return -1;
     }
+    if (!*out_pressure) {
+        // Disregard 0 reading
+        return -1;
+    }
     // convert hPa to Pa
     *out_pressure = 100.0f * *out_pressure;
     return 0;

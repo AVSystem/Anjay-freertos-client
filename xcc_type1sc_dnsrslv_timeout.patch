@@ -1,0 +1,32 @@
+# Following patch was applied to X-Cube-Cellular 7.1.0 to make it more
+# compatible with some newer revisions of the TYPE1SC firmware, in which the
+# AT%DNSRSLV request sometimes takes longer than 15 seconds if performed just
+# after attaching to the network. The timeout may cause the eventual response
+# to interfere with subsequent AT command requests, which causes a fatal error
+# in a situation where successful communication is perfectly possible.
+
+diff --git a/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Inc/at_custom_modem_specific.h b/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Inc/at_custom_modem_specific.h
+index 4f6924bb..258e87fc 100644
+--- a/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Inc/at_custom_modem_specific.h
++++ b/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Inc/at_custom_modem_specific.h
+@@ -71,6 +71,7 @@ extern "C" {
+ #define TYPE1SC_SIMREADY_TIMEOUT      ((uint32_t)3000U)
+ 
+ #if (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)
++#define TYPE1SC_DNSRSLV_TIMEOUT       ((uint32_t)60000)  /* 60 sec */
+ #define TYPE1SC_PING_TIMEOUT          ((uint32_t)15000)  /* 15 sec */
+ #endif /* (USE_SOCKETS_TYPE == USE_SOCKETS_MODEM)*/
+ 
+diff --git a/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Src/at_custom_modem_specific.c b/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Src/at_custom_modem_specific.c
+index 5bd1d6a3..f7aa4ad2 100644
+--- a/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Src/at_custom_modem_specific.c
++++ b/Drivers/BSP/X_STMOD_PLUS_MODEMS/TYPE1SC/AT_modem_type1sc/Src/at_custom_modem_specific.c
+@@ -256,7 +256,7 @@ void ATCustom_TYPE1SC_init(atparser_context_t *p_atp_ctxt)
+       fCmdBuild_SOCKETDATA_RECEIVE,   fRspAnalyze_SOCKETDATA
+     },
+     {
+-      CMD_AT_DNSRSLV,                "%DNSRSLV",     TYPE1SC_DEFAULT_TIMEOUT,
++      CMD_AT_DNSRSLV,                "%DNSRSLV",     TYPE1SC_DNSRSLV_TIMEOUT,
+       fCmdBuild_DNSRSLV,              fRspAnalyze_DNSRSLV
+     },
+     {

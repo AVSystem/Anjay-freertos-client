@@ -30,7 +30,7 @@
 #else // USE_SIM_BOOTSTRAP
 #define DEFAULT_USE_SIM_BOOTSTRAP "n"
 #endif // USE_SIM_BOOTSTRAP
-#define FIRMWARE_VERSION "23.09"
+#define FIRMWARE_VERSION "23.11"
 #define MD5_OF_ZERO_BYTES_INITIALIZER                                     \
     {                                                                     \
         0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, \

@@ -1,5 +1,11 @@
 # Changelog
 
+### 23.11 (Nov 21st, 2023)
+
+### Bugfixes
+- Increased the AT command timeout for the DNS resolution command, for better
+  compatibility with various TYPE1SC firmware versions
+
 ## 23.09 (Sep 7th, 2023)
 
 ### Features

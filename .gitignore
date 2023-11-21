@@ -13,3 +13,5 @@ Projects/**/STM32CubeIDE/crypto.txt
 Projects/**/STM32CubeIDE/postbuild.sh
 __pycache__/
 /.metadata/
+!OEM_KEY_COMPANY1_key_AES_CBC.bin
+!OEM_KEY_COMPANY1_key_AES_GCM.bin
