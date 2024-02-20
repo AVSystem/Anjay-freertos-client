@@ -1,5 +1,10 @@
 # Changelog
 
+## 24.02 (Feb 20th, 2024)
+
+### Features
+- Updated Anjay version
+
 ### 23.11 (Nov 21st, 2023)
 
 ### Bugfixes
