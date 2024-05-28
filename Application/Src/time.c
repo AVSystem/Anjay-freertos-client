@@ -21,6 +21,8 @@
 #include "cmsis_os.h"
 #include "task.h"
 
+#include "circ_buffer_ipc.h"
+
 #if defined(STM32L496xx) || defined(STM32L462xx)
 #include "stm32l4xx_hal.h"
 #endif // defined(STM32L496xx) || defined(STM32L462xx)
@@ -65,50 +67,22 @@ static cclk_response_t g_cclk_response_candidate;
 
 #define CCLK_RESPONSE_PREFIX "+CCLK: \""
 
+static int cclk_check_and_parse_msg_from_buffer(char *msg_buffer) {
+    if (strncmp(g_cclk_response_candidate, CCLK_RESPONSE_PREFIX,
+                strlen(CCLK_RESPONSE_PREFIX))
+            == 0) {
+        memcpy(g_cclk_response, g_cclk_response_candidate,
+               sizeof(g_cclk_response));
+    }
+
+    return 0;
+}
 static void read_modem_cclk_rx_callback(IPC_Handle_t *channel) {
     // CAUTION: We are in an ISR context here
-    uint16_t bytes_available =
-            IPC_RXBUF_MAXSIZE - IPC_RXFIFO_getFreeBytes(channel);
-    uint16_t bytes_read = 0;
-    while (bytes_read + 2 < bytes_available) {
-        uint8_t header1 =
-                channel->RxQueue
-                        .data[(channel->RxQueue.index_read + bytes_read++)
-                              % IPC_RXBUF_MAXSIZE];
-        uint8_t header2 =
-                channel->RxQueue
-                        .data[(channel->RxQueue.index_read + bytes_read++)
-                              % IPC_RXBUF_MAXSIZE];
-        uint16_t msg_size =
-                ((header1 & IPC_RXMSG_HEADER_SIZE_MASK) << 8) + header2;
-        if (bytes_read + msg_size > bytes_available) {
-            break;
-        }
-        uint16_t truncated_msg_size =
-                AVS_MIN(msg_size, sizeof(g_cclk_response_candidate) - 1);
-        uint16_t start_idx =
-                (channel->RxQueue.index_read + bytes_read) % IPC_RXBUF_MAXSIZE;
-        uint16_t end_idx =
-                (channel->RxQueue.index_read + bytes_read + truncated_msg_size)
-                % IPC_RXBUF_MAXSIZE;
-        if (start_idx <= end_idx) {
-            memcpy(g_cclk_response_candidate, &channel->RxQueue.data[start_idx],
-                   end_idx - start_idx);
-        } else {
-            memcpy(g_cclk_response_candidate, &channel->RxQueue.data[start_idx],
-                   IPC_RXBUF_MAXSIZE - start_idx);
-            memcpy(&g_cclk_response_candidate[IPC_RXBUF_MAXSIZE - start_idx],
-                   channel->RxQueue.data, end_idx);
-        }
-        g_cclk_response_candidate[truncated_msg_size] = '\0';
-        if (strncmp(g_cclk_response_candidate, CCLK_RESPONSE_PREFIX,
-                    strlen(CCLK_RESPONSE_PREFIX))
-                == 0) {
-            memcpy(g_cclk_response, g_cclk_response_candidate,
-                   sizeof(g_cclk_response));
-        }
-        bytes_read += msg_size;
-    }
+    read_ipc_circ_buffer_and_handle_msg(channel, g_cclk_response_candidate,
+                                        sizeof(g_cclk_response_candidate),
+                                        cclk_check_and_parse_msg_from_buffer);
+
     if (g_orig_rx_callback) {
         g_orig_rx_callback(channel);
     }

@@ -29,7 +29,7 @@
 #include <nvm_partition_driver.h>
 
 // Last char denotes version
-#define MAGIC_CONFIG "anjay_nvm_conf\3"
+#define MAGIC_CONFIG "anjay_nvm_conf\4"
 #define MAGIC_MODULES "anjay_nvm_mods\1"
 #define MAGIC_CORE "anjay_nvm_core\1"
 #define MAGIC_LEN (sizeof(MAGIC_CONFIG) - 1)

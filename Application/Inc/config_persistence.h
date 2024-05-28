@@ -17,6 +17,10 @@
 #ifndef CONFIG_PERSISTENCE_H
 #define CONFIG_PERSISTENCE_H
 
+#ifdef USE_SMS_TRIGGER
+#include <anjay/sms.h>
+#endif // USE_SMS_TRIGGER
+
 #include <avsystem/commons/avs_stream_md5.h>
 
 #include "cellular_service_datacache.h"
@@ -33,6 +37,11 @@ typedef struct {
     char apn[APN_SIZE];
     char apn_username[APN_USERNAME_SIZE];
     char apn_password[APN_PASSWORD_SIZE];
+#ifdef USE_SMS_TRIGGER
+    char use_sms_trigger[2];
+    char local_msisdn[ANJAY_MSISDN_SIZE];
+    char server_msisdn[ANJAY_MSISDN_SIZE];
+#endif // USE_SMS_TRIGGER
     char firmware_version[32];
     char bootstrap[2];
     char security[5];

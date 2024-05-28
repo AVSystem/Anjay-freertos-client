@@ -41,6 +41,11 @@ typedef enum {
     OPTION_APN,
     OPTION_APN_USERNAME,
     OPTION_APN_PASSWORD,
+#ifdef USE_SMS_TRIGGER
+    OPTION_USE_SMS_TRIGGER,
+    OPTION_LOCAL_MSISDN,
+    OPTION_SERVER_MSISDN,
+#endif // USE_SMS_TRIGGER
     OPTION_USE_PERSISTENCE,
 #ifdef USE_SIM_BOOTSTRAP
     OPTION_USE_SIM_BOOTSTRAP,
@@ -79,6 +84,15 @@ static menu_option_t OPTIONS[] = {
                               sizeof(g_config.apn_username) },
     [OPTION_APN_PASSWORD] = { "APN password", g_config.apn_password,
                               sizeof(g_config.apn_password) },
+#ifdef USE_SMS_TRIGGER
+    [OPTION_LOCAL_MSISDN] = { "Local MSISDN number", g_config.local_msisdn,
+                              sizeof(g_config.local_msisdn) },
+    [OPTION_SERVER_MSISDN] = { "Server MSISDN number", g_config.server_msisdn,
+                               sizeof(g_config.server_msisdn) },
+    [OPTION_USE_SMS_TRIGGER] = { "Use SMS trigger (y/n)",
+                                 g_config.use_sms_trigger,
+                                 sizeof(g_config.use_sms_trigger) },
+#endif // USE_SMS_TRIGGER
     [OPTION_USE_PERSISTENCE] =
             {
                     "Use module persistence (0 - disabled, 1 - enabled)",
@@ -149,6 +163,11 @@ static void config_restore_defaults(void) {
         .apn = DEFAULT_APN,
         .apn_username = DEFAULT_APN_USERNAME,
         .apn_password = DEFAULT_APN_PASSWORD,
+#ifdef USE_SMS_TRIGGER
+        .use_sms_trigger = DEFAULT_USE_SMS_TRIGGER,
+        .local_msisdn = DEFAULT_LOCAL_MSISDN,
+        .server_msisdn = DEFAULT_SERVER_MSISDN,
+#endif // USE_SMS_TRIGGER
         .use_persistence = DEFAULT_USE_PERSISTENCE,
         .sim_bs_data_md5 = MD5_OF_ZERO_BYTES_INITIALIZER,
         .use_sim_bootstrap = DEFAULT_USE_SIM_BOOTSTRAP
@@ -232,6 +251,12 @@ bool menu_is_sim_bootstrap_enabled(void) {
     return g_config.use_sim_bootstrap[0] == 'y';
 }
 #endif // USE_SIM_BOOTSTRAP
+
+#ifdef USE_SMS_TRIGGER
+bool menu_is_sms_trigger_enabled(void) {
+    return g_config.use_sms_trigger[0] == 'y';
+}
+#endif // USE_SMS_TRIGGER
 
 void menu_init(void) {
     console_init();

@@ -23,5 +23,8 @@ bool menu_is_module_persistence_enabled(void);
 #ifdef USE_SIM_BOOTSTRAP
 bool menu_is_sim_bootstrap_enabled(void);
 #endif // USE_SIM_BOOTSTRAP
+#ifdef USE_SMS_TRIGGER
+bool menu_is_sms_trigger_enabled(void);
+#endif // USE_SMS_TRIGGER
 
 #endif // MENU_H

@@ -1,5 +1,11 @@
 # Changelog
 
+## 24.05 (May 28th, 2024)
+
+### Features
+- (commercial feature) Added support for SIM Bootstrap for B-U585I-IOT02A with BG96 project
+- (commercial feature) Added support for SMS Trigger
+
 ## 24.02 (Feb 20th, 2024)
 
 ### Features

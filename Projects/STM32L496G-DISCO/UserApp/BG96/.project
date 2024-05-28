@@ -62,14 +62,14 @@
 			<locationURI>PARENT-1-PROJECT_LOC/STM32L496AGIX_FLASH_debug.ld</locationURI>
 		</link>
 		<link>
-			<name>STM32L496AGIX_RAM.ld</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/STM32L496AGIX_RAM.ld</locationURI>
-		</link>
-		<link>
 			<name>app_compat</name>
 			<type>2</type>
 			<locationURI>PARENT-1-PROJECT_LOC/app_compat</locationURI>
+		</link>
+		<link>
+			<name>Drivers/BSP/Components/mfxstm32l152.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/Drivers/BSP/Components/mfxstm32l152/mfxstm32l152.c</locationURI>
 		</link>
 		<link>
 			<name>Drivers/BSP/STM32L496G_Discovery/stm32l496g_discovery.c</name>
@@ -80,16 +80,6 @@
 			<name>Drivers/BSP/STM32L496G_Discovery/stm32l496g_discovery_io.c</name>
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/Drivers/BSP/STM32L496G_Discovery/stm32l496g_discovery_io.c</locationURI>
-		</link>
-		<link>
-			<name>Middlewares/STM32_Secure_Engine/se_interface_app.o</name>
-			<type>1</type>
-			<locationURI>PARENT-2-PROJECT_LOC/2_Images_SBSFU/STM32CubeIDE/Debug/se_interface_app.o</locationURI>
-		</link>
-		<link>
-			<name>Drivers/BSP/Components/mfxstm32l152.c</name>
-			<type>1</type>
-			<locationURI>PARENT-4-PROJECT_LOC/Drivers/BSP/Components/mfxstm32l152/mfxstm32l152.c</locationURI>
 		</link>
 	</linkedResources>
 	<variableList>

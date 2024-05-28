@@ -16,7 +16,7 @@
 				</extensions>
 			</storageModule>
 			<storageModule moduleId="cdtBuildSystem" version="4.0.0">
-				<configuration artifactExtension="elf" artifactName="${ProjName}" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe,org.eclipse.cdt.build.core.buildType=org.eclipse.cdt.build.core.buildType.debug" cleanCommand="rm -rf" description="" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.303574242" name="Debug" parent="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug">
+				<configuration artifactExtension="elf" artifactName="${ProjName}" buildArtefactType="org.eclipse.cdt.build.core.buildArtefactType.exe" buildProperties="org.eclipse.cdt.build.core.buildArtefactType=org.eclipse.cdt.build.core.buildArtefactType.exe,org.eclipse.cdt.build.core.buildType=org.eclipse.cdt.build.core.buildType.debug" cleanCommand="rm -rf" description="" errorParsers="org.eclipse.cdt.core.GASErrorParser;org.eclipse.cdt.core.GmakeErrorParser;org.eclipse.cdt.core.GLDErrorParser;org.eclipse.cdt.core.CWDLocator;org.eclipse.cdt.core.GCCErrorParser" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.303574242" name="Debug" parent="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug" postbuildStep="arm-none-eabi-objcopy -O binary &quot;${BuildArtifactFileBaseName}.elf&quot; &quot;../${BuildArtifactFileBaseName}.bin&quot; &amp;&amp; arm-none-eabi-size &quot;${BuildArtifactFileName}&quot;">
 					<folderInfo id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.303574242." name="/" resourcePath="">
 						<toolChain id="com.st.stm32cube.ide.mcu.gnu.managedbuild.toolchain.exe.debug.527054602" name="MCU ARM GCC" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.toolchain.exe.debug">
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.target_mcu.1175093383" name="MCU" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.target_mcu" useByScannerDiscovery="true" value="STM32L462REYx" valueType="string"/>
@@ -29,7 +29,7 @@
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.converthex.1277815974" name="Convert to Intel Hex file (-O ihex)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.converthex" useByScannerDiscovery="false" value="true" valueType="boolean"/>
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.convertbinary.1361112970" name="Convert to binary file (-O binary)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.convertbinary" useByScannerDiscovery="false" value="true" valueType="boolean"/>
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.ELF" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.targetplatform.694355387" isAbstract="false" osList="all" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.targetplatform"/>
-							<builder buildPath="${workspace_loc:/B-L462E-CELL1}/Debug" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.builder.961603355" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" parallelBuildOn="true" parallelizationNumber="optimal" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.builder"/>
+							<builder autoBuildTarget="all" buildPath="${workspace_loc:/B-L462E-CELL1}/Debug" cleanBuildTarget="clean" enableAutoBuild="false" enableCleanBuild="true" enabledIncrementalBuild="true" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.builder.961603355" incrementalBuildTarget="all" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" parallelBuildOn="true" parallelizationNumber="optimal" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.builder"/>
 							<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.1636541635" name="MCU GCC Assembler" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler">
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel.491143751" name="Debug level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel" useByScannerDiscovery="false" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel.value.g3" valueType="enumerated"/>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.input.972943272" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.input"/>
@@ -38,14 +38,14 @@
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.debuglevel.1935534472" name="Debug level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.debuglevel" useByScannerDiscovery="false" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.debuglevel.value.g3" valueType="enumerated"/>
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.optimization.level.95400670" name="Optimization level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.optimization.level" useByScannerDiscovery="false" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.optimization.level.value.os" valueType="enumerated"/>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.definedsymbols.286941083" name="Define symbols (-D)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.definedsymbols" useByScannerDiscovery="false" valueType="definedSymbols">
-									<listOptionValue builtIn="false" value="DEBUG"/>
+									<listOptionValue builtIn="false" value="NDEBUG"/>
 									<listOptionValue builtIn="false" value="USE_HAL_DRIVER"/>
 									<listOptionValue builtIn="false" value="STM32L462xx"/>
 									<listOptionValue builtIn="false" value="USE_SOCKETS_TYPE=USE_SOCKETS_MODEM"/>
 									<listOptionValue builtIn="false" value="MBEDTLS_CONFIG_FILE=&quot;mbedtls.h&quot;"/>
 									<listOptionValue builtIn="false" value="USE_B_L462E_CELL1"/>
-									<listOptionValue builtIn="false" value="USE_AIBP"/>
 									<listOptionValue builtIn="false" value="USE_TYPE1SC_MODEM"/>
+									<listOptionValue builtIn="false" value="USE_AIBP"/>
 								</option>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths.1734307138" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="../../../../../Middlewares/ST/STM32_Cellular/Core/Cellular_Service/Inc"/>
@@ -121,7 +121,7 @@
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/CMSIS"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/STM32L4xx_HAL_Driver"/>
 						<entry excluding="Core/PPPosif" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/ST/STM32_Cellular"/>
-						<entry excluding="cmake/|demo/|doc/|example_configs/|examples/|tests/|tools/|travis/|.dockerignore|.git|.gitignore|.gitmodules|.travis.yml|CMakeLists.txt|CONTRIBUTING.rst|covconfig|devconfig|Dockerfile|Doxyfile.in|LICENSE|ltoconfig|NOTICE|README.md|README.Windows.md|valgrind_test.supp|deps/avs_coap/cmake/|deps/avs_coap/deps/avs_commons/|deps/avs_coap/examples/|deps/avs_coap/tests/|deps/avs_coap/tools/|deps/avs_commons/cmake/|deps/avs_commons/doc/|deps/avs_commons/tests/|deps/avs_commons/tools/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/Anjay"/>
+						<entry excluding="cmake/|demo/|doc/|example_configs/|examples/|tests/|tools/|travis/|.dockerignore|.git|.gitignore|.gitmodules|.travis.yml|CMakeLists.txt|CONTRIBUTING.rst|covconfig|devconfig|Dockerfile|Doxyfile.in|LICENSE|ltoconfig|NOTICE|README.md|README.Windows.md|valgrind_test.supp|deps/avs_coap/cmake/|deps/avs_coap/deps/avs_commons/|deps/avs_coap/examples/|deps/avs_coap/tests/|deps/avs_coap/tools/|deps/avs_commons/cmake/|deps/avs_commons/doc/|deps/avs_commons/tests/|deps/avs_commons/tools/|standalone/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/Anjay"/>
 						<entry excluding="Source/portable/GCC/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"/>
 						<entry excluding=".github/|3rdparty/|ChangeLog.d/|docs/|doxygen/|programs/|scripts/|tests/|visualc/|.git|.gitignore|.globalrc|.pylintrc|.travis.yml|ChangeLog|CMakeLists.txt|CONTRIBUTING.md|DartConfiguration.tcl|dco.txt|LICENSE|Makefile|README.md" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/mbedtls"/>
@@ -157,23 +157,24 @@
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.converthex.1735697110" name="Convert to Intel Hex file (-O ihex)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.converthex" useByScannerDiscovery="false" value="true" valueType="boolean"/>
 							<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.convertbinary.432003566" name="Convert to binary file (-O binary)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.option.convertbinary" useByScannerDiscovery="false" value="true" valueType="boolean"/>
 							<targetPlatform archList="all" binaryParser="org.eclipse.cdt.core.ELF" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.targetplatform.1558678504" isAbstract="false" osList="all" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.targetplatform"/>
-							<builder buildPath="${workspace_loc:/B-L462E-CELL1}/Release" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.builder.573048761" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" parallelBuildOn="true" parallelizationNumber="optimal" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.builder"/>
+							<builder autoBuildTarget="all" buildPath="${workspace_loc:/B-L462E-CELL1}/Release" cleanBuildTarget="clean" enableAutoBuild="false" enableCleanBuild="true" enabledIncrementalBuild="true" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.builder.573048761" incrementalBuildTarget="all" keepEnvironmentInBuildfile="false" managedBuildOn="true" name="Gnu Make Builder" parallelBuildOn="true" parallelizationNumber="optimal" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.builder"/>
 							<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.1966104019" name="MCU GCC Assembler" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler">
-								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel.643310085" name="Debug level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel.value.g0" valueType="enumerated"/>
+								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel.643310085" name="Debug level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel" useByScannerDiscovery="false" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.option.debuglevel.value.g0" valueType="enumerated"/>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.input.428710520" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.assembler.input"/>
 							</tool>
 							<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.411563767" name="MCU GCC Compiler" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler">
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.debuglevel.952097975" name="Debug level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.debuglevel" useByScannerDiscovery="false" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.debuglevel.value.g0" valueType="enumerated"/>
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.optimization.level.370570289" name="Optimization level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.optimization.level" useByScannerDiscovery="false" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.optimization.level.value.os" valueType="enumerated"/>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.definedsymbols.2104113971" name="Define symbols (-D)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.definedsymbols" useByScannerDiscovery="false" valueType="definedSymbols">
-									<listOptionValue builtIn="false" value="USE_HAL_DRIVER"/>
-									<listOptionValue builtIn="false" value="USE_FW_UPDATE"/>
 									<listOptionValue builtIn="false" value="NDEBUG"/>
+									<listOptionValue builtIn="false" value="USE_HAL_DRIVER"/>
 									<listOptionValue builtIn="false" value="STM32L462xx"/>
 									<listOptionValue builtIn="false" value="USE_SOCKETS_TYPE=USE_SOCKETS_MODEM"/>
 									<listOptionValue builtIn="false" value="MBEDTLS_CONFIG_FILE=&quot;mbedtls.h&quot;"/>
 									<listOptionValue builtIn="false" value="USE_B_L462E_CELL1"/>
 									<listOptionValue builtIn="false" value="USE_TYPE1SC_MODEM"/>
+									<listOptionValue builtIn="false" value="USE_AIBP"/>
+									<listOptionValue builtIn="false" value="USE_FW_UPDATE"/>
 								</option>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths.65958709" name="Include paths (-I)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.option.includepaths" useByScannerDiscovery="false" valueType="includePath">
 									<listOptionValue builtIn="false" value="../../../../../Middlewares/ST/STM32_Cellular/Core/Cellular_Service/Inc"/>
@@ -225,7 +226,7 @@
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level.462745574" name="Optimization level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level" useByScannerDiscovery="false" value="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level.value.os" valueType="enumerated"/>
 							</tool>
 							<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.1478038978" name="MCU GCC Linker" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker">
-								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.script.1679402742" name="Linker Script (-T)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.script" value="${workspace_loc:/${ProjName}/STM32L462REYX_FLASH.ld}" valueType="string"/>
+								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.script.1679402742" name="Linker Script (-T)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.script" useByScannerDiscovery="false" value="${workspace_loc:/${ProjName}/STM32L462REYX_FLASH.ld}" valueType="string"/>
 								<option IS_BUILTIN_EMPTY="false" IS_VALUE_EMPTY="false" id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.otherflags.1881755242" name="Other flags" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.otherflags" useByScannerDiscovery="false" valueType="stringList">
 									<listOptionValue builtIn="false" value="-Xlinker -L ../../../Linker_Common/STM32CubeIDE"/>
 								</option>
@@ -260,7 +261,7 @@
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/CMSIS"/>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Drivers/STM32L4xx_HAL_Driver"/>
 						<entry excluding="Core/PPPosif" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/ST/STM32_Cellular"/>
-						<entry excluding="cmake/|demo/|doc/|example_configs/|examples/|tests/|tools/|travis/|.dockerignore|.git|.gitignore|.gitmodules|.travis.yml|CMakeLists.txt|CONTRIBUTING.rst|covconfig|devconfig|Dockerfile|Doxyfile.in|LICENSE|ltoconfig|NOTICE|README.md|README.Windows.md|valgrind_test.supp|deps/avs_coap/cmake/|deps/avs_coap/deps/avs_commons/|deps/avs_coap/examples/|deps/avs_coap/tests/|deps/avs_coap/tools/|deps/avs_commons/cmake/|deps/avs_commons/doc/|deps/avs_commons/tests/|deps/avs_commons/tools/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/Anjay"/>
+						<entry excluding="cmake/|demo/|doc/|example_configs/|examples/|tests/|tools/|travis/|.dockerignore|.git|.gitignore|.gitmodules|.travis.yml|CMakeLists.txt|CONTRIBUTING.rst|covconfig|devconfig|Dockerfile|Doxyfile.in|LICENSE|ltoconfig|NOTICE|README.md|README.Windows.md|valgrind_test.supp|deps/avs_coap/cmake/|deps/avs_coap/deps/avs_commons/|deps/avs_coap/examples/|deps/avs_coap/tests/|deps/avs_coap/tools/|deps/avs_commons/cmake/|deps/avs_commons/doc/|deps/avs_commons/tests/|deps/avs_commons/tools/|standalone/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/Anjay"/>
 						<entry excluding="Source/portable/GCC/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"/>
 						<entry excluding=".github/|3rdparty/|ChangeLog.d/|docs/|doxygen/|programs/|scripts/|tests/|visualc/|.git|.gitignore|.globalrc|.pylintrc|.travis.yml|ChangeLog|CMakeLists.txt|CONTRIBUTING.md|DartConfiguration.tcl|dco.txt|LICENSE|Makefile|README.md" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="Middlewares/Third_Party/mbedtls"/>
@@ -287,10 +288,10 @@
 	</storageModule>
 	<storageModule moduleId="refreshScope" versionNumber="2">
 		<configuration configurationName="Debug">
-			<resource resourceType="PROJECT" workspacePath="/Anjay-freertos-client-B-L462E-CELL1-TYPE1SC"/>
+			<resource resourceType="PROJECT" workspacePath="/Anjay-freertos-client-B-L462E-CELL1-TYPE1SC-AIBP"/>
 		</configuration>
 		<configuration configurationName="Release">
-			<resource resourceType="PROJECT" workspacePath="/Anjay-freertos-client-B-L462E-CELL1-TYPE1SC"/>
+			<resource resourceType="PROJECT" workspacePath="/Anjay-freertos-client-B-L462E-CELL1-TYPE1SC-AIBP"/>
 		</configuration>
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>

@@ -15,28 +15,29 @@
  */
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #include <anjay/anjay.h>
 #include <anjay/attr_storage.h>
 #include <anjay/security.h>
 #include <anjay/server.h>
 
-#include <avsystem/commons/avs_list.h>
 #include <avsystem/commons/avs_log.h>
 #include <avsystem/commons/avs_prng.h>
+#include <avsystem/commons/avs_sched.h>
 
-#include "cellular_service_datacache.h"
-#include "cmsis_os_misrac2012.h"
-#include "dc_common.h"
-#include "error_handler.h"
+#include <cellular_service_datacache.h>
+#include <cmsis_os.h>
+#include <dc_common.h>
+#include <error_handler.h>
 
 #include "application.h"
 #include "config_persistence.h"
+#include "device_object.h"
 #include "lwm2m.h"
 #include "menu.h"
 #include "persistence.h"
-
-#include "device_object.h"
 #include "sensor_objects.h"
 
 #include "joystick_object.h"
@@ -61,9 +62,21 @@
 #include "pattern_detector_object.h"
 #endif
 
+#if defined(STM32L496xx) || defined(STM32L462xx)
+#include "stm32l4xx_hal_rng.h"
+#endif // defined(STM32L496xx) || defined(STM32L462xx)
+
+#if defined(STM32U585xx)
+#include "stm32u5xx_hal_rng.h"
+#endif // defined(STM32U585xx)
+
+#ifdef USE_SMS_TRIGGER
+#include "sms_driver.h"
+#endif // USE_SMS_TRIGGER
+
 #define LOG(level, ...) avs_log(app, level, __VA_ARGS__)
 
-static anjay_t *volatile g_anjay;
+anjay_t *volatile g_anjay;
 static avs_crypto_prng_ctx_t *g_prng_ctx;
 
 static osThreadId g_lwm2m_task_handle;
@@ -73,6 +86,11 @@ extern RNG_HandleTypeDef hrng;
 
 // Used to communicate between datacache callback and lwm2m thread
 static osMessageQId status_msg_queue;
+
+#ifdef USE_SMS_TRIGGER
+static anjay_smsdrv_t *sms_drv;
+static avs_sched_handle_t serve_sms_job_handle;
+#endif // USE_SMS_TRIGGER
 
 static void dc_cellular_callback(dc_com_event_id_t dc_event_id,
                                  const void *user_arg) {
@@ -111,8 +129,6 @@ static void lwm2m_notify_job(avs_sched_t *sched, const void *anjay_ptr) {
     static size_t cycle = 0;
     anjay_t *anjay = *(anjay_t *const *) anjay_ptr;
 
-    device_object_update(anjay);
-
     joystick_object_update(anjay);
 
 #ifdef USE_AIBP
@@ -150,6 +166,11 @@ static int setup_security_object_from_config(void) {
     anjay_security_instance_t security_instance = {
         .ssid = 1,
         .server_uri = g_config.server_uri,
+#ifdef USE_SMS_TRIGGER
+        .sms_security_mode = ANJAY_SMS_SECURITY_NOSEC,
+        .server_sms_number =
+                menu_is_sms_trigger_enabled() ? g_config.server_msisdn : NULL,
+#endif // USE_SMS_TRIGGER
     };
     if (strcmp(g_config.security, "psk") == 0) {
         security_instance.security_mode = ANJAY_SECURITY_PSK;
@@ -211,7 +232,10 @@ static int setup_server_object_from_config(void) {
         .default_min_period = -1,
         .default_max_period = -1,
         .disable_timeout = -1,
-        .binding = binding_mode_from_uri(g_config.server_uri)
+        .binding = binding_mode_from_uri(g_config.server_uri),
+#ifdef USE_SMS_TRIGGER
+        .trigger = menu_is_sms_trigger_enabled() ? &(bool) { true } : NULL,
+#endif // USE_SMS_TRIGGER
     };
 
     anjay_iid_t server_instance_id = ANJAY_ID_INVALID;
@@ -312,7 +336,12 @@ static anjay_t *create_and_setup_anjay(void) {
         .out_buffer_size = 2048,
         .msg_cache_size = 2048,
         .use_connection_id = true,
-        .prng_ctx = g_prng_ctx
+        .prng_ctx = g_prng_ctx,
+#ifdef USE_SMS_TRIGGER
+        .sms_driver = sms_drv,
+        .local_msisdn =
+                menu_is_sms_trigger_enabled() ? g_config.local_msisdn : NULL,
+#endif // USE_SMS_TRIGGER
     };
 
     anjay_t *anjay = NULL;
@@ -349,15 +378,40 @@ static anjay_t *create_and_setup_anjay(void) {
     return anjay;
 }
 
+#ifdef USE_SMS_TRIGGER
+static void serve_sms_job(avs_sched_t *sched, const void *arg) {
+    (void) arg;
+
+    AVS_LIST(const anjay_socket_entry_t) entries =
+            anjay_get_socket_entries(g_anjay);
+    AVS_LIST(const anjay_socket_entry_t) entry;
+    AVS_LIST_FOREACH(entry, entries) {
+        if (entry->transport == ANJAY_SOCKET_TRANSPORT_SMS)
+            if (sms_drv->should_try_recv(sms_drv, AVS_TIME_DURATION_ZERO)) {
+                anjay_serve(g_anjay, entry->socket);
+            }
+    }
+    AVS_SCHED_DELAYED(sched, &serve_sms_job_handle,
+                      avs_time_duration_from_scalar(1, AVS_TIME_S),
+                      serve_sms_job, NULL, 0);
+}
+#endif // USE_SMS_TRIGGER
+
 static void lwm2m_thread(void const *user_arg) {
     (void) user_arg;
 
-    (void) osMessageGet(status_msg_queue, RTOS_WAIT_FOREVER);
+    (void) osMessageGet(status_msg_queue, osWaitForever);
 
     int sync_time_result = avs_time_stm32_sync_time();
     if (sync_time_result) {
         LOG(WARNING, "failed to synchronize time");
     }
+
+#ifdef USE_SMS_TRIGGER
+    if (menu_is_sms_trigger_enabled()) {
+        sms_drv = _anjay_freertos_sms_driver_create();
+    }
+#endif // USE_SMS_TRIGGER
 
     anjay_t *anjay = create_and_setup_anjay();
 
@@ -369,8 +423,30 @@ static void lwm2m_thread(void const *user_arg) {
     lwm2m_notify_job(anjay_get_scheduler(anjay), &anjay);
     // TODO handle connection lost
 
+#ifdef USE_SMS_TRIGGER
+    if (menu_is_sms_trigger_enabled()) {
+        serve_sms_job(anjay_get_scheduler(anjay), NULL);
+    }
+#endif // USE_SMS_TRIGGER
+
     anjay_event_loop_run(anjay, avs_time_duration_from_scalar(1, AVS_TIME_S));
 
+#ifdef USE_SMS_TRIGGER
+    if (menu_is_sms_trigger_enabled()) {
+        anjay_smsdrv_cleanup(&sms_drv);
+        avs_sched_del(&serve_sms_job_handle);
+    }
+#endif // USE_SMS_TRIGGER
+
+
+    device_object_reboot_if_requested();
+
+#ifdef USE_SMS_TRIGGER
+    if (menu_is_sms_trigger_enabled()) {
+        anjay_smsdrv_cleanup(&sms_drv);
+        avs_sched_del(&serve_sms_job_handle);
+    }
+#endif // USE_SMS_TRIGGER
 }
 
 static int
@@ -418,7 +494,6 @@ void lwm2m_init(void) {
     }
 }
 
-
 static uint32_t lwm2m_thread_stack_buffer[LWM2M_THREAD_STACK_SIZE];
 static osStaticThreadDef_t lwm2m_thread_controlblock;
 void lwm2m_start(void) {
@@ -431,4 +506,17 @@ void lwm2m_start(void) {
         LOG(ERROR, "failed to create thread");
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
     }
+}
+
+static void interrupt_anjay(avs_sched_t *sched, const void *arg) {
+    (void) sched;
+    (void) arg;
+    anjay_event_loop_interrupt(g_anjay);
+}
+
+void lwm2m_stop(void) {
+    // the job is scheduled to allow finalizing processing of messages
+    AVS_SCHED_DELAYED(anjay_get_scheduler(g_anjay), NULL,
+                      avs_time_duration_from_scalar(1, AVS_TIME_S),
+                      interrupt_anjay, NULL, 0);
 }

@@ -79,7 +79,7 @@ log_handler(avs_log_level_t level, const char *module, const char *message) {
     traceIF_uartPrintForce(DBG_CHAN_APPLICATION, (uint8_t *) "\r\n", 2);
 }
 
-void application_init() {
+void application_init(void) {
     menu_init();
 
     avs_log_set_handler(log_handler);

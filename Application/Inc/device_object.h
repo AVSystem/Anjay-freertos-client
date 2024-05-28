@@ -20,6 +20,6 @@
 #include <anjay/anjay.h>
 
 int device_object_install(anjay_t *anjay);
-void device_object_update(anjay_t *anjay);
+void device_object_reboot_if_requested(void);
 
 #endif // DEVICE_OBJECT_H

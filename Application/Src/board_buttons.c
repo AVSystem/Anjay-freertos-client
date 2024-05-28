@@ -36,11 +36,15 @@
 /* Includes ------------------------------------------------------------------*/
 #include "plf_config.h"
 
-#include "board_buttons.h"
-#include "cmsis_os_misrac2012.h"
-#include "dc_common.h"
-#include "error_handler.h"
+#include <stdbool.h>
+#include <stdint.h>
 
+#include <cmsis_os.h>
+
+#include <dc_common.h>
+#include <error_handler.h>
+
+#include "board_buttons.h"
 #include "joystick_object.h"
 
 /* Private typedef -----------------------------------------------------------*/
@@ -78,7 +82,7 @@ void board_buttons_thread(void const *argument) {
     dc_com_event_id_t event_id;
 
     for (;;) {
-        event = osMessageGet(board_buttons_msg_queue, RTOS_WAIT_FOREVER);
+        event = osMessageGet(board_buttons_msg_queue, osWaitForever);
         if (event.status == osEventMessage) {
             event_id = (dc_com_event_id_t) event.value.v;
             (void) dc_com_write_event(&dc_com_db, event_id);
@@ -101,7 +105,7 @@ static void buttons_callback(dc_com_event_id_t dc_event_id,
  * @retval board_buttons_status_t    return status
  */
 static void board_buttons_debounce_timer_callback(void const *argument) {
-    UNUSED(argument);
+    (void) argument;
     debounce_ongoing = 0U;
 }
 

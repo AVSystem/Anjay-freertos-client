@@ -24,13 +24,16 @@
 #define DEFAULT_APN "internet"
 #define DEFAULT_APN_USERNAME "internet"
 #define DEFAULT_APN_PASSWORD "internet"
+#define DEFAULT_USE_SMS_TRIGGER "y"
+#define DEFAULT_LOCAL_MSISDN "48000000000"
+#define DEFAULT_SERVER_MSISDN "48000000000"
 #define DEFAULT_USE_PERSISTENCE "0"
 #ifdef USE_SIM_BOOTSTRAP
 #define DEFAULT_USE_SIM_BOOTSTRAP "y"
 #else // USE_SIM_BOOTSTRAP
 #define DEFAULT_USE_SIM_BOOTSTRAP "n"
 #endif // USE_SIM_BOOTSTRAP
-#define FIRMWARE_VERSION "24.02"
+#define FIRMWARE_VERSION "24.05"
 #define MD5_OF_ZERO_BYTES_INITIALIZER                                     \
     {                                                                     \
         0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, \

@@ -23,9 +23,17 @@
 #include <avsystem/commons/avs_memory.h>
 
 #include "default_config.h"
+#include "lwm2m.h"
 #include "main.h"
-
 #include "utils.h"
+
+#if defined(STM32L496xx) || defined(STM32L462xx)
+#include "stm32l4xx_hal_cortex.h"
+#endif // defined(STM32L496xx) || defined(STM32L462xx)
+
+#if defined(STM32U585xx)
+#include "stm32u5xx_hal_cortex.h"
+#endif // defined(STM32U585xx)
 
 /**
  * Manufacturer: R, Single, Optional
@@ -115,10 +123,10 @@
 
 typedef struct device_object_struct {
     const anjay_dm_object_def_t *def;
-
     device_id_t serial_number;
-    bool reboot;
 } device_object_t;
+
+static bool reboot;
 
 static inline device_object_t *
 get_obj(const anjay_dm_object_def_t *const *obj_ptr) {
@@ -238,7 +246,8 @@ static int resource_execute(anjay_t *anjay,
 
     switch (rid) {
     case RID_REBOOT:
-        obj->reboot = true;
+        reboot = true;
+        lwm2m_stop();
         return 0;
 
     default:
@@ -290,14 +299,8 @@ int device_object_install(anjay_t *anjay) {
     return anjay_register_object(anjay, OBJ_DEF_PTR);
 }
 
-void device_object_update(anjay_t *anjay) {
-    if (!OBJ_DEF_PTR) {
-        return;
-    }
-
-    device_object_t *obj = &DEVICE_OBJECT;
-
-    if (obj->reboot) {
+void device_object_reboot_if_requested(void) {
+    if (reboot) {
         avs_log(device, INFO, "Rebooting...");
         HAL_NVIC_SystemReset();
     }

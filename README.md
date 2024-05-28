@@ -65,24 +65,53 @@ You can then press any key on your keyboard to enter the configuration menu. Aft
 
 ## Module persistence
 
-This application features persistence of Security object, Server object and
-client's Attribute Storage to retain configuration of those modules over power
-cycles, to e.g. keep bootstrapped server configuration.
+This application features persistence of the Security object, Server object and
+client's Attribute Storage to retain the configuration of those modules over
+power cycles, to e.g. keep bootstrapped server configuration.
 
-To enable module persistence, set "Use module persistence" option to `y` in
-shell config menu. Application will attempt to load those modules from
-non-volatile memory. Configuration of those modules from shell will be ignored,
-unless the application fails to restore the state from the memory.
+To enable module persistence, set properly "Use persistence" option in the
+shell config menu. The application will attempt to load those modules from a
+non-volatile memory. Configuration of those modules from the shell will be
+ignored unless the application fails to restore the state from the memory.
 
-The persisted state of aforementioned modules may be cleared using "Clear module
-persistence" option.
+The persisted state of the aforementioned modules may be cleared using the
+"Clear module persistence" option.
+
+## Core Persistence (commercial feature)
+
+This application features **Core Persistence** that allows to retain the core
+library state over power cycles, to e.g. keep the TLS session valid.
+
+**This feature is available only with releases of Anjay that include the *Core
+Persistence* commercial feature.** To use the Core Persistence feature, make
+sure that the `ANJAY_WITH_CORE_PERSISTENCE` option is enabled, which requires
+also to enable `ANJAY_WITH_OBSERVE` in `Application/Inc/anjay/anjay_config.h`,
+`AVS_COMMONS_WITH_AVS_PERSISTENCE` in
+`Application/Inc/avsystem/commons/avs_commons_config.h` and
+`WITH_AVS_COAP_OBSERVE_PERSISTENCE` in
+`Application/Inc/avsystem/coap/avs_coap_config.h`
+
+If the Core Persistence is compiled in, it works on a similar basis in terms of
+enabling/disabling and clearing it as the module persistence.
 
 ## SIM Bootstrap (commercial feature)
 
-`STM32L496G-DISCO-BG96` project now features the **SIM Bootstrap** that allows
-bootstrapping the device using the SIM Smartcard. **This feature is available
-only with releases of Anjay that include the *bootstrapper* commercial
-feature.** To use the SIM Bootstrap feature, define `USE_SIM_BOOTSTRAP` in the
-`STM32L496G-DISCO-BG96` project settings and make sure that the
-`ANJAY_WITH_MODULE_BOOTSTRAPPER` and `ANJAY_WITH_MODULE_SIM_BOOTSTRAP` options
-are enabled in `Application/Inc/anjay/anjay_config.h`.
+`STM32L496G-DISCO-BG96` and `B-U585I-IOT02A/BG96` projects now feature the
+**SIM Bootstrap** that allows bootstrapping the device using the SIM Smartcard.
+**This feature is available only with releases of Anjay that include the
+*bootstrapper* commercial feature.** To use the SIM Bootstrap feature, define
+`USE_SIM_BOOTSTRAP` in the `STM32L496G-DISCO-BG96` or `B-U585I-IOT02A-BG96`
+project settings and make sure that the `ANJAY_WITH_MODULE_BOOTSTRAPPER` and
+`ANJAY_WITH_MODULE_SIM_BOOTSTRAP` options are enabled in
+`Application/Inc/anjay/anjay_config.h`.
+
+## SMS Trigger (commercial feature)
+
+Every project now features the **SMS Trigger**. **This feature is available
+only with releases of Anjay that include the *SMS* commercial feature.** To use
+the SMS Trigger feature, define `USE_SMS_TRIGGER` in the project settings and
+make sure that the `ANJAY_WITH_SMS` option is enabled in
+`Application/Inc/anjay/anjay_config.h`.
+
+To enable the SMS trigger, set the "Use SMS trigger" option to `y` in the shell
+config menu. Then set local's and server's MSISDN numbers properly.

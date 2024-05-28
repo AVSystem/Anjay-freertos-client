@@ -14,17 +14,19 @@
  * limitations under the License.
  */
 
-#ifndef LWM2M_H
-#define LWM2M_H
+#pragma once
 
-#include <anjay/core.h>
+#ifdef USE_SMS_TRIGGER
 
-extern anjay_t *volatile g_anjay;
+#include <anjay/sms.h>
 
-void lwm2m_init(void);
+/**
+ * Returns the handler to the SMS driver and erases whole sms inbox on the
+ * modem.
+ *
+ * @returns Pointer to the static SMS driver structure on success, NULL in case
+ * of error.
+ */
+anjay_smsdrv_t *_anjay_freertos_sms_driver_create(void);
 
-void lwm2m_start(void);
-
-void lwm2m_stop(void);
-
-#endif // LWM2M_H
+#endif // USE_SMS_TRIGGER

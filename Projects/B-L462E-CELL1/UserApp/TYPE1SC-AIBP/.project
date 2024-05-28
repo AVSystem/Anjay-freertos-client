@@ -62,11 +62,6 @@
 			<locationURI>PARENT-1-PROJECT_LOC/STM32L462REYX_FLASH_debug.ld</locationURI>
 		</link>
 		<link>
-			<name>STM32L462REYX_RAM.ld</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/STM32L462REYX_RAM.ld</locationURI>
-		</link>
-		<link>
 			<name>app_compat</name>
 			<type>2</type>
 			<locationURI>PARENT-1-PROJECT_LOC/app_compat</locationURI>
