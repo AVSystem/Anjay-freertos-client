@@ -153,6 +153,7 @@ int sms_deliver_parse(const char *const pdu_str,
                       sms_deliver_message_t *out_sms_pdu) {
     assert(pdu_str && out_sms_pdu);
 
+    avs_log(sms_trigger, TRACE, "Received SMS (CoAP PDU): %s", pdu_str);
     size_t pdu_str_size = strlen(pdu_str);
     if (pdu_str_size % 2 != 0 || pdu_str_size <= 2) {
         return -1;

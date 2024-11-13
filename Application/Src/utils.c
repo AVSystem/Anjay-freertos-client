@@ -26,8 +26,13 @@
 #endif // defined(STM32L496xx) || defined(STM32L462xx)
 
 #if defined(STM32U585xx)
+#ifdef DEBUG
 #include "stm32u5xx_ll_utils.h"
 #define get_uid_word(word) LL_GetUID_Word##word()
+#else // DEBUG
+#include "non_secure_to_secure.h"
+#define get_uid_word(word) Secure_GetUID_Word(word)
+#endif // DEBUG
 #endif // defined(STM32U585xx)
 
 void get_uid(device_id_t *out_id) {

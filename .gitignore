@@ -9,6 +9,7 @@ Projects/*/.cproject
 Projects/*/.mxproject
 Projects/*/.project
 Projects/**/output.txt
+Projects/**/*.o
 Projects/**/STM32CubeIDE/crypto.txt
 Projects/**/STM32CubeIDE/postbuild.sh
 __pycache__/

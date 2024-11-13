@@ -1,5 +1,10 @@
 # Changelog
 
+## 24.11 (Nov 13th, 2024)
+
+### Features
+- Added Firmware Update Object (/5) to B-U585I-IOT02 project
+
 ## 24.05 (May 28th, 2024)
 
 ### Features
