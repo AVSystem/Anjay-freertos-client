@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,6 +47,8 @@
 #include "mapping_export.h"
 #endif /* __CC_ARM || __ARMCC_VERSION */
 
+#define REQUIRED_FLASH_ALIGNMENT 8
+
 static bool update_initialized;
 static size_t downloaded_bytes;
 
@@ -73,13 +75,17 @@ static int fw_stream_open(void *user_ptr,
     if (FLASH_If_Erase_Size((void *) (SlotStartAdd[SLOT_DWL_1]),
                             SLOT_SIZE(SLOT_DWL_1))
             != HAL_OK) {
-        avs_log(fw_update, WARNING, "Init not successful");
+        avs_log(fw_update, ERROR, "Init not successful");
 
         return -1;
     }
 
-    flash_aligned_writer_new(writer_buf, AVS_ARRAY_SIZE(writer_buf),
-                             flash_aligned_writer_cb, &writer);
+    if (flash_aligned_writer_new(writer_buf, AVS_ARRAY_SIZE(writer_buf),
+                                 flash_aligned_writer_cb, &writer,
+                                 REQUIRED_FLASH_ALIGNMENT)) {
+        avs_log(fw_update, ERROR, "Buffer has wrong size");
+        return -1;
+    }
 
     downloaded_bytes = 0;
     update_initialized = true;
@@ -114,7 +120,7 @@ static int fw_stream_finish(void *user_ptr) {
 
     int res = flash_aligned_writer_flush(&writer);
     if (res) {
-        avs_log(fw_update, INFO,
+        avs_log(fw_update, ERROR,
                 "Failed to finish download: flash aligned writer flush failed, "
                 "result: %d",
                 res);

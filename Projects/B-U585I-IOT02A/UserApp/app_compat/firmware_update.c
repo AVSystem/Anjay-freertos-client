@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,15 +36,15 @@
 
 #define LOG(level, ...) avs_log(firmware_update, level, __VA_ARGS__)
 
+#define REQUIRED_FLASH_ALIGNMENT 16
+
 typedef struct {
     uint32_t MaxSizeInBytes; /*!< The maximum allowed size for the FwImage in
                                 User Flash (in Bytes) */
     uint32_t DownloadAddr;   /*!< The download address for the FwImage in
                                 UserFlash */
-    uint32_t ImageOffsetInBytes; /*!< Image write starts at this offset */
-    uint32_t ExecutionAddr;      /*!< The execution address for the FwImage in
-                                    UserFlash */
     uint32_t StartAddress;
+    size_t DownloadedBytes;
 } SFU_FwImageFlashTypeDef;
 
 extern ARM_DRIVER_FLASH LOADER_FLASH_DEV_NAME;
@@ -79,6 +79,7 @@ static int fw_stream_open(void *user_ptr,
     uint32_t m_uFlashSectorSize;
 
     ARM_FLASH_INFO *data = LOADER_FLASH_DEV_NAME.GetInfo();
+    assert(data->sector_size == REQUIRED_FLASH_ALIGNMENT);
 
     (void) user_ptr;
     (void) package_uri;
@@ -86,8 +87,8 @@ static int fw_stream_open(void *user_ptr,
 
     fw_image_dwl_area.DownloadAddr = FLASH_AREA_2_OFFSET;
     fw_image_dwl_area.MaxSizeInBytes = FLASH_AREA_2_SIZE;
-    fw_image_dwl_area.ImageOffsetInBytes = 0x0;
     fw_image_dwl_area.StartAddress = FLASH_AREA_2_OFFSET;
+    fw_image_dwl_area.DownloadedBytes = 0;
 
     m_uFlashSectorSize = data->sector_size;
 
@@ -104,8 +105,12 @@ static int fw_stream_open(void *user_ptr,
         }
     }
 
-    flash_aligned_writer_new(writer_buf, AVS_ARRAY_SIZE(writer_buf),
-                             flash_aligned_writer_cb, &writer);
+    if (flash_aligned_writer_new(writer_buf, AVS_ARRAY_SIZE(writer_buf),
+                                 flash_aligned_writer_cb, &writer,
+                                 REQUIRED_FLASH_ALIGNMENT)) {
+        LOG(ERROR, "Buffer has wrong size");
+        return -1;
+    }
 
     LOG(INFO, "Successfully initialized");
 
@@ -122,11 +127,10 @@ static int fw_stream_write(void *user_ptr, const void *data, size_t length) {
             (int) ret);
         return ret;
     }
-
+    fw_image_dwl_area.DownloadedBytes += length;
     LOG(INFO, "Write attempt, packet length: %u, total size: %u ",
         (unsigned int) length,
-        (unsigned int) (fw_image_dwl_area.DownloadAddr
-                        - fw_image_dwl_area.StartAddress));
+        (unsigned int) fw_image_dwl_area.DownloadedBytes);
 
     return 0;
 }

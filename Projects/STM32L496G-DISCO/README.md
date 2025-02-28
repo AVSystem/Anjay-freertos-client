@@ -63,7 +63,16 @@ You need to follow a strict compilation order:
    It will be useful when performing FOTA to distinguish the firmware images from each other.
 1. **SBSFU** is a write-protected secure application so you need to unlock the board with the following command:
     ```
-    ./<path_to_STM32_Programmer_CLI> -c port=SWD mode=UR -ob RDP=0xBB -ob RDP=0xAA WRP1A_STRT=0xFF WRP1A_END=0x0 -ob displ
+    ./<path_to_STM32_Programmer_CLI> -c port=SWD mode=UR \
+            -ob RDP=0xAA \
+            WRP1A_STRT=0xFF WRP1A_END=0x0 WRP1B_STRT=0xFF WRP1B_END=0x0 \
+            WRP2A_STRT=0xFF WRP2A_END=0x0 WRP2B_STRT=0xFF WRP2B_END=0x0 \
+            BFB2=0x0 \
+            -ob displ"
+    ```
+    It is also required to erase the board:
+    ```
+    ./<path_to_STM32_Programmer_CLI> -c port=SWD -e all
     ```
 1. Copy `SBSFU_Anjay-freertos-client-STM32L496G-BG96.bin` file to the board mass storage.
 1. Open serial port to change the default credentials in order to connect to Coiote DM.

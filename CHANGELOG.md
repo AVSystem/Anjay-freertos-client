@@ -1,5 +1,11 @@
 # Changelog
 
+## 25.02 (February 28th, 2025)
+
+### Bugfixes
+- Fixed an issue with FOTA on B-U585I-IOT02 by adding required padding to the downloaded image
+- Corrected option bytes settings while preparing the board in st_adapter.py, adjusted READMEs
+
 ## 24.11 (Nov 13th, 2024)
 
 ### Features

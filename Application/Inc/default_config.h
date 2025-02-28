@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@
 #else // USE_SIM_BOOTSTRAP
 #define DEFAULT_USE_SIM_BOOTSTRAP "n"
 #endif // USE_SIM_BOOTSTRAP
-#define FIRMWARE_VERSION "24.11"
+#define FIRMWARE_VERSION "25.02"
 #define MD5_OF_ZERO_BYTES_INITIALIZER                                     \
     {                                                                     \
         0xD4, 0x1D, 0x8C, 0xD9, 0x8F, 0x00, 0xB2, 0x04, 0xE9, 0x80, 0x09, \

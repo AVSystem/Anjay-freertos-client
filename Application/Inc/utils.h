@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,11 +36,15 @@ flash_aligned_writer_cb_t(uint64_t *src, size_t offset_bytes, size_t len_bytes);
  * HACK: Flash APIs have two issues for which the following utility
  * provides a workaround:
  * - Flash API silently assumes that data to write should be aligned
- *   in memory to uint64_t's alignment requirements, so the data is written
- *   into a array of this type to fulfill the alignment requirement. Anjay
- *   doesn't enforce this alignment.
+ *   in memory to uint64_t's alignment requirements (only on L4xx platform), so
+ *   the data is written into a array of this type to fulfill the alignment
+ *   requirement. Anjay doesn't enforce this alignment.
  * - Flash APIs assume that the length of data to write will be a multiple
- *   of 8, so we need to enforce that by additional buffering.
+ *   of 8/16 bytes, so we need to enforce that by additional buffering or
+ *   padding.
+ *
+ * The @ref flash_aligned_writer_new function checks whether the buffer has the
+ * appropriate size.
  */
 typedef struct {
     uint64_t *batch_buf;
@@ -48,12 +52,14 @@ typedef struct {
     size_t batch_buf_len_bytes;
     size_t write_offset_bytes;
     flash_aligned_writer_cb_t *writer_cb;
+    size_t flash_alignment;
 } flash_aligned_writer_t;
 
-void flash_aligned_writer_new(uint64_t *batch_buf,
-                              size_t batch_buf_max_len_words,
-                              flash_aligned_writer_cb_t *writer_cb,
-                              flash_aligned_writer_t *out_writer);
+int flash_aligned_writer_new(uint64_t *batch_buf,
+                             size_t batch_buf_max_len_words,
+                             flash_aligned_writer_cb_t *writer_cb,
+                             flash_aligned_writer_t *out_writer,
+                             size_t flash_alignment);
 int flash_aligned_writer_write(flash_aligned_writer_t *writer,
                                const uint8_t *data,
                                size_t length);

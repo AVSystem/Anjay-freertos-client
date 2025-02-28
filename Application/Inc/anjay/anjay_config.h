@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -674,6 +674,15 @@
  * <c>anjay_server_connection_status_cb_t</c> callback.
  */
 /* #undef ANJAY_WITH_CONN_STATUS_API */
+
+/**
+ * Enable support for /25 LwM2M Gateway Object.
+ *
+ * Requires <c>ANJAY_WITH_LWM2M11</c> to be enabled.
+ * Requires <c>ANJAY_WITH_CORE_PERSISTENCE</c> (commercial feature) to be
+ * disabled.
+ */
+/* #undef ANJAY_WITH_LWM2M_GATEWAY */
 
 /**@}*/
 
