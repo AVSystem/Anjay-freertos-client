@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Licensed under the AVSystem-5-clause License.
+ * Licensed under AVSystem Anjay LwM2M Client SDK - Non-Commercial License.
  * See the attached LICENSE file for details.
  */
 

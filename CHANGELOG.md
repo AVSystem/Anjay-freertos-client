@@ -1,5 +1,10 @@
 # Changelog
 
+## 25.05 (May 29h, 2025)
+
+### Improvements
+- Updated Anjay version to 3.10.0 and the licenses NOTICE file
+
 ## 25.02 (February 28th, 2025)
 
 ### Bugfixes
