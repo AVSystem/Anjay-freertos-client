@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2026 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,6 +51,9 @@ typedef enum {
     OPTION_USE_SIM_BOOTSTRAP,
 #endif // USE_SIM_BOOTSTRAP
     OPTION_CLEAR_MOD_PERSISTENCE,
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+    OPTION_CLEAR_CORE_PERSISTENCE,
+#endif // ANJAY_WITH_CORE_PERSISTENCE
     OPTION_DISCARD_CHANGES,
     OPTION_FACTORY_RESET,
     _OPTION_END
@@ -95,7 +98,12 @@ static menu_option_t OPTIONS[] = {
 #endif // USE_SMS_TRIGGER
     [OPTION_USE_PERSISTENCE] =
             {
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+                    "Use persistence (0 - disabled, 1 - module, 2 - module and "
+                    "core)",
+#else  // ANJAY_WITH_CORE_PERSISTENCE
                     "Use module persistence (0 - disabled, 1 - enabled)",
+#endif // ANJAY_WITH_CORE_PERSISTENCE
                     g_config.use_persistence,
                     sizeof(g_config.use_persistence) },
 #ifdef USE_SIM_BOOTSTRAP
@@ -105,8 +113,16 @@ static menu_option_t OPTIONS[] = {
 #endif // USE_SIM_BOOTSTRAP
     [OPTION_CLEAR_MOD_PERSISTENCE] =
             {
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+                    "Clear module and core persistence (applies immediately)",
+#else  // ANJAY_WITH_CORE_PERSISTENCE
                     "Clear module persistence (applies immediately)",
+#endif // ANJAY_WITH_CORE_PERSISTENCE
                     NULL, 0 },
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+    [OPTION_CLEAR_CORE_PERSISTENCE] =
+            { "Clear core persistence (applies immediately)", NULL, 0 },
+#endif // ANJAY_WITH_CORE_PERSISTENCE
     [OPTION_DISCARD_CHANGES] = { "Discard changes", NULL, 0 },
     [OPTION_FACTORY_RESET] = { "Factory reset", NULL, 0 },
 };
@@ -195,10 +211,23 @@ static void enter_menu(void) {
             switch (option_id) {
             case OPTION_CLEAR_MOD_PERSISTENCE:
                 if (get_confirmation()) {
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+                    console_printf(
+                            "Clearing module and core persistence...\r\n");
+#else  // ANJAY_WITH_CORE_PERSISTENCE
                     console_printf("Clearing module persistence...\r\n");
+#endif // ANJAY_WITH_CORE_PERSISTENCE
                     persistence_clear();
                 }
                 break;
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+            case OPTION_CLEAR_CORE_PERSISTENCE:
+                if (get_confirmation()) {
+                    console_printf("Clearing core persistence...\r\n");
+                    persistence_core_clear();
+                }
+                break;
+#endif // ANJAY_WITH_CORE_PERSISTENCE
             case OPTION_DISCARD_CHANGES:
                 if (get_confirmation()) {
                     console_printf("Discarding changes...\r\n");
@@ -242,9 +271,19 @@ static void enter_menu(void) {
 }
 
 bool menu_is_module_persistence_enabled(void) {
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+    return g_config.use_persistence[0] == '1'
+           || g_config.use_persistence[0] == '2';
+#else  // ANJAY_WITH_CORE_PERSISTENCE
     return g_config.use_persistence[0] == '1';
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 }
 
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+bool menu_is_core_persistence_enabled(void) {
+    return g_config.use_persistence[0] == '2';
+}
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 
 #ifdef USE_SIM_BOOTSTRAP
 bool menu_is_sim_bootstrap_enabled(void) {
@@ -281,4 +320,13 @@ void menu_init(void) {
         console_printf("load state of aforementioned modules from\r\n");
         console_printf("persistence\r\n");
     }
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+    if (menu_is_core_persistence_enabled()) {
+        console_printf("\r\n");
+        console_printf(
+                "############# CORE PERSISTENCE ENABLED #############\r\n");
+        console_printf("The DTLS connection will be resumed if possible\r\n");
+        console_printf("and core state will be loaded from persistence\r\n");
+    }
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 }

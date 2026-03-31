@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2026 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@
  *
  * <strong>Anjay requires the following avs_coap options to be enabled:</strong>
  *
- * - @c WITH_AVS_COAP_UDP
+ * - @c WITH_AVS_COAP_UDP and/or @c WITH_AVS_COAP_TCP
  * - @c WITH_AVS_COAP_STREAMING_API
  * - @c WITH_AVS_COAP_BLOCK is highly recommended
  * - @c WITH_AVS_COAP_OBSERVE (if @c ANJAY_WITH_OBSERVE is enabled)
@@ -57,7 +57,7 @@
  * - @c avs_url
  * - @c avs_persistence is highly recommended
  * - @c avs_http (if @c ANJAY_WITH_HTTP_DOWNLOAD is enabled)
- * - @c avs_rbtree (if @c ANJAY_WITH_OBSERVE or
+ * - @c avs_rbtree or @c avs_sorted_set (if @c ANJAY_WITH_OBSERVE or
  *   @c ANJAY_WITH_MODULE_ACCESS_CONTROL is enabled)
  *
  * In the repository, this file is provided as <c>anjay_config.h.in</c>,
@@ -128,6 +128,14 @@
  * Enable support for the LwM2M Bootstrap Interface.
  */
 #define ANJAY_WITH_BOOTSTRAP
+
+/**
+ * Enable support for the LwM2M Bootstrap-Pack operation.
+ *
+ * Requires <c>ANJAY_WITH_BOOTSTRAP</c> and <c>ANJAY_WITH_LWM2M12</c> to be
+ * enabled.
+ */
+/* #undef ANJAY_WITH_BOOTSTRAP_PACK */
 
 /**
  * Enable support for the LwM2M Discover operation.
@@ -204,6 +212,13 @@
 #define ANJAY_WITH_LWM2M11
 
 /**
+ * Enable support for features new to LwM2M protocol version 1.2.
+ *
+ * Requires <c>ANJAY_WITH_LWM2M11</c> to be enabled.
+ */
+/* #undef ANJAY_WITH_LWM2M12 */
+
+/**
  * Enable support for OSCORE-based security for LwM2M connections.
  *
  * Requires <c>ANJAY_WITH_LWM2M11</c> to be enabled, and
@@ -213,6 +228,14 @@
  * in the open source version.
  */
 /* #undef ANJAY_WITH_COAP_OSCORE */
+
+/**
+ * Enable support for Observation Attributes.
+ *
+ * Requires <c>ANJAY_WITH_OBSERVE</c> and <c>ANJAY_WITH_LWM2M12</c> to be
+ * enabled.
+ */
+/* #undef ANJAY_WITH_OBSERVATION_ATTRIBUTES */
 
 /**
  * Enable support for the LwM2M Send operation.
@@ -676,6 +699,13 @@
 /* #undef ANJAY_WITH_CONN_STATUS_API */
 
 /**
+ * Enable support for the experimental
+ * <c>anjay_ssl_error_cb_t</c> callback.
+ * Currently only supported for mbedTLS and custom SSL integration builds
+ */
+#define ANJAY_WITH_SSL_ERROR_API
+
+/**
  * Enable support for /25 LwM2M Gateway Object.
  *
  * Requires <c>ANJAY_WITH_LWM2M11</c> to be enabled.
@@ -702,6 +732,19 @@
  * The default value defined in CMake build scripts is 20.
  */
 #define ANJAY_MAX_HOLDOFF_TIME 20
+
+/**
+ * Enable support for optional resources of the Firmware Update object
+ * introduced in LwM2M 1.1.
+ *
+ * This includes the following resources:
+ * - Severity
+ * - Last State Change Time
+ * - Max Defer Period
+ *
+ * Requires <c>ANJAY_WITH_LWM2M11</c> to be enabled.
+ */
+/* #undef ANJAY_WITH_MODULE_FW_UPDATE_V11_RESOURCES */
 
 /**@}*/
 

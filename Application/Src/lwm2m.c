@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2026 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,9 @@
 #include "persistence.h"
 #include "sensor_objects.h"
 
+#ifndef ANJAY_WITH_CORE_PERSISTENCE
 #include "joystick_object.h"
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 
 #ifdef USE_SIM_BOOTSTRAP
 #include <anjay/bootstrapper.h>
@@ -77,6 +79,9 @@
 #define LOG(level, ...) avs_log(app, level, __VA_ARGS__)
 
 anjay_t *volatile g_anjay;
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+static int g_anjay_from_core_persistence_status;
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 static avs_crypto_prng_ctx_t *g_prng_ctx;
 
 static osThreadId g_lwm2m_task_handle;
@@ -129,7 +134,9 @@ static void lwm2m_notify_job(avs_sched_t *sched, const void *anjay_ptr) {
     static size_t cycle = 0;
     anjay_t *anjay = *(anjay_t *const *) anjay_ptr;
 
+#ifndef ANJAY_WITH_CORE_PERSISTENCE
     joystick_object_update(anjay);
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 
 #ifdef USE_AIBP
     ml_model_object_update(anjay);
@@ -345,7 +352,17 @@ static anjay_t *create_and_setup_anjay(void) {
     };
 
     anjay_t *anjay = NULL;
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+    if (menu_is_core_persistence_enabled()) {
+        anjay = persistence_core_try_anjay_new(
+                &config, &g_anjay_from_core_persistence_status);
+    } else {
+        anjay = anjay_new(&config);
+    }
+    persistence_core_clear();
+#else  // ANJAY_WITH_CORE_PERSISTENCE
     anjay = anjay_new(&config);
+#endif // ANJAY_WITH_CORE_PERSISTENCE
     if (!anjay) {
         LOG(ERROR, "failed to create Anjay object");
         ERROR_Handler(DBG_CHAN_APPLICATION, 0, ERROR_FATAL);
@@ -405,6 +422,9 @@ static void lwm2m_thread(void const *user_arg) {
     int sync_time_result = avs_time_stm32_sync_time();
     if (sync_time_result) {
         LOG(WARNING, "failed to synchronize time");
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+        persistence_core_clear();
+#endif // ANJAY_WITH_CORE_PERSISTENCE
     }
 
 #ifdef USE_SMS_TRIGGER
@@ -438,6 +458,19 @@ static void lwm2m_thread(void const *user_arg) {
     }
 #endif // USE_SMS_TRIGGER
 
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+    LOG(INFO, "Anjay stopped");
+    if (menu_is_module_persistence_enabled()
+            && persistence_mod_persist_if_required(anjay)) {
+        LOG(ERROR, "Failed to persist modules");
+    }
+    avs_sched_del(&lwm2m_notify_job_handle);
+
+    if (!sync_time_result && menu_is_core_persistence_enabled()) {
+        g_anjay = NULL;
+        persistence_core_try_anjay_delete(anjay);
+    }
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 
     device_object_reboot_if_requested();
 

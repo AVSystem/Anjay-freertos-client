@@ -1,6 +1,11 @@
 # Changelog
 
-## 26.09 (Sep 26th, 2025)
+## 26.03 (Mar 31st, 2026)
+
+### Improvements
+- Updated Anjay version to 3.13.0
+
+## 25.09 (Sep 26th, 2025)
 
 ### Improvements
 - Updated Anjay version to 3.11.0

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2026 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@
 
 void menu_init(void);
 bool menu_is_module_persistence_enabled(void);
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+bool menu_is_core_persistence_enabled(void);
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 #ifdef USE_SIM_BOOTSTRAP
 bool menu_is_sim_bootstrap_enabled(void);
 #endif // USE_SIM_BOOTSTRAP

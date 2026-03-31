@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2026 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,8 +68,18 @@ void persistence_clear(void) {
     if (nvm_partition_clear(NVM_PARTITION_MODULES)) {
         LOG(ERROR, "Failed to clear modules partition");
     }
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+    persistence_core_clear();
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 }
 
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+void persistence_core_clear(void) {
+    if (nvm_partition_clear(NVM_PARTITION_CORE)) {
+        LOG(ERROR, "Failed to clear core partition");
+    }
+}
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 
 static int try_restore(anjay_t *anjay) {
     avs_stream_t *stream;
@@ -163,3 +173,55 @@ int persistence_mod_persist_if_required(anjay_t *anjay) {
     return 0;
 }
 
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+anjay_t *persistence_core_try_anjay_new(const anjay_configuration_t *config,
+                                        int *status) {
+    assert(config);
+    assert(status);
+
+    avs_stream_t *stream;
+    anjay_t *anjay = NULL;
+    *status = -1;
+    LOG(INFO, "Try to create anjay object from core persistence");
+    if (nvm_partition_stream_input_open(NVM_PARTITION_CORE, &stream)) {
+        LOG(ERROR, "Failed to open partition stream");
+    } else if (!stream) {
+        LOG(WARNING, "Partition not marked valid");
+    } else {
+        if (!(anjay = anjay_new_from_core_persistence(config, stream))) {
+            LOG(ERROR, "Failed to create anjay object from core persistence");
+        }
+
+        if (avs_is_err(avs_stream_cleanup(&stream))) {
+            LOG(ERROR, "Failed to cleanup partition stream");
+        }
+
+        *status = 0;
+    }
+
+    return anjay ? anjay : anjay_new(config);
+}
+
+void persistence_core_try_anjay_delete(anjay_t *anjay) {
+    avs_stream_t *stream;
+    if (nvm_partition_stream_output_open(NVM_PARTITION_CORE, &stream)
+            || !stream) {
+        LOG(ERROR, "Failed to open partition stream");
+        return;
+    }
+
+    if (!anjay_delete_with_core_persistence(anjay, stream)) {
+        LOG(INFO, "Successfully persisted core state");
+    }
+
+    if (avs_is_err(avs_stream_cleanup(&stream))) {
+        LOG(ERROR, "Failed to cleanup partition stream");
+        return;
+    }
+
+    if (nvm_partition_mark_valid(NVM_PARTITION_CORE)) {
+        LOG(ERROR, "Failed to mark the partition valid");
+        return;
+    }
+}
+#endif // ANJAY_WITH_CORE_PERSISTENCE

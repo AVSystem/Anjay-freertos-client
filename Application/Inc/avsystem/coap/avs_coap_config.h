@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2026 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -149,6 +149,30 @@
  * source version.
  */
 /* #undef WITH_AVS_COAP_OSCORE_DRAFT_8 */
+
+/**
+ * Maximum size in bytes supported for the Master Secret.
+ *
+ * If editing this file manually, set it to a positive integer literal.
+ *
+ * The default value defined in CMake build scripts is 32.
+ *
+ * IMPORTANT: Only available with the OSCORE feature. Ignored in the open
+ * source version.
+ */
+/* #undef AVS_COAP_OSCORE_MASTER_SECRET_SIZE */
+
+/**
+ * Maximum size in bytes supported for the Master Salt.
+ *
+ * If editing this file manually, set it to a positive integer literal.
+ *
+ * The default value defined in CMake build scripts is 16.
+ *
+ * IMPORTANT: Only available with the OSCORE feature. Ignored in the open
+ * source version.
+ */
+/* #undef AVS_COAP_OSCORE_MASTER_SALT_SIZE */
 
 /**
  * Maximum number of notification tokens stored to match Reset responses to.

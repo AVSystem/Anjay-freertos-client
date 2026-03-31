@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2025 AVSystem <avsystem@avsystem.com>
+ * Copyright 2020-2026 AVSystem <avsystem@avsystem.com>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,5 +23,11 @@ void persistence_clear(void);
 int persistence_mod_restore(anjay_t *anjay);
 int persistence_mod_persist_if_required(anjay_t *anjay);
 
+#ifdef ANJAY_WITH_CORE_PERSISTENCE
+void persistence_core_clear(void);
+anjay_t *persistence_core_try_anjay_new(const anjay_configuration_t *config,
+                                        int *status);
+void persistence_core_try_anjay_delete(anjay_t *anjay);
+#endif // ANJAY_WITH_CORE_PERSISTENCE
 
 #endif // PERSISTENCE_H
