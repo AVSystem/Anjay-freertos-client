@@ -12,9 +12,6 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * Licensed under AVSystem Anjay LwM2M Client SDK - Non-Commercial License.
- * See the attached LICENSE file for details.
  */
 
 #ifndef AVS_COAP_CONFIG_H
