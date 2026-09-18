@@ -1,10 +1,17 @@
 /*
- * Copyright ##year## AVSystem <avsystem@avsystem.com>
- * AVSystem Commons library
- * All rights reserved.
+ * Copyright 2020-2026 AVSystem <avsystem@avsystem.com>
  *
- * Licensed under AVSystem Commons library - Non-Commercial License.
- * See the attached LICENSE file for details.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #ifndef AVS_COMMONS_CONFIG_H
@@ -563,7 +570,7 @@
  *
  * Example file content:
  *
- * <code>
+ * @code
  * #ifndef AVS_COMMONS_EXTERNAL_LOG_LEVELS_H
  * #define AVS_COMMONS_EXTERNAL_LOG_LEVELS_H
  *
@@ -577,7 +584,7 @@
  * #define AVS_LOG_LEVEL_FOR_MODULE_net QUIET
  *
  * #endif
- * </code>
+ * @endcode
  */
 #define AVS_COMMONS_WITH_EXTERNAL_LOG_LEVELS_HEADER \
     "avsystem/commons/avs_log_levels.h"
@@ -863,6 +870,17 @@
  */
 /* #undef AVS_COMMONS_UTILS_WITH_ALIGNFIX_ALLOCATOR */
 
-/**@}*/
+/**
+ * Enables support for legacy SSL, TLS and DTLS protocol versions.
+ *
+ * If disabled, SSLv2, SSLv3, TLS 1.0, TLS 1.1 and DTLS 1.0 are not supported.
+ * TLS 1.2 and DTLS 1.2 are the minimum protocol versions that may be
+ * negotiated.
+ *
+ * Enabling this option is not recommended, as these protocol versions are
+ * obsolete and have known security weaknesses.
+ */
+/* #undef AVS_COMMONS_WITH_LEGACY_SSL_VERSIONS */
 
+/**@}*/
 #endif /* AVS_COMMONS_CONFIG_H */

@@ -337,11 +337,12 @@ static int setup_required_objects(void) {
 }
 
 static anjay_t *create_and_setup_anjay(void) {
+    size_t msg_cache_size = 2048;
     anjay_configuration_t config = {
         .endpoint_name = g_config.endpoint_name,
         .in_buffer_size = 2048,
         .out_buffer_size = 2048,
-        .msg_cache_size = 2048,
+        .msg_cache_size = &msg_cache_size,
         .use_connection_id = true,
         .prng_ctx = g_prng_ctx,
 #ifdef USE_SMS_TRIGGER
